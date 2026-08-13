@@ -34,6 +34,7 @@
     "@tiptap/react": "^2.11.2",
     "@tiptap/starter-kit": "^2.11.2",
     "@usebruno/common": "0.1.0",
+    "@usebruno/filestore": "0.1.0",
     "@usebruno/graphql-docs": "0.1.0",
     "@usebruno/schema": "0.7.0",
     "@usebruno/sqlite": "0.1.0",

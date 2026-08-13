@@ -30,6 +30,17 @@ export default defineConfig({
   ],
   source: {
     tsconfigPath: './jsconfig.json', // Specifies the path to the JavaScript/TypeScript configuration file,
+    // @usebruno/filestore's worker/redaction modules import node builtins that
+    // the web build never executes — resolve them to inert browser stubs.
+    alias: {
+      'node:worker_threads': './src/web-ipc/stubs/worker-threads.js',
+      'worker_threads$': './src/web-ipc/stubs/worker-threads.js',
+      'node:crypto': './src/web-ipc/stubs/node-crypto.js',
+      'node:path': 'path',
+      // bruno-lang requires ohm-js via CJS; the ESM build the bundler would
+      // otherwise pick has no default-interop `grammar` property.
+      'ohm-js$': 'ohm-js/index.js'
+    },
     exclude: [
       '**/test-utils/**',
       '**/*.test.*',
@@ -52,13 +63,6 @@ export default defineConfig({
       ignoreWarnings: [
         (warning) =>  warning.message.includes('Critical dependency: the request of a dependency is an expression') && warning?.moduleDescriptor?.name?.includes('flow-parser')
       ],
-      // Add externals configuration to exclude Node.js libraries
-      externals: {
-        // List specific Node.js modules you want to exclude
-        // Format: 'module-name': 'commonjs module-name'
-        'worker_threads': 'commonjs worker_threads',
-        // 'path': 'commonjs path'
-      },
       optimization: {
         splitChunks: {
           cacheGroups: {

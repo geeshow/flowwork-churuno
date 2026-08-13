@@ -1,0 +1,23 @@
+meta {
+  name: Create Post
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/posts
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "hello from bruno web",
+    "body": "created via the python execution server",
+    "userId": 1
+  }
+}

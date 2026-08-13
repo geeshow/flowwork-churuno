@@ -1,0 +1,11 @@
+meta {
+  name: Slow Request (2s)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/delay/2
+  body: none
+  auth: none
+}

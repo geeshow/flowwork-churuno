@@ -1,10 +1,16 @@
+import './web-ipc/install';
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './pages/index';
+import { registerWebIpcHandlers } from './web-ipc';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
 const rootElement = document.getElementById('root');
+
+if (window.__BRUNO_WEB_MODE__) {
+  registerWebIpcHandlers();
+}
 
 const Main = () => {
   useEffect(() => {

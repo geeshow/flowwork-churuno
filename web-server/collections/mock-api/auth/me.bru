@@ -1,0 +1,19 @@
+meta {
+  name: Get Current User
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/auth/me2?ㅅte=123
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ㅅte: 123
+}
+
+auth:bearer {
+  token: {{token}}
+}
