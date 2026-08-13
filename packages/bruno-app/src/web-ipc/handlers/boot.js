@@ -261,6 +261,17 @@ const registerBootHandlers = () => {
   handle('renderer:window-is-fullscreen', () => false);
   handle('renderer:window-is-maximized', () => false);
 
+  // Devtools terminal — no pty in the browser; return inert values so the
+  // console panel renders an empty state instead of crashing
+  handle('terminal:list-sessions', () => []);
+  handle('terminal:create', () => null);
+  handle('terminal:input', () => undefined);
+  handle('terminal:resize', () => undefined);
+  handle('terminal:kill', () => undefined);
+  handle('terminal:open-at-cwd', () => null);
+  handle('renderer:start-system-monitoring', () => undefined);
+  handle('renderer:stop-system-monitoring', () => undefined);
+
   handle('renderer:browse-directory', () => webState.activeWorkspacePath || webState.serverRoot);
   handle('renderer:exists-sync', async (pathname) => {
     const { exists } = await serverApi.fsExists(pathname);
