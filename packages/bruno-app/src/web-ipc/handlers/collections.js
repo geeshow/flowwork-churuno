@@ -1,5 +1,6 @@
 import get from 'lodash/get';
 import { uuid } from 'utils/common';
+import { transformRequestToSaveToFilesystem } from 'utils/collections/index';
 import { handle, emit } from '../core';
 import serverApi from '../server-api';
 import webState, { registerCollection, findCollectionForPath, getStableUid } from '../state';
@@ -336,7 +337,152 @@ const registerCollectionHandlers = () => {
     emit('main:collection-tree-updated', type === 'folder' ? 'unlinkDir' : 'unlink', { meta });
   });
 
-  handle('renderer:rename-item-filename', async (oldPath, newPath) => {
+  handle('renderer:resequence-items', async (itemsToResequence, collectionPathname) => {
+    const entry = findCollectionForPath(collectionPathname);
+    const format = entry ? entry.format : 'bru';
+    const collectionUid = collectionUidFor(collectionPathname);
+
+    for (const item of itemsToResequence) {
+      if (item?.type === 'folder') {
+        const folderRootPath = `${item.pathname}/folder.${format}`;
+        let folderData;
+        try {
+          const { content } = await serverApi.fsRead(folderRootPath);
+          folderData = parseFolder(content, { format });
+        } catch (error) {
+          folderData = null;
+        }
+        if (!folderData || !folderData.meta) {
+          folderData = { ...folderData, meta: { name: basename(item.pathname), seq: item.seq } };
+        }
+        if (folderData.meta.seq === item.seq) {
+          continue;
+        }
+        folderData.meta = { ...folderData.meta, seq: item.seq };
+        const content = stringifyFolder(folderData, { format });
+        await serverApi.fsWrite(folderRootPath, content);
+        emit('main:collection-tree-updated', 'change', {
+          meta: { collectionUid, pathname: folderRootPath, name: `folder.${format}`, folderRoot: true },
+          data: folderData
+        });
+      } else if (item?.request) {
+        const itemToSave = transformRequestToSaveToFilesystem(item);
+        const content = stringifyRequest(itemToSave, { format });
+        await serverApi.fsWrite(item.pathname, content);
+        emitRequestFile(collectionUid, item.pathname, content, 'change');
+      }
+    }
+    return true;
+  });
+
+  handle('renderer:rename-collection', async (newName, collectionPathname) => {
+    const entry = findCollectionForPath(collectionPathname);
+    const format = entry ? entry.format : 'bru';
+
+    if (format === 'yml') {
+      const configFilePath = `${collectionPathname}/opencollection.yml`;
+      const { content } = await serverApi.fsRead(configFilePath);
+      const { brunoConfig, collectionRoot } = parseCollection(content, { format: 'yml' });
+      brunoConfig.name = newName;
+      await serverApi.fsWrite(configFilePath, stringifyCollection(collectionRoot, brunoConfig, { format: 'yml' }));
+    } else {
+      const configFilePath = `${collectionPathname}/bruno.json`;
+      const { content } = await serverApi.fsRead(configFilePath);
+      const brunoConfig = JSON.parse(content);
+      brunoConfig.name = newName;
+      await serverApi.fsWrite(configFilePath, JSON.stringify(brunoConfig, null, 2));
+    }
+
+    // entry.brunoConfig may be a frozen object out of the redux store — replace, don't mutate
+    if (entry?.brunoConfig) {
+      entry.brunoConfig = { ...entry.brunoConfig, name: newName };
+    }
+    emit('main:collection-renamed', { collectionPathname, newName });
+  });
+
+  handle('renderer:clone-folder', async (itemFolder, collectionPath, collectionPathname) => {
+    const entry = findCollectionForPath(collectionPathname);
+    const format = entry ? entry.format : 'bru';
+
+    const writeItems = async (items = [], currentPath) => {
+      for (const item of items) {
+        if (['http-request', 'graphql-request', 'grpc-request'].includes(item.type)) {
+          const content = stringifyRequest(item, { format });
+          const baseName = item.filename.replace(/\.(bru|yml)$/, '');
+          await serverApi.fsWrite(`${currentPath}/${baseName}.${format}`, content);
+        } else if (item.type === 'folder') {
+          const folderPath = `${currentPath}/${item.filename}`;
+          await serverApi.fsMkdir(folderPath);
+          if (item.root) {
+            await serverApi.fsWrite(`${folderPath}/folder.${format}`, stringifyFolder(item.root, { format }));
+          }
+          await writeItems(item.items, folderPath);
+        }
+      }
+    };
+
+    await serverApi.fsMkdir(collectionPath);
+    if (itemFolder.root) {
+      await serverApi.fsWrite(`${collectionPath}/folder.${format}`, stringifyFolder(itemFolder.root, { format }));
+    }
+    await writeItems(itemFolder.items, collectionPath);
+
+    // No file watcher in web mode — replay the new subtree into the store the
+    // same way mounting does.
+    const collectionUid = collectionUidFor(collectionPath);
+    emit('main:collection-tree-updated', 'addDir', {
+      meta: {
+        collectionUid,
+        pathname: collectionPath,
+        name: itemFolder.root?.meta?.name || basename(collectionPath),
+        seq: itemFolder.root?.meta?.seq,
+        uid: getStableUid(collectionPath)
+      }
+    });
+    if (itemFolder.root) {
+      emit('main:collection-tree-updated', 'addFile', {
+        meta: { collectionUid, pathname: `${collectionPath}/folder.${format}`, name: `folder.${format}`, folderRoot: true },
+        data: itemFolder.root
+      });
+    }
+    const node = await serverApi.fsTree(collectionPath);
+    await streamDirectory(entry, node, false);
+  });
+
+  handle('renderer:rename-item-name', async ({ itemPath, newName, collectionPathname }) => {
+    const entry = findCollectionForPath(collectionPathname);
+    const format = entry ? entry.format : 'bru';
+    const collectionUid = collectionUidFor(itemPath);
+
+    if (!isParseableFile(basename(itemPath))) {
+      const folderFilePath = `${itemPath}/folder.${format}`;
+      let folderData;
+      try {
+        const { content } = await serverApi.fsRead(folderFilePath);
+        folderData = parseFolder(content, { format });
+      } catch (error) {
+        folderData = {};
+      }
+      folderData.meta = { ...folderData.meta, name: newName };
+      const content = stringifyFolder(folderData, { format });
+      await serverApi.fsWrite(folderFilePath, content);
+      emit('main:collection-tree-updated', 'change', {
+        meta: { collectionUid, pathname: folderFilePath, name: `folder.${format}`, folderRoot: true },
+        data: folderData
+      });
+      return;
+    }
+
+    const fileFormat = formatForFile(itemPath);
+    const { content } = await serverApi.fsRead(itemPath);
+    const data = parseRequest(content, { format: fileFormat });
+    data.name = newName;
+    const newContent = stringifyRequest(data, { format: fileFormat });
+    await serverApi.fsWrite(itemPath, newContent);
+    emitRequestFile(collectionUid, itemPath, newContent, 'change');
+  });
+
+  handle('renderer:rename-item-filename', async ({ oldPath, newPath }) => {
     await serverApi.fsRename(oldPath, newPath);
     const collectionUid = collectionUidFor(newPath);
     emit('main:collection-tree-updated', 'unlink', {

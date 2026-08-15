@@ -1,8 +1,8 @@
-import { buildHar } from '@usebruno/common';
+import { buildHar, isRequestTagsIncluded } from '@usebruno/common';
 import { handle, emit } from '../core';
 import serverApi from '../server-api';
 import { getPreferences } from './boot';
-import { uuid } from 'utils/common';
+import { uuid, sortByNameThenSequence } from 'utils/common';
 import { getAllVariables, getTreePathFromCollectionToItem, mergeHeaders } from 'utils/collections/index';
 import { resolveInheritedAuth } from 'utils/auth';
 import { interpolateUrl, interpolateUrlPathParams } from 'utils/url/index';
@@ -44,13 +44,9 @@ const decodeBody = (dataBase64, headers) => {
   return text;
 };
 
-const sendHttpRequest = async (item, collection, environment, runtimeVariables) => {
-  const requestUid = item.requestUid;
-  const eventBase = { itemUid: item.uid, collectionUid: collection.uid, requestUid };
-  const cancelTokenUid = uuid();
-
-  emit('main:run-request-event', { type: 'request-queued', ...eventBase, cancelTokenUid });
-
+// Interpolates variables, resolves inherited auth/headers and builds the wire
+// request — everything that happens before bytes hit the network.
+const prepareHttpRequest = async (item, collection) => {
   const variables = getAllVariables(collection, item);
   const request = item.draft ? item.draft.request : item.request;
   const settings = item.draft ? item.draft.settings : item.settings;
@@ -97,29 +93,46 @@ const sendHttpRequest = async (item, collection, environment, runtimeVariables) 
     timestamp: Date.now()
   };
 
-  emit('main:run-request-event', { type: 'request-sent', ...eventBase, cancelTokenUid, requestSent });
+  return { request, wireUrl, har, requestSent };
+};
 
+const executeHttpRequest = async ({ request, wireUrl, har }, item, collection, signal) => {
   const preferences = getPreferences();
   const timeoutMs = preferences?.request?.timeout || 0;
+  return serverApi.executeHttpRequest(
+    {
+      method: request.method,
+      url: wireUrl,
+      headers: har.headers || [],
+      postData: har.postData ?? null,
+      timeoutMs: timeoutMs > 0 ? timeoutMs : null,
+      followRedirects: true,
+      verifyTls: preferences?.request?.sslVerification !== false,
+      collectionPath: collection.pathname,
+      requestName: item.name
+    },
+    { signal }
+  );
+};
+
+const sendHttpRequest = async (item, collection, environment, runtimeVariables) => {
+  const requestUid = item.requestUid;
+  const eventBase = { itemUid: item.uid, collectionUid: collection.uid, requestUid };
+  const cancelTokenUid = uuid();
+
+  emit('main:run-request-event', { type: 'request-queued', ...eventBase, cancelTokenUid });
+
+  const prepared = await prepareHttpRequest(item, collection);
+  const { requestSent } = prepared;
+
+  emit('main:run-request-event', { type: 'request-sent', ...eventBase, cancelTokenUid, requestSent });
+
   const abortController = new AbortController();
   abortControllers.set(cancelTokenUid, abortController);
 
   let result;
   try {
-    result = await serverApi.executeHttpRequest(
-      {
-        method: request.method,
-        url: wireUrl,
-        headers: har.headers || [],
-        postData: har.postData ?? null,
-        timeoutMs: timeoutMs > 0 ? timeoutMs : null,
-        followRedirects: true,
-        verifyTls: preferences?.request?.sslVerification !== false,
-        collectionPath: collection.pathname,
-        requestName: item.name
-      },
-      { signal: abortController.signal }
-    );
+    result = await executeHttpRequest(prepared, item, collection, abortController.signal);
   } catch (error) {
     if (abortController.signal.aborted) {
       return { statusText: 'REQUEST_CANCELLED', isCancel: true, error: 'REQUEST_CANCELLED', timeline: [] };
@@ -152,8 +165,163 @@ const sendHttpRequest = async (item, collection, environment, runtimeVariables) 
   };
 };
 
+const getAllRequestsRecursively = (folder) => {
+  let requests = [];
+  const folderItems = sortByNameThenSequence((folder.items || []).filter((item) => item.type === 'folder' && !item.isTransient));
+  const requestItems = (folder.items || [])
+    .filter((item) => item.type !== 'folder' && item.request && !item.isTransient)
+    .sort((a, b) => a.seq - b.seq);
+
+  requests = requests.concat(requestItems);
+  folderItems.forEach((item) => {
+    requests = requests.concat(getAllRequestsRecursively(item));
+  });
+  return requests;
+};
+
+// Port of bruno-electron's renderer:run-collection-folder, minus the script/test
+// sandbox (web mode runs no request scripts) — it drives the same
+// main:run-folder-event stream the runner UI listens to.
+const runCollectionFolder = async (folder, collection, environment, runtimeVariables, recursive, delay, tags, selectedRequestUids) => {
+  const collectionUid = collection.uid;
+  const folderUid = folder ? folder.uid : null;
+  const cancelTokenUid = uuid();
+  const abortController = new AbortController();
+  abortControllers.set(cancelTokenUid, abortController);
+
+  const scope = folder || collection;
+
+  emit('main:run-folder-event', {
+    type: 'testrun-started',
+    isRecursive: recursive,
+    collectionUid,
+    folderUid,
+    cancelTokenUid
+  });
+
+  try {
+    let folderRequests = [];
+    if (recursive) {
+      folderRequests = getAllRequestsRecursively(scope);
+    } else {
+      folderRequests = sortByNameThenSequence((scope.items || []).filter((item) => item.request && !item.isTransient));
+    }
+
+    if (tags && tags.include && tags.exclude) {
+      folderRequests = folderRequests.filter(({ tags: requestTags = [], draft }) => {
+        requestTags = draft?.tags || requestTags || [];
+        return isRequestTagsIncluded(requestTags, tags.include || [], tags.exclude || []);
+      });
+    }
+
+    if (selectedRequestUids && selectedRequestUids.length > 0) {
+      const uidIndexMap = new Map(selectedRequestUids.map((uid, index) => [uid, index]));
+      folderRequests = folderRequests
+        .filter((request) => uidIndexMap.has(request.uid))
+        .sort((a, b) => uidIndexMap.get(a.uid) - uidIndexMap.get(b.uid));
+    }
+
+    for (const item of folderRequests) {
+      if (abortController.signal.aborted) {
+        throw new Error('Runner execution cancelled');
+      }
+
+      const eventData = { collectionUid, folderUid, itemUid: item.uid };
+      emit('main:run-folder-event', { type: 'request-queued', requestUid: uuid(), ...eventData });
+
+      if (item.type === 'grpc-request' || item.type === 'ws-request') {
+        const protocolLabel = item.type === 'grpc-request' ? 'gRPC' : 'WebSocket';
+        emit('main:run-folder-event', {
+          type: 'runner-request-skipped',
+          error: `${protocolLabel} requests are skipped in folder/collection runs`,
+          responseReceived: {
+            status: 'skipped',
+            statusText: `${protocolLabel} request skipped`,
+            data: null,
+            responseTime: 0,
+            headers: null
+          },
+          ...eventData
+        });
+        continue;
+      }
+
+      try {
+        if (delay && !Number.isNaN(delay) && delay > 0) {
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(resolve, delay);
+            abortController.signal.addEventListener('abort', () => {
+              clearTimeout(timer);
+              reject(new Error('Runner execution cancelled'));
+            });
+          });
+        }
+
+        const prepared = await prepareHttpRequest(item, collection);
+
+        emit('main:run-folder-event', { type: 'request-sent', requestSent: prepared.requestSent, ...eventData });
+
+        const timeStart = Date.now();
+        const result = await executeHttpRequest(prepared, item, collection, abortController.signal);
+        const duration = Date.now() - timeStart;
+
+        if (result.error) {
+          emit('main:run-folder-event', { type: 'error', error: result.error, responseReceived: null, ...eventData });
+          continue;
+        }
+
+        const responseHeaders = headerListToObject(result.headers || []);
+        emit('main:run-folder-event', {
+          type: 'response-received',
+          responseReceived: {
+            status: result.status,
+            statusText: result.statusText,
+            headers: responseHeaders,
+            duration: result.durationMs ?? duration,
+            dataBuffer: result.dataBase64,
+            size: result.size,
+            data: decodeBody(result.dataBase64, responseHeaders),
+            responseTime: result.durationMs ?? duration,
+            timeline: result.timeline || [],
+            url: result.finalUrl
+          },
+          ...eventData
+        });
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          throw new Error('Runner execution cancelled');
+        }
+        emit('main:run-folder-event', {
+          type: 'error',
+          error: error.message || 'An error occurred while running the request',
+          responseReceived: null,
+          ...eventData
+        });
+      }
+    }
+
+    emit('main:run-folder-event', {
+      type: 'testrun-ended',
+      collectionUid,
+      folderUid,
+      runCompletionTime: new Date().toISOString()
+    });
+  } catch (error) {
+    emit('main:run-folder-event', {
+      type: 'testrun-ended',
+      collectionUid,
+      folderUid,
+      statusText: error.message,
+      runCompletionTime: new Date().toISOString()
+    });
+  } finally {
+    abortControllers.delete(cancelTokenUid);
+  }
+};
+
 const registerNetworkHandlers = () => {
   handle('send-http-request', sendHttpRequest);
+  handle('renderer:run-collection-folder', runCollectionFolder);
   handle('cancel-http-request', (cancelTokenUid) => {
     abortControllers.get(cancelTokenUid)?.abort();
   });
