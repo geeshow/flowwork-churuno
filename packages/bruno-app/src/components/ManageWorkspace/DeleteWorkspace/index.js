@@ -37,15 +37,17 @@ const DeleteWorkspace = ({ onClose, workspace }) => {
         <div className="flex items-center">
           <IconFolder size={18} strokeWidth={1.5} />
           <span className="ml-2 mr-4 font-semibold">{workspace?.name}</span>
+          {workspace?.branch && <code className="text-xs opacity-70">{workspace.branch}</code>}
         </div>
         {workspace?.pathname && (
           <div className="break-words text-xs mt-1">{workspace.pathname}</div>
         )}
         <div className="mt-4">
-          Are you sure you want to remove workspace <span className="font-semibold">{workspace?.name}</span>?
+          <span className="font-semibold">{workspace?.name}</span> 워크스페이스를 삭제할까요?
         </div>
-        <div className="mt-4">
-          The workspace will still be available in the file system and can be re-opened later.
+        <div className="mt-4 text-red-500">
+          브랜치 <code className="font-semibold">{workspace?.branch || workspace?.name}</code>이(가) 로컬과
+          원격(origin)에서 모두 삭제됩니다. 컬렉션과 워크플로우도 함께 사라지며 되돌릴 수 없습니다.
         </div>
       </Modal>
     </Portal>

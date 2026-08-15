@@ -337,6 +337,45 @@ def clone_workspace(body: CloneWorkspaceBody):
     return {"workspace": create_workspace_branch(name, start_point=source["branch"])}
 
 
+@app.delete("/api/workspaces/{name}")
+def delete_workspace(name: str):
+    """워크스페이스 삭제 — worktree, 로컬 브랜치, (push 모드면) 원격 브랜치까지 지운다."""
+    workspace = next((w for w in WORKSPACES if w["name"] == name), None)
+    if not workspace:
+        raise HTTPException(status_code=404, detail=f"workspace not found: {name}")
+    if workspace is WORKSPACES[0]:
+        raise HTTPException(status_code=400, detail="기본 워크스페이스(main)는 삭제할 수 없습니다")
+
+    branch = workspace["branch"]
+
+    # 삭제될 worktree에 예약된 auto-commit이 뒤늦게 실행되지 않도록 취소
+    with _commit_lock:
+        timer = _commit_timers.pop(branch, None)
+        if timer:
+            timer.cancel()
+
+    result = run_git(["worktree", "remove", "--force", workspace["pathname"]], REPO_DIR)
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"git worktree remove failed: {result.stderr.strip()}")
+
+    branch_result = run_git(["branch", "-D", branch], REPO_DIR)
+    if branch_result.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"git branch -D failed: {branch_result.stderr.strip()}")
+
+    if GIT_PUSH:
+        push = run_git(["push", "origin", "--delete", branch], REPO_DIR)
+        if push.returncode != 0:
+            print(f"[git] remote branch delete failed for {branch}: {push.stderr.strip()[:200]}")
+
+    # 워크스페이스 전용 scratch(임시 요청)도 함께 정리
+    scratch = SCRATCH_DIR / workspace["name"]
+    if scratch.is_dir():
+        shutil.rmtree(scratch, ignore_errors=True)
+
+    WORKSPACES.remove(workspace)
+    return {"status": "deleted", "branch": branch}
+
+
 def collection_record(directory: Path) -> Optional[dict]:
     for config_name, fmt in (("bruno.json", "bru"), ("opencollection.yml", "yml")):
         config_path = directory / config_name

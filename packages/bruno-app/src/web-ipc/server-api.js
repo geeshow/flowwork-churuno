@@ -51,6 +51,7 @@ const serverApi = {
   listWorkspaces: () => get('/api/workspaces'),
   createWorkspace: (name) => post('/api/workspaces', { name }),
   cloneWorkspace: (source, name) => post('/api/workspaces/clone', { source, name }),
+  deleteWorkspace: (name) => request(`/api/workspaces/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   listCollections: (root) => get('/api/collections', root ? { root } : undefined),
   fsTree: (path) => get('/api/fs/tree', { path }),
   fsRead: (path) => get('/api/fs/read', { path }),

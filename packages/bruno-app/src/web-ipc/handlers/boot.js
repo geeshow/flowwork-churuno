@@ -245,6 +245,16 @@ const registerBootHandlers = () => {
     };
   });
 
+  handle('renderer:close-workspace', async (workspacePath) => {
+    const workspace = webState.workspaces.find((w) => w.pathname === workspacePath);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+    // 웹 모드의 워크스페이스 = git 브랜치이므로 "닫기"가 아니라 브랜치 삭제다
+    await serverApi.deleteWorkspace(workspace.name);
+    webState.workspaces = webState.workspaces.filter((w) => w !== workspace);
+  });
+
   handle('renderer:clone-workspace', async (sourceWorkspacePath, newName) => {
     const source = webState.workspaces.find((w) => w.pathname === sourceWorkspacePath);
     if (!source) {
