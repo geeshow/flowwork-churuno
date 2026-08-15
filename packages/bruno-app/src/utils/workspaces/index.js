@@ -1,5 +1,25 @@
 // Utility functions for workspace pinning and reordering
 
+import get from 'lodash/get';
+import path from 'utils/common/path';
+import { isWebMode } from 'utils/common/platform';
+
+/**
+ * Where a new/imported collection belongs for the given workspace.
+ * Web-mode workspaces are git worktrees whose collections sit at the branch
+ * root; desktop workspaces keep them in a `collections` subfolder, and the
+ * default workspace uses the location from preferences.
+ */
+export const getCollectionLocation = (workspace, preferences) => {
+  if (isWebMode()) {
+    return workspace?.pathname || '';
+  }
+  if (!workspace || workspace.type === 'default') {
+    return get(preferences, 'general.defaultLocation', '');
+  }
+  return workspace.pathname ? path.join(workspace.pathname, 'collections') : '';
+};
+
 export const sortWorkspaces = (workspaces, preferences) => {
   const pinnedUids = preferences?.workspaces?.pinnedWorkspaceUids || [];
   const pinnedOrder = preferences?.workspaces?.pinnedOrder || [];

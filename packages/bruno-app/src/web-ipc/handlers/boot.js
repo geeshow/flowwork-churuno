@@ -1,4 +1,5 @@
 import merge from 'lodash/merge';
+import jsyaml from 'js-yaml';
 import { handle, emit } from '../core';
 import serverApi from '../server-api';
 import webState, { registerCollection, getStableUid } from '../state';
@@ -120,6 +121,18 @@ const registerRemoteCollections = (collections) => {
   });
 };
 
+// 워크스페이스 문서는 데스크톱과 같은 workspace.yml(docs 키)로 worktree에 저장한다 —
+// git으로 함께 동기화되고, GitHub에서도 그대로 읽힌다.
+const readWorkspaceDocs = async (workspacePath) => {
+  try {
+    const { content } = await serverApi.fsRead(`${workspacePath}/workspace.yml`);
+    const config = jsyaml.load(content);
+    return typeof config?.docs === 'string' ? config.docs : '';
+  } catch (_error) {
+    return '';
+  }
+};
+
 const workspaceConfigFor = (name, type, collectionEntries, git = {}) => ({
   opencollection: '1.0.0',
   info: { name, type: 'workspace' },
@@ -128,7 +141,8 @@ const workspaceConfigFor = (name, type, collectionEntries, git = {}) => ({
   // 워크스페이스 = git 브랜치. parent는 분기 기준 브랜치(빈 브랜치로 만든 경우 null).
   branch: git.branch ?? null,
   parent: git.parent ?? null,
-  docs: '',
+  branchUrl: git.branchUrl ?? null,
+  docs: git.docs ?? '',
   collections: collectionEntries.map((entry) => ({ name: entry.brunoConfig.name, path: entry.pathname })),
   specs: [],
   apiSpecs: []
@@ -154,6 +168,7 @@ const registerBootHandlers = () => {
       webState.activeWorkspacePath = webState.workspaces[0].pathname;
 
       for (const workspace of webState.workspaces) {
+        workspace.docs = await readWorkspaceDocs(workspace.pathname);
         const { collections } = await serverApi.listCollections(workspace.pathname);
         const entries = registerRemoteCollections(collections);
         allEntries.push(...entries);
@@ -274,7 +289,38 @@ const registerBootHandlers = () => {
   handle('renderer:get-last-opened-workspaces', () => []);
   handle('renderer:start-workspace-watcher', () => undefined);
   handle('renderer:set-collection-workspace', () => undefined);
-  handle('renderer:add-collection-to-workspace', () => undefined);
+  handle('renderer:save-workspace-docs', async (workspacePath, docs) => {
+    const workspace = webState.workspaces.find((w) => w.pathname === workspacePath);
+    let config;
+    try {
+      const { content } = await serverApi.fsRead(`${workspacePath}/workspace.yml`);
+      config = jsyaml.load(content) || {};
+    } catch (_error) {
+      config = {
+        opencollection: '1.0.0',
+        info: { name: workspace?.name || workspacePath.split('/').filter(Boolean).pop(), type: 'workspace' }
+      };
+    }
+    config.docs = docs || '';
+    await serverApi.fsWrite(`${workspacePath}/workspace.yml`, jsyaml.dump(config));
+    if (workspace) {
+      workspace.docs = config.docs;
+    }
+    return config.docs;
+  });
+
+  // The workspace's collection list lives on the server (worktree subdirectories),
+  // so a fresh config emit is enough — the renderer re-lists collections on
+  // main:workspace-config-updated (loadWorkspaceCollections with force=true).
+  handle('renderer:add-collection-to-workspace', async (workspacePath) => {
+    const workspace = webState.workspaces.find((w) => w.pathname === workspacePath);
+    if (!workspace) {
+      return;
+    }
+    const { collections } = await serverApi.listCollections(workspacePath);
+    const entries = registerRemoteCollections(collections);
+    emit('main:workspace-config-updated', workspacePath, workspace.uid, workspaceConfigFor(workspace.name, workspace.type, entries, workspace));
+  });
   handle('renderer:remove-collection-from-workspace', () => undefined);
   handle('renderer:get-collection-security-config', () => ({}));
   handle('renderer:save-collection-security-config', () => undefined);

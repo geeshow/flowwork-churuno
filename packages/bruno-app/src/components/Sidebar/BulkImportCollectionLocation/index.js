@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useState, useMemo, forwardRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import path from 'utils/common/path';
 import { importCollection } from 'providers/ReduxStore/slices/collections/actions';
 import Modal from 'components/Modal';
 import { isElectron } from 'utils/common/platform';
@@ -21,8 +20,8 @@ import { wsdlToBruno } from '@usebruno/converters';
 import StyledWrapper from './StyledWrapper';
 import toast from 'react-hot-toast';
 import { showImportIssuesToast } from 'components/Toast/ImportIssuesToast';
-import get from 'lodash/get';
 import { DEFAULT_COLLECTION_FORMAT } from 'utils/common/constants';
+import { getCollectionLocation } from 'utils/workspaces';
 
 const STATUS = {
   LOADING: 'loading',
@@ -141,10 +140,7 @@ export const BulkImportCollectionLocation = ({
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
   const preferences = useSelector((state) => state.app.preferences);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
-  const isDefaultWorkspace = !activeWorkspace || activeWorkspace.type === 'default';
-  const defaultLocation = isDefaultWorkspace
-    ? get(preferences, 'general.defaultLocation', '')
-    : (activeWorkspace?.pathname ? path.join(activeWorkspace.pathname, 'collections') : '');
+  const defaultLocation = getCollectionLocation(activeWorkspace, preferences);
 
   const [status, setStatus] = useState({});
   const [errorMessages, setErrorMessages] = useState({});

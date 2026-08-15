@@ -1,8 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IconCheck, IconX, IconSettings } from '@tabler/icons';
-import get from 'lodash/get';
-import path from 'utils/common/path';
 import toast from 'react-hot-toast';
 import { createCollection } from 'providers/ReduxStore/slices/collections/actions';
 import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
@@ -10,6 +8,7 @@ import { DEFAULT_COLLECTION_FORMAT } from 'utils/common/constants';
 import { multiLineMsg } from 'utils/common';
 import { formatIpcError } from 'utils/common/error';
 import StyledWrapper from './StyledWrapper';
+import { getCollectionLocation } from 'utils/workspaces';
 
 const InlineCollectionCreator = ({ onComplete, onCancel, onOpenAdvanced }) => {
   const inputRef = useRef(null);
@@ -23,11 +22,8 @@ const InlineCollectionCreator = ({ onComplete, onCancel, onOpenAdvanced }) => {
   const workspaces = useSelector((state) => state.workspaces?.workspaces || []);
   const activeWorkspaceUid = useSelector((state) => state.workspaces?.activeWorkspaceUid);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
-  const isDefaultWorkspace = activeWorkspace?.type === 'default';
 
-  const defaultLocation = isDefaultWorkspace
-    ? get(preferences, 'general.defaultLocation', '')
-    : (activeWorkspace?.pathname ? path.join(activeWorkspace.pathname, 'collections') : '');
+  const defaultLocation = getCollectionLocation(activeWorkspace, preferences);
 
   useEffect(() => {
     const focusAndSelect = (value) => {

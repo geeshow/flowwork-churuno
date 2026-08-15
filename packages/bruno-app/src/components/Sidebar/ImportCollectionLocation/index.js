@@ -2,8 +2,6 @@ import React, { useRef, useEffect, useState, forwardRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import get from 'lodash/get';
-import path from 'utils/common/path';
 import { IconCaretDown } from '@tabler/icons';
 import { postmanToBruno } from 'utils/importers/postman-collection';
 import { convertInsomniaToBruno } from 'utils/importers/insomnia-collection';
@@ -20,6 +18,7 @@ import Dropdown from 'components/Dropdown';
 import StyledWrapper from './StyledWrapper';
 import { showImportIssuesToast } from 'components/Toast/ImportIssuesToast';
 import { DEFAULT_COLLECTION_FORMAT } from 'utils/common/constants';
+import { getCollectionLocation } from 'utils/workspaces';
 
 // Extract collection name from raw data
 const getCollectionName = (format, rawData) => {
@@ -124,11 +123,8 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format, sour
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
   const preferences = useSelector((state) => state.app.preferences);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
-  const isDefaultWorkspace = !activeWorkspace || activeWorkspace.type === 'default';
 
-  const defaultLocation = isDefaultWorkspace
-    ? get(preferences, 'general.defaultLocation', '')
-    : (activeWorkspace?.pathname ? path.join(activeWorkspace.pathname, 'collections') : '');
+  const defaultLocation = getCollectionLocation(activeWorkspace, preferences);
 
   const collectionName = getCollectionName(format, rawData);
 

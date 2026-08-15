@@ -79,6 +79,23 @@ def run_git(args: list[str], cwd: Path, input: Optional[str] = None) -> subproce
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, input=input)
 
 
+def remote_web_url() -> Optional[str]:
+    """origin의 웹 URL — ssh(git@host:path) 형태도 https로 정규화한다."""
+    if not (REPO_DIR / ".git").exists():
+        return None
+    url = run_git(["remote", "get-url", "origin"], REPO_DIR).stdout.strip()
+    if not url:
+        return None
+    if url.startswith("git@"):
+        host, _, path = url.removeprefix("git@").partition(":")
+        url = f"https://{host}/{path}"
+    return url.removesuffix(".git")
+
+
+def branch_web_url(branch: str) -> Optional[str]:
+    return f"{REMOTE_WEB_URL}/tree/{branch}" if REMOTE_WEB_URL else None
+
+
 def add_worktree(branch: str) -> Optional[dict]:
     """Ensure a worktree exists for the branch; return its workspace record."""
     name = branch[len(WORKSPACE_BRANCH_PREFIX):]
@@ -93,7 +110,7 @@ def add_worktree(branch: str) -> Optional[dict]:
         if result.returncode != 0:
             print(f"[git] failed to add worktree for {branch}: {result.stderr.strip()}")
             return None
-    return {"name": name, "branch": branch, "pathname": str(worktree)}
+    return {"name": name, "branch": branch, "pathname": str(worktree), "branchUrl": branch_web_url(branch)}
 
 
 def detect_parent_branch(branch: str, candidate_branches: list[str]) -> Optional[str]:
@@ -135,7 +152,13 @@ def setup_workspaces() -> list[dict]:
 
     # The main checkout is the default workspace — the client treats the first entry as default.
     main_branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], REPO_DIR).stdout.strip() or "main"
-    workspaces = [{"name": main_branch, "branch": main_branch, "pathname": str(REPO_DIR), "parent": None}]
+    workspaces = [{
+        "name": main_branch,
+        "branch": main_branch,
+        "pathname": str(REPO_DIR),
+        "parent": None,
+        "branchUrl": branch_web_url(main_branch)
+    }]
     for branch in sorted(branches):
         workspace = add_worktree(branch)
         if workspace:
@@ -150,6 +173,7 @@ def setup_workspaces() -> list[dict]:
     return workspaces
 
 
+REMOTE_WEB_URL = remote_web_url()
 WORKSPACES = setup_workspaces()
 
 _commit_timers: dict[str, threading.Timer] = {}

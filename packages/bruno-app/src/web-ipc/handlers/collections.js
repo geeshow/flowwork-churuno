@@ -1,6 +1,7 @@
 import get from 'lodash/get';
 import { uuid } from 'utils/common';
 import { transformRequestToSaveToFilesystem } from 'utils/collections/index';
+import { sanitizeName } from 'utils/common/regex';
 import { handle, emit } from '../core';
 import serverApi from '../server-api';
 import webState, { registerCollection, findCollectionForPath, getStableUid } from '../state';
@@ -234,6 +235,120 @@ const registerCollectionHandlers = () => {
 
     const entry = registerCollection({ pathname: dirPath, format, brunoConfig });
     emit('main:collection-opened', dirPath, entry.uid, brunoConfig);
+  });
+
+  // Port of bruno-electron's renderer:import-collection (utils/collection-import.js):
+  // serializes the converted collection tree to files through the web server.
+  handle('renderer:import-collection', async (collection, collectionLocation, options = {}) => {
+    const format = options.format || 'yml';
+    const location = (collectionLocation || webState.serverRoot).replace(/\/+$/, '');
+    const collections = Array.isArray(collection) ? collection : [collection];
+    const successfulImports = [];
+    let failedImports = 0;
+
+    const findUniqueFolderName = async (baseName) => {
+      for (let counter = 0; ; counter++) {
+        const candidate = counter === 0 ? baseName : `${baseName} - ${counter}`;
+        const { exists } = await serverApi.fsExists(`${location}/${sanitizeName(candidate)}`);
+        if (!exists) {
+          return candidate;
+        }
+      }
+    };
+
+    const filenameWithFormat = (item) => {
+      const filename = item?.filename || `${item.name}.${format}`;
+      return filename.replace(/\.(bru|yml)$/, `.${format}`);
+    };
+
+    const writeItems = async (items = [], currentPath) => {
+      for (const item of items) {
+        if (['http-request', 'graphql-request', 'grpc-request', 'ws-request'].includes(item.type)) {
+          const pathname = `${currentPath}/${sanitizeName(filenameWithFormat(item))}`;
+          await serverApi.fsWrite(pathname, stringifyRequest(item, { format }));
+        } else if (item.type === 'folder') {
+          const folderPath = `${currentPath}/${sanitizeName(item.filename || item.name)}`;
+          await serverApi.fsMkdir(folderPath);
+          if (item.root?.meta?.name) {
+            item.root.meta.seq = item.seq;
+            await serverApi.fsWrite(`${folderPath}/folder.${format}`, stringifyFolder(item.root, { format }));
+          }
+          if (item.items?.length) {
+            await writeItems(item.items, folderPath);
+          }
+        } else if (item.type === 'js') {
+          const pathname = `${currentPath}/${sanitizeName(item.filename || `${item.name}.js`)}`;
+          await serverApi.fsWrite(pathname, item.fileContent);
+        }
+      }
+    };
+
+    const writeEnvironments = async (environments = [], collectionPath) => {
+      if (!environments.length) {
+        return;
+      }
+      const envDirPath = `${collectionPath}/environments`;
+      await serverApi.fsMkdir(envDirPath);
+      for (const env of environments) {
+        const envPath = `${envDirPath}/${sanitizeName(`${env.name}.${format}`)}`;
+        await serverApi.fsWrite(envPath, stringifyEnvironment(env, { format }));
+      }
+    };
+
+    for (const coll of collections) {
+      try {
+        emit('main:collection-import-started', coll.uid);
+
+        coll.name = await findUniqueFolderName(coll.name);
+        const collectionPath = `${location}/${sanitizeName(coll.name)}`;
+        await serverApi.fsMkdir(collectionPath);
+
+        const brunoConfig = coll.brunoConfig || { name: coll.name, type: 'collection', ignore: ['node_modules', '.git'] };
+        if (format === 'yml') {
+          brunoConfig.opencollection = '1.0.0';
+          const content = stringifyCollection(coll.root, brunoConfig, { format });
+          await serverApi.fsWrite(`${collectionPath}/opencollection.yml`, content);
+        } else if (format === 'bru') {
+          const bruJsonConfig = { ...brunoConfig, version: '1' };
+          if (brunoConfig.version) {
+            bruJsonConfig.collectionVersion = brunoConfig.version;
+          }
+          await serverApi.fsWrite(`${collectionPath}/bruno.json`, JSON.stringify(bruJsonConfig, null, 2));
+          const content = stringifyCollection(coll.root, brunoConfig, { format });
+          await serverApi.fsWrite(`${collectionPath}/collection.bru`, content);
+        } else {
+          throw new Error(`Invalid format: ${format}`);
+        }
+
+        await writeItems(coll.items, collectionPath);
+        await writeEnvironments(coll.environments, collectionPath);
+
+        const entry = registerCollection({ pathname: collectionPath, format, brunoConfig });
+        emit('main:collection-opened', collectionPath, entry.uid, brunoConfig);
+        emit('main:collection-import-ended', coll.uid);
+        successfulImports.push({ path: collectionPath, name: coll.name });
+      } catch (error) {
+        console.error(`[web-ipc] failed to import collection ${coll.name}`, error);
+        emit('main:collection-import-failed', coll.uid, { message: `Error ${error.message}` });
+        failedImports++;
+      }
+    }
+
+    emit('main:all-collections-import-ended', {
+      message: `Import completed. ${successfulImports.length} collections imported successfully, ${failedImports} failed.`,
+      status: {
+        total: collections.length,
+        succeeded: successfulImports.length,
+        failed: failedImports
+      }
+    });
+
+    return {
+      success: {
+        count: successfulImports.length,
+        items: successfulImports
+      }
+    };
   });
 
   handle('renderer:new-request', async (pathname, request) => {
