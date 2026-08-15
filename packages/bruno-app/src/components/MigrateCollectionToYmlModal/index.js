@@ -102,7 +102,6 @@ const MigrateCollectionToYmlModal = () => {
   const collection = useSelector((state) =>
     findCollectionByUid(state.collections.collections, migration.collectionUid)
   );
-  const [isExporting, setIsExporting] = useState(false);
   const [isResolvingDrafts, setIsResolvingDrafts] = useState(false);
   const [showDraftsStep, setShowDraftsStep] = useState(false);
 
@@ -143,26 +142,6 @@ const MigrateCollectionToYmlModal = () => {
   const handleBackToConfirm = () => {
     if (isResolvingDrafts) return;
     setShowDraftsStep(false);
-  };
-
-  const handleExportBackup = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    try {
-      const { ipcRenderer } = window;
-      const result = await ipcRenderer.invoke(
-        'renderer:export-collection-zip',
-        migration.collectionPathname,
-        migration.collectionName
-      );
-      if (result?.success) {
-        toast.success('Collection backup exported');
-      }
-    } catch (error) {
-      toast.error('Failed to export backup: ' + error.message);
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   const handleDiscardAllDrafts = () => {
@@ -379,7 +358,7 @@ const MigrateCollectionToYmlModal = () => {
     );
   }
 
-  const confirmDisabled = isMigrating ? isCancelling : isExporting || !isCollectionMounted;
+  const confirmDisabled = isMigrating ? isCancelling : !isCollectionMounted;
   const progressPercent = migration.total ? Math.round((migration.current / migration.total) * 100) : 0;
   const progressLabel = migration.phase
     ? `${PHASE_LABELS[migration.phase] || migration.phase}: ${migration.current}/${migration.total}`
@@ -438,26 +417,6 @@ const MigrateCollectionToYmlModal = () => {
                 {!isCollectionMounted && (
                   <p className="mt-3">Waiting for the collection to finish loading before migration can start…</p>
                 )}
-              </div>
-              <div className="backup-section mt-4">
-                <div className="backup-section-head">
-                  <span className="backup-section-title">Backup</span>
-                </div>
-                <p className="backup-section-help">
-                  Export this collection as a ZIP archive before migrating, in case you want to restore it later.
-                </p>
-                <div className="backup-section-action">
-                  <Button
-                    data-testid="export-collection-backup-button"
-                    size="sm"
-                    color="secondary"
-                    variant="outline"
-                    onClick={handleExportBackup}
-                    disabled={isExporting}
-                  >
-                    {isExporting ? 'Exporting…' : 'Export Collection'}
-                  </Button>
-                </div>
               </div>
             </>
           )}

@@ -30,6 +30,7 @@ const initialState = {
   showSidebarSearch: false,
   focusedSidebarPath: null,
   screenWidth: 500,
+  activeApp: 'bruno',
   showHomePage: false,
   showApiSpecPage: false,
   showManageWorkspacePage: false,
@@ -109,8 +110,6 @@ const initialState = {
   clipboard: {
     hasCopiedItems: false // Whether clipboard has Bruno data (for UI)
   },
-  systemProxyVariables: {},
-  systemProxyLastRefreshedAt: null,
   envVarSearch: {
     collection: {
       variables: { query: '', expanded: false },
@@ -121,8 +120,7 @@ const initialState = {
       secrets: { query: '', expanded: false }
     }
   },
-  isCreatingCollection: false,
-  isOpeningCollection: false
+  isCreatingCollection: false
 };
 
 export const appSlice = createSlice({
@@ -191,6 +189,9 @@ export const appSlice = createSlice({
     updateIsDragging: (state, action) => {
       state.isDragging = action.payload.isDragging;
     },
+    setActiveApp: (state, action) => {
+      state.activeApp = action.payload;
+    },
     showHomePage: (state) => {
       state.showHomePage = true;
       state.showApiSpecPage = false;
@@ -231,12 +232,6 @@ export const appSlice = createSlice({
     },
     removeAllTasksFromQueue: (state) => {
       state.taskQueue = [];
-    },
-    updateSystemProxyVariables: (state, action) => {
-      state.systemProxyVariables = action.payload;
-    },
-    updateSystemProxyLastRefreshedAt: (state, action) => {
-      state.systemProxyLastRefreshedAt = action.payload;
     },
     updateGenerateCode: (state, action) => {
       state.generateCode = {
@@ -280,9 +275,6 @@ export const appSlice = createSlice({
     },
     setIsCreatingCollection: (state, action) => {
       state.isCreatingCollection = action.payload;
-    },
-    setIsOpeningCollection: (state, action) => {
-      state.isOpeningCollection = action.payload;
     }
   },
   extraReducers: (builder) => {
@@ -311,6 +303,7 @@ export const {
   refreshScreenWidth,
   updateLeftSidebarWidth,
   updateIsDragging,
+  setActiveApp,
   showHomePage,
   hideHomePage,
   showManageWorkspacePage,
@@ -323,8 +316,6 @@ export const {
   insertTaskIntoQueue,
   removeTaskFromQueue,
   removeAllTasksFromQueue,
-  updateSystemProxyVariables,
-  updateSystemProxyLastRefreshedAt,
   updateGenerateCode,
   toggleSidebarCollapse,
   toggleSidebarSearch,
@@ -335,8 +326,7 @@ export const {
   setClipboard,
   setEnvVarSearchQuery,
   setEnvVarSearchExpanded,
-  setIsCreatingCollection,
-  setIsOpeningCollection
+  setIsCreatingCollection
 } = appSlice.actions;
 
 /**
@@ -459,31 +449,6 @@ export const copyRequest = (item) => (dispatch, getState) => {
   brunoClipboard.write(item);
   dispatch(setClipboard({ hasCopiedItems: true }));
   return Promise.resolve();
-};
-
-export const getSystemProxyVariables = () => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:get-system-proxy-variables')
-      .then((variables) => {
-        dispatch(updateSystemProxyVariables(variables));
-        return variables;
-      })
-      .then(resolve).catch(reject);
-  });
-};
-
-export const refreshSystemProxy = () => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:refresh-system-proxy')
-      .then((variables) => {
-        dispatch(updateSystemProxyVariables(variables));
-        dispatch(updateSystemProxyLastRefreshedAt(Date.now()));
-        return variables;
-      })
-      .then(resolve).catch(reject);
-  });
 };
 
 export const clearHttpHttpsAgentCache = () => () => {

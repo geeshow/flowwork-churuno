@@ -3,12 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { updateTabState } from 'providers/ReduxStore/slices/tabs';
 import EnvironmentList from './EnvironmentList';
 import StyledWrapper from './StyledWrapper';
-import ExportEnvironmentModal from 'components/Environments/Common/ExportEnvironmentModal';
 
 const WorkspaceEnvironments = ({ workspace }) => {
   const dispatch = useDispatch();
   const [isModified, setIsModified] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
 
   const globalEnvironments = useSelector((state) => state.globalEnvironments.globalEnvironments);
   const activeGlobalEnvironmentUid = useSelector((state) => state.globalEnvironments.activeGlobalEnvironmentUid);
@@ -43,15 +41,7 @@ const WorkspaceEnvironments = ({ workspace }) => {
         setIsModified={setIsModified}
         collection={null}
         workspace={workspace}
-        setShowExportModal={setShowExportModal}
       />
-      {showExportModal && (
-        <ExportEnvironmentModal
-          onClose={() => setShowExportModal(false)}
-          environments={globalEnvironments || []}
-          environmentType="global"
-        />
-      )}
     </StyledWrapper>
   );
 };

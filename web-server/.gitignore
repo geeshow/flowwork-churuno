@@ -3,3 +3,6 @@ repo/
 worktrees/
 scratch/
 __pycache__/
+.env
+executions/
+server.log

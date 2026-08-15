@@ -27,7 +27,6 @@ import { getUniqueTagsFromItems } from 'utils/collections/index';
 import { DEFAULT_HTTP_ITEM_SETTINGS } from '@usebruno/common';
 import { getDataTypeFromValue } from '@usebruno/common/utils';
 import * as exampleReducers from './exampleReducers';
-import * as mockResponseEditorReducers from './mockResponseEditorReducers';
 
 const FILE_DERIVED_REQUEST_FIELDS = [
   'name',
@@ -200,8 +199,7 @@ const initialState = {
   collectionSortOrder: 'default',
   activeConnections: [],
   tempDirectories: {},
-  saveTransientRequestModals: [],
-  mockResponseEditors: {}
+  saveTransientRequestModals: []
 };
 
 const initiatedGrpcResponse = {
@@ -2925,7 +2923,10 @@ export const collectionsSlice = createSlice({
         const dirname = path.dirname(file.meta.pathname);
 
         const tempDirectory = state.tempDirectories?.[file.meta.collectionUid];
-        const isTransientFile = tempDirectory && file.meta.pathname.startsWith(tempDirectory);
+        // The watcher hydrates isTransient onto the payload too — during mount the
+        // file event can arrive before addTransientDirectory has registered the dir.
+        const isTransientFile = (tempDirectory && file.meta.pathname.startsWith(tempDirectory))
+          || file.data?.isTransient === true;
 
         const subDirectories = getSubdirectoriesFromRoot(collection.pathname, dirname);
         let currentPath = collection.pathname;
@@ -4006,12 +4007,7 @@ export const collectionsSlice = createSlice({
     deleteResponseExampleFormUrlEncodedParam: exampleReducers.deleteResponseExampleFormUrlEncodedParam,
     addResponseExampleMultipartFormParam: exampleReducers.addResponseExampleMultipartFormParam,
     updateResponseExampleMultipartFormParam: exampleReducers.updateResponseExampleMultipartFormParam,
-    deleteResponseExampleMultipartFormParam: exampleReducers.deleteResponseExampleMultipartFormParam,
-    initMockResponseEditor: mockResponseEditorReducers.initMockResponseEditor,
-    syncMockResponseEditorSaved: mockResponseEditorReducers.syncMockResponseEditorSaved,
-    updateMockResponseRules: mockResponseEditorReducers.updateMockResponseRules,
-    cancelMockResponseEditorEdit: mockResponseEditorReducers.cancelMockResponseEditorEdit,
-    removeMockResponseEditor: mockResponseEditorReducers.removeMockResponseEditor
+    deleteResponseExampleMultipartFormParam: exampleReducers.deleteResponseExampleMultipartFormParam
     /* End Response Example Actions */
   }
 });
@@ -4223,11 +4219,6 @@ export const {
   addResponseExampleMultipartFormParam,
   updateResponseExampleMultipartFormParam,
   deleteResponseExampleMultipartFormParam,
-  initMockResponseEditor,
-  syncMockResponseEditorSaved,
-  updateMockResponseRules,
-  cancelMockResponseEditorEdit,
-  removeMockResponseEditor,
   addTransientDirectory,
   addSaveTransientRequestModal,
   removeSaveTransientRequestModal,

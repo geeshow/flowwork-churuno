@@ -9,8 +9,7 @@ export const BETA_FEATURES = Object.freeze({
   OPENAPI_SYNC: 'openapi-sync',
   AI_ASSISTANT: 'ai-assistant',
   FILE_CACHE: 'file-cache',
-  AKAMAI_EDGEGRID: 'akamai-edgegrid',
-  MOCK_SERVER: 'mock-server'
+  AKAMAI_EDGEGRID: 'akamai-edgegrid'
 });
 
 /**

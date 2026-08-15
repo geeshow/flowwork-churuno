@@ -56,20 +56,6 @@ export const KEY_BINDING_SECTIONS = [
     }
   },
   {
-    heading: 'View',
-    bindings: {
-      zoomIn: { mac: 'command+bind+=', windows: 'ctrl+bind+=', name: 'Zoom In' },
-      zoomOut: { mac: 'command+bind+-', windows: 'ctrl+bind+-', name: 'Zoom Out' },
-      resetZoom: { mac: 'command+bind+0', windows: 'ctrl+bind+0', name: 'Reset Zoom' }
-    }
-  },
-  {
-    heading: 'Developer Tool',
-    bindings: {
-      openTerminal: { mac: 'command+bind+t', windows: 'ctrl+bind+t', name: 'Open in Terminal' } // D
-    }
-  },
-  {
     heading: 'Others',
     bindings: {
       openPreferences: { mac: 'command+bind+,', windows: 'ctrl+bind+,', name: 'Open Preferences' }, // D

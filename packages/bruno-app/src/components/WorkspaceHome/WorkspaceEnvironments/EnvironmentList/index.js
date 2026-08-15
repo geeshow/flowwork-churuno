@@ -3,7 +3,7 @@ import usePrevious from 'hooks/usePrevious';
 import useOnClickOutside from 'hooks/useOnClickOutside';
 import useDebounce from 'hooks/useDebounce';
 import EnvironmentDetails from './EnvironmentDetails';
-import { IconDownload, IconUpload, IconSearch, IconPlus, IconCheck, IconX, IconFileAlert } from '@tabler/icons';
+import { IconDownload, IconSearch, IconPlus, IconCheck, IconX, IconFileAlert } from '@tabler/icons';
 import Button from 'ui/Button';
 import StyledWrapper from './StyledWrapper';
 import ConfirmSwitchEnv from './ConfirmSwitchEnv';
@@ -38,8 +38,7 @@ const EnvironmentList = ({
   isModified,
   setIsModified,
   collection,
-  workspace,
-  setShowExportModal
+  workspace
 }) => {
   const dispatch = useDispatch();
   const globalEnvs = useSelector((state) => state?.globalEnvironments?.globalEnvironments);
@@ -338,12 +337,6 @@ const EnvironmentList = ({
     }
   };
 
-  const handleExportClick = () => {
-    if (setShowExportModal) {
-      setShowExportModal(true);
-    }
-  };
-
   const handleConfirmSwitch = (saveChanges) => {
     if (!saveChanges) {
       setSwitchEnvConfirmClose(false);
@@ -589,19 +582,6 @@ const EnvironmentList = ({
                     title="Import environment"
                   >
                     <IconDownload size={14} strokeWidth={1.5} />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-action"
-                    onClick={() => {
-                      if (!environmentsExpanded) {
-                        setEnvironmentsExpanded(true);
-                      }
-                      handleExportClick();
-                    }}
-                    title="Export environment"
-                  >
-                    <IconUpload size={14} strokeWidth={1.5} />
                   </button>
                 </>
               )}

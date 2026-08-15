@@ -3,6 +3,8 @@ import { handle, emit } from '../core';
 import serverApi from '../server-api';
 import webState, { registerCollection, getStableUid } from '../state';
 import { parseCollection } from '../filestore';
+import { getGlobalEnvironments } from './global-environments';
+import { generateUidBasedOnHash } from 'utils/common';
 
 const PREFERENCES_KEY = 'bruno-web:preferences';
 const SNAPSHOT_KEY = 'bruno-web:snapshot';
@@ -33,8 +35,7 @@ const defaultPreferences = {
     }
   },
   layout: { responsePaneOrientation: 'horizontal' },
-  mockServer: { mode: 'isolated', instances: [] },
-  beta: { 'openapi-sync': false, 'mock-server': false },
+  beta: { 'openapi-sync': false },
   onboarding: { hasLaunchedBefore: true, hasSeenWelcomeModal: true, lastSeenVersion: '99.99.99' },
   general: { defaultLocation: '', defaultWorkspacePath: '' },
   autoSave: { enabled: false, interval: 1000 },
@@ -61,7 +62,7 @@ const defaultPreferences = {
 const emptySnapshot = () => ({
   version: '0.0.1',
   activeWorkspacePath: null,
-  extras: { devTools: { open: false, activeTab: 'terminal', tabs: {} } },
+  extras: { devTools: { open: false, activeTab: 'console', tabs: {} } },
   workspaces: [],
   collections: []
 });
@@ -133,7 +134,6 @@ const workspaceConfigFor = (name, type, collectionEntries) => ({
 const registerBootHandlers = () => {
   handle('renderer:ready', async () => {
     emit('main:load-preferences', getPreferences());
-    emit('main:load-global-environments', { globalEnvironments: [], activeGlobalEnvironmentUid: null });
     emit('main:git-version', null);
 
     const { workspaces = [], scratchRoot } = await serverApi.listWorkspaces().catch(() => ({}));
@@ -165,6 +165,8 @@ const registerBootHandlers = () => {
       allEntries.push(...entries);
       emit('main:workspace-opened', root, 'default', workspaceConfigFor('My Workspace', 'default', entries));
     }
+
+    emit('main:load-global-environments', await getGlobalEnvironments(webState.activeWorkspacePath));
 
     emit('main:workspaces-ready');
 
@@ -207,6 +209,7 @@ const registerBootHandlers = () => {
     }
 
     webState.activeWorkspacePath = workspacePath;
+    emit('main:load-global-environments', await getGlobalEnvironments(workspacePath));
     const { collections } = await serverApi.listCollections(workspacePath);
     return collections.map((remote) => {
       let entry = webState.collections.get(remote.pathname);
@@ -222,6 +225,37 @@ const registerBootHandlers = () => {
       return { name: entry.brunoConfig.name, path: entry.pathname };
     });
   });
+  // Workspace create/clone — the server creates a workspace/<name> branch + worktree
+  const registerWorkspace = (workspace) => {
+    const entry = { ...workspace, uid: getStableUid(workspace.pathname), type: 'workspace' };
+    webState.workspaces.push(entry);
+    return entry;
+  };
+
+  handle('renderer:create-workspace', async (workspaceName) => {
+    const { workspace } = await serverApi.createWorkspace(workspaceName);
+    const entry = registerWorkspace(workspace);
+    return {
+      workspaceUid: entry.uid,
+      workspacePath: entry.pathname,
+      workspaceConfig: workspaceConfigFor(entry.name, entry.type, [])
+    };
+  });
+
+  handle('renderer:clone-workspace', async (sourceWorkspacePath, newName) => {
+    const source = webState.workspaces.find((w) => w.pathname === sourceWorkspacePath);
+    if (!source) {
+      throw new Error('Source workspace not found');
+    }
+    const { workspace } = await serverApi.cloneWorkspace(source.name, newName);
+    const entry = registerWorkspace(workspace);
+    return {
+      workspaceUid: entry.uid,
+      workspacePath: entry.pathname,
+      workspaceConfig: workspaceConfigFor(entry.name, entry.type, [])
+    };
+  });
+
   handle('renderer:load-unopenable-workspace-collections', () => []);
   handle('renderer:load-workspace-apispecs', () => []);
   handle('renderer:get-last-opened-workspaces', () => []);
@@ -241,34 +275,25 @@ const registerBootHandlers = () => {
       pathname: scratchPath,
       format: 'yml',
       brunoConfig: { opencollection: '1.0.0', name: 'Scratch', type: 'collection', ignore: [] },
-      scratch: true
+      scratch: true,
+      // the renderer derives the scratch collection uid itself (mountScratchCollection),
+      // so events we emit for scratch files must carry the same uid
+      uid: generateUidBasedOnHash(scratchPath)
     });
     return scratchPath;
   });
   handle('renderer:add-collection-watcher', () => undefined);
 
   // Features without a web backend yet — resolve with inert values
-  handle('renderer:get-global-environments', () => ({ globalEnvironments: [], activeGlobalEnvironmentUid: null }));
-  handle('renderer:mock-server-get-running', () => []);
-  handle('renderer:mock-server-list-instances', () => ({ success: true, instances: [] }));
   handle('usebruno:sqlite', () => undefined);
   handle('renderer:theme-change', () => undefined);
   handle('renderer:notifications-opened', () => undefined);
   handle('renderer:get-file-cache-size', () => 0);
   handle('renderer:clear-oauth2-cache', () => undefined);
-  handle('renderer:get-system-proxy-variables', () => ({}));
 
   handle('renderer:window-is-fullscreen', () => false);
   handle('renderer:window-is-maximized', () => false);
 
-  // Devtools terminal — no pty in the browser; return inert values so the
-  // console panel renders an empty state instead of crashing
-  handle('terminal:list-sessions', () => []);
-  handle('terminal:create', () => null);
-  handle('terminal:input', () => undefined);
-  handle('terminal:resize', () => undefined);
-  handle('terminal:kill', () => undefined);
-  handle('terminal:open-at-cwd', () => null);
   handle('renderer:start-system-monitoring', () => undefined);
   handle('renderer:stop-system-monitoring', () => undefined);
 

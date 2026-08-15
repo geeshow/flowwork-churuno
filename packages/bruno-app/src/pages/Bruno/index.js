@@ -7,7 +7,7 @@ import AppPreviewKeepAlive from 'components/AppPreviewKeepAlive';
 import AiChatSidebar from 'components/AiChatSidebar';
 import AiChatPopout from 'components/AiChatSidebar/Popout';
 import Sidebar from 'components/Sidebar';
-import OpenCollection from 'components/Sidebar/OpenCollection';
+import Flowwork from 'components/Flowwork';
 import StatusBar from 'components/StatusBar';
 import AppTitleBar from 'components/AppTitleBar';
 import ApiSpecPanel from 'components/ApiSpecPanel';
@@ -47,6 +47,7 @@ export default function Main() {
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const activeApiSpecUid = useSelector((state) => state.apiSpec.activeApiSpecUid);
   const isDragging = useSelector((state) => state.app.isDragging);
+  const activeApp = useSelector((state) => state.app.activeApp);
   const showApiSpecPage = useSelector((state) => state.app.showApiSpecPage);
   const showManageWorkspacePage = useSelector((state) => state.app.showManageWorkspacePage);
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
@@ -120,38 +121,41 @@ export default function Main() {
           height: isConsoleOpen ? `calc(100vh - 60px - ${isConsoleOpen ? '300px' : '0px'})` : 'calc(100vh - 60px)'
         }}
       >
-        <StyledWrapper className={className} style={{ height: '100%', zIndex: 1 }}>
-          <Sidebar />
-          <section className="flex flex-grow flex-col overflow-hidden">
-            {showApiSpecPage && activeApiSpecUid ? (
-              <ApiSpecPanel key={activeApiSpecUid} />
-            ) : showManageWorkspacePage ? (
-              <ManageWorkspace />
-            ) : (
-              <>
-                <RequestTabs />
-                <div className="relative flex flex-col flex-grow overflow-hidden">
-                  <TabPanelErrorBoundary key={activeTabUid} tabUid={activeTabUid}>
-                    <RequestTabPanel key={activeTabUid} />
-                  </TabPanelErrorBoundary>
-                  <AppPreviewKeepAlive />
-                </div>
-              </>
+        {activeApp === 'flowwork' ? (
+          <Flowwork />
+        ) : (
+          <StyledWrapper className={className} style={{ height: '100%', zIndex: 1 }}>
+            <Sidebar />
+            <section className="flex flex-grow flex-col overflow-hidden">
+              {showApiSpecPage && activeApiSpecUid ? (
+                <ApiSpecPanel key={activeApiSpecUid} />
+              ) : showManageWorkspacePage ? (
+                <ManageWorkspace />
+              ) : (
+                <>
+                  <RequestTabs />
+                  <div className="relative flex flex-col flex-grow overflow-hidden">
+                    <TabPanelErrorBoundary key={activeTabUid} tabUid={activeTabUid}>
+                      <RequestTabPanel key={activeTabUid} />
+                    </TabPanelErrorBoundary>
+                    <AppPreviewKeepAlive />
+                  </div>
+                </>
+              )}
+            </section>
+            {isAiSidebarOpen && activeCollection && isAiPoppedOut && (
+              <AiChatPopout collection={activeCollection} />
             )}
-          </section>
-          {isAiSidebarOpen && activeCollection && isAiPoppedOut && (
-            <AiChatPopout collection={activeCollection} />
-          )}
-          {isAiSidebarOpen && activeCollection && !isAiPoppedOut && !showApiSpecPage && !showManageWorkspacePage && (
-            <AiChatSidebar collection={activeCollection} />
-          )}
-        </StyledWrapper>
+            {isAiSidebarOpen && activeCollection && !isAiPoppedOut && !showApiSpecPage && !showManageWorkspacePage && (
+              <AiChatSidebar collection={activeCollection} />
+            )}
+          </StyledWrapper>
+        )}
       </div>
 
       <Devtools mainSectionRef={mainSectionRef} />
       <StatusBar />
       <TransientRequestModalsRenderer modals={saveTransientRequestModals} />
-      <OpenCollection />
     </div>
     // </ErrorCapture>
   );

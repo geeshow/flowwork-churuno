@@ -2,7 +2,6 @@ import React, { useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import toast from 'react-hot-toast';
 import Modal from 'components/Modal';
 import { createApiSpecFile } from 'providers/ReduxStore/slices/apiSpec';
@@ -109,33 +108,6 @@ const CreateApiSpec = ({ onClose }) => {
     }
   });
 
-  const browse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        // When the user closes the diolog without selecting anything dirPath will be false
-        if (typeof dirPath === 'string') {
-          formik.setFieldValue('apiSpecLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('apiSpecLocation', '');
-        console.error(error);
-      });
-  };
-
-  const browseCollection = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string') {
-          formik.setFieldValue('collectionLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('collectionLocation', '');
-        console.error(error);
-      });
-  };
-
   useEffect(() => {
     if (inputRef && inputRef.current) {
       inputRef.current.focus();
@@ -215,24 +187,18 @@ const CreateApiSpec = ({ onClose }) => {
                   id="collection-location"
                   type="text"
                   name="collectionLocation"
-                  readOnly={true}
-                  className="block textbox mt-2 w-full cursor-pointer"
+                  className="block textbox mt-2 w-full"
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
                   title={formik.values.collectionLocation || ''}
                   value={formik.values.collectionLocation || ''}
-                  onClick={browseCollection}
+                  onChange={formik.handleChange}
                 />
                 {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
                   <div className="text-red-500">{formik.errors.collectionLocation}</div>
                 ) : null}
-                <div className="mt-1">
-                  <span className="text-link cursor-pointer hover:underline" onClick={browseCollection}>
-                    Browse
-                  </span>
-                </div>
                 {environments && Object.keys(environments || {})?.length > 0 ? (
                   <>
                     <label htmlFor="api-spec-name" className="flex items-center font-semibold mt-3">
@@ -298,29 +264,25 @@ const CreateApiSpec = ({ onClose }) => {
               id="api-spec-location"
               type="text"
               name="apiSpecLocation"
-              readOnly={true}
-              className="block textbox mt-2 w-full cursor-pointer"
+              className="block textbox mt-2 w-full"
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck="false"
               title={formik.values.apiSpecLocation || ''}
               value={formik.values.apiSpecLocation || ''}
-              onClick={browse}
+              onChange={formik.handleChange}
             />
             {formik.touched.apiSpecLocation && formik.errors.apiSpecLocation ? (
               <div className="text-red-500">{formik.errors.apiSpecLocation}</div>
             ) : null}
-            <div className="mt-1">
-              <span className="text-link cursor-pointer hover:underline" onClick={browse}>
-                Browse
-              </span>
-              {!isDefaultWorkspace && (
-                <span className="text-xs opacity-60 ml-2">
+            {!isDefaultWorkspace && (
+              <div className="mt-1">
+                <span className="text-xs opacity-60">
                   (defaults to workspace's apispec folder)
                 </span>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </form>
       </Modal>

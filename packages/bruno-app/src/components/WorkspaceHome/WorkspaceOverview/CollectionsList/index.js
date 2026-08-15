@@ -7,15 +7,13 @@ import {
   IconShare,
   IconDots,
   IconX,
-  IconFolder,
   IconBrandGit,
   IconUnlink,
   IconCopy
 } from '@tabler/icons';
 import { addTab } from 'providers/ReduxStore/slices/tabs';
-import { mountCollection, showInFolder } from 'providers/ReduxStore/slices/collections/actions';
+import { mountCollection } from 'providers/ReduxStore/slices/collections/actions';
 import { removeCollectionFromWorkspaceAction } from 'providers/ReduxStore/slices/workspaces/actions';
-import { getRevealInFolderLabel } from 'utils/common/platform';
 import { normalizePath } from 'utils/common/path';
 import toast from 'react-hot-toast';
 import RenameCollection from 'components/Sidebar/Collections/Collection/RenameCollection';
@@ -212,14 +210,6 @@ const CollectionsList = ({ workspace }) => {
     setDeleteCollectionModalOpen(true);
   };
 
-  const handleShowInFolder = (collection) => {
-    dropdownRefs.current[collection.uid]?.hide();
-    dispatch(showInFolder(collection.pathname)).catch((error) => {
-      console.error('Error opening the folder', error);
-      toast.error('Error opening the folder');
-    });
-  };
-
   const handleConnectGit = (collection) => {
     dropdownRefs.current[collection.uid]?.hide();
     if (collection.isLoaded === false) {
@@ -393,16 +383,6 @@ const CollectionsList = ({ workspace }) => {
                     >
                       <IconShare size={16} strokeWidth={1.5} />
                       <span>Share</span>
-                    </div>
-                    <div
-                      className="dropdown-item"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleShowInFolder(collection);
-                      }}
-                    >
-                      <IconFolder size={16} strokeWidth={1.5} />
-                      <span>{getRevealInFolderLabel()}</span>
                     </div>
                     {!isDefaultWorkspace && (
                       <>

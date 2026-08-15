@@ -85,10 +85,33 @@ const Wrapper = styled.div`
     transform: translateX(-50%);
     display: flex;
     align-items: center;
-    gap: 6px;
-    pointer-events: none;
+    gap: 4px;
+    -webkit-app-region: no-drag;
 
-    .bruno-text {
+    .app-switch {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border: none;
+      border-radius: ${(props) => props.theme.border.radius.base};
+      background: transparent;
+      cursor: pointer;
+      opacity: 0.55;
+
+      &:hover {
+        opacity: 0.85;
+        background: ${(props) => props.theme.background.surface1};
+      }
+
+      &.active {
+        opacity: 1;
+        background: ${(props) => props.theme.background.surface1};
+      }
+    }
+
+    .bruno-text,
+    .flowwork-text {
       font-size: 13px;
       font-weight: 600;
       color: ${(props) => props.theme.text};

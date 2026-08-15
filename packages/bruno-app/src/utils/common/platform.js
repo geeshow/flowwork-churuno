@@ -10,6 +10,13 @@ export const isElectron = () => {
   return window.ipcRenderer ? true : false;
 };
 
+// Web mode: the app runs in a browser against the Python execution server.
+// The IPC shim (web-ipc/install.js) sets this flag; desktop-only features
+// (native dialogs, shell integration, local-port servers) are hidden when true.
+export const isWebMode = () => {
+  return typeof window !== 'undefined' && window.__BRUNO_WEB_MODE__ === true;
+};
+
 export const resolveRequestFilename = (name, extension = 'bru') => {
   return `${trim(name)}.${extension}`;
 };
@@ -42,12 +49,6 @@ export const isLinuxOS = () => {
 
 export const getPlatformModifierKey = () => {
   return isMacOS() ? '⌘' : 'Ctrl';
-};
-
-export const getRevealInFolderLabel = () => {
-  if (isMacOS()) return 'Reveal in Finder';
-  if (isWindowsOS()) return 'Reveal in File Explorer';
-  return 'Reveal in File Manager';
 };
 
 export const getAppInstallDate = () => {

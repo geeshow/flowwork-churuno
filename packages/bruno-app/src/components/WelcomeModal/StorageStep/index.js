@@ -1,7 +1,7 @@
 import React from 'react';
 import StyledWrapper from './StyledWrapper';
 
-const StorageStep = ({ collectionLocation, onBrowse }) => (
+const StorageStep = ({ collectionLocation, onLocationChange }) => (
   <StyledWrapper className="step-body">
     <div className="step-label">Storage</div>
     <div className="step-title">Where should we store your collections?</div>
@@ -10,24 +10,18 @@ const StorageStep = ({ collectionLocation, onBrowse }) => (
     </div>
 
     <div className="location-input-group">
-      <div
-        className="location-path-display"
-        onClick={onBrowse}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onBrowse();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-      >
-        {collectionLocation ? (
-          <span className="path-text">{collectionLocation}</span>
-        ) : (
-          <span className="path-text path-placeholder">Click to choose a folder...</span>
-        )}
-        <span className="browse-label">Browse</span>
+      <div className="location-path-display">
+        <input
+          type="text"
+          className="path-text w-full bg-transparent outline-none"
+          placeholder="Enter a folder path..."
+          value={collectionLocation || ''}
+          onChange={(e) => onLocationChange(e.target.value)}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+        />
       </div>
     </div>
     <div className="location-hint">

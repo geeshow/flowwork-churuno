@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import {
-  browseDirectory,
   cloneGitRepository,
   openMultipleCollections,
   scanForBrunoFiles
@@ -151,19 +150,6 @@ const CloneGitRepository = ({ onClose, onFinish, collectionRepositoryUrl = null 
       }
     }
   });
-
-  const browse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string') {
-          formik.setFieldValue('collectionLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('collectionLocation', '');
-        console.error(error);
-      });
-  };
 
   const handleCollectionSelect = (collectionPathname) => {
     setSelectedCollectionPaths((prevSelected) =>
@@ -313,22 +299,16 @@ const CloneGitRepository = ({ onClose, onFinish, collectionRepositoryUrl = null 
                   type="text"
                   name="collectionLocation"
                   readOnly
-                  className="block textbox mt-2 w-full cursor-pointer"
+                  className="block textbox mt-2 w-full"
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
                   value={formik.values.collectionLocation || ''}
-                  onClick={browse}
                 />
                 {formik.touched.collectionLocation && formik.errors.collectionLocation && (
                   <div className="text-red-500">{formik.errors.collectionLocation}</div>
                 )}
-                <div className="mt-1">
-                  <span className="text-link cursor-pointer hover:underline" onClick={browse}>
-                    Browse
-                  </span>
-                </div>
               </div>
             </form>
           )}

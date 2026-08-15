@@ -1,22 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { IconArrowLeft, IconPlus, IconFolder, IconLock, IconDots, IconCategory, IconLogin } from '@tabler/icons';
+import { IconArrowLeft, IconPlus, IconLock, IconDots, IconCategory, IconLogin } from '@tabler/icons';
 import toast from 'react-hot-toast';
 
-import get from 'lodash/get';
 import { showHomePage } from 'providers/ReduxStore/slices/app';
-import { createWorkspaceWithUniqueName, switchWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
-import { showInFolder } from 'providers/ReduxStore/slices/collections/actions';
+import { switchWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
 import { sortWorkspaces } from 'utils/workspaces';
 
 import CreateWorkspace from 'components/WorkspaceSidebar/CreateWorkspace';
 import RenameWorkspace from './RenameWorkspace';
 import DeleteWorkspace from './DeleteWorkspace';
+import CloneWorkspace from './CloneWorkspace';
 import StyledWrapper from './StyledWrapper';
 import MenuDropdown from 'ui/MenuDropdown/index';
 import Button from 'ui/Button';
-import { getRevealInFolderLabel } from 'utils/common/platform';
-import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 
 const ManageWorkspace = () => {
   const dispatch = useDispatch();
@@ -26,6 +23,7 @@ const ManageWorkspace = () => {
   const [createWorkspaceModalOpen, setCreateWorkspaceModalOpen] = useState(false);
   const [renameWorkspaceModal, setRenameWorkspaceModal] = useState({ open: false, workspace: null });
   const [deleteWorkspaceModal, setDeleteWorkspaceModal] = useState({ open: false, workspace: null });
+  const [cloneWorkspaceModal, setCloneWorkspaceModal] = useState({ open: false, workspace: null });
 
   const sortedWorkspaces = useMemo(() => {
     const persistedWorkspaces = workspaces.filter((w) => !w.isCreating);
@@ -42,14 +40,6 @@ const ManageWorkspace = () => {
     toast.success(`Switched to ${workspace.name}`);
   };
 
-  const handleShowInFolder = (workspace) => {
-    if (workspace.pathname) {
-      dispatch(showInFolder(workspace.pathname)).catch(() => {
-        toast.error('Error opening the folder');
-      });
-    }
-  };
-
   const handleRenameClick = (workspace) => {
     setRenameWorkspaceModal({ open: true, workspace });
   };
@@ -62,18 +52,12 @@ const ManageWorkspace = () => {
     setDeleteWorkspaceModal({ open: true, workspace });
   };
 
-  const handleCreateWorkspace = async () => {
-    const defaultLocation = get(preferences, 'general.defaultLocation', '');
-    if (!defaultLocation) {
-      setCreateWorkspaceModalOpen(true);
-      return;
-    }
+  const handleCloneClick = (workspace) => {
+    setCloneWorkspaceModal({ open: true, workspace });
+  };
 
-    try {
-      await dispatch(createWorkspaceWithUniqueName(defaultLocation));
-    } catch (error) {
-      toast.error(error?.message || 'Failed to create workspace');
-    }
+  const handleCreateWorkspace = () => {
+    setCreateWorkspaceModalOpen(true);
   };
 
   return (
@@ -93,6 +77,13 @@ const ManageWorkspace = () => {
         <DeleteWorkspace
           workspace={deleteWorkspaceModal.workspace}
           onClose={() => setDeleteWorkspaceModal({ open: false, workspace: null })}
+        />
+      )}
+
+      {cloneWorkspaceModal.open && cloneWorkspaceModal.workspace && (
+        <CloneWorkspace
+          workspace={cloneWorkspaceModal.workspace}
+          onClose={() => setCloneWorkspaceModal({ open: false, workspace: null })}
         />
       )}
 
@@ -145,29 +136,22 @@ const ManageWorkspace = () => {
                     <IconLogin size={14} strokeWidth={1.5} />
                     <span>Open</span>
                   </button>
-                  {workspace.pathname && workspace.type !== 'default' && (
-                    <button
-                      className="action-btn"
-                      onClick={() => handleShowInFolder(workspace)}
-                    >
-                      <IconFolder size={14} strokeWidth={1.5} />
-                      <span>{getRevealInFolderLabel()}</span>
+                  <MenuDropdown
+                    placement="bottom-end"
+                    items={[
+                      { id: 'duplicate', label: 'Duplicate', onClick: () => handleCloneClick(workspace) },
+                      ...(isDefault
+                        ? []
+                        : [
+                            { id: 'rename', label: 'Rename', onClick: () => handleRenameClick(workspace) },
+                            { id: 'remove', label: 'Remove', onClick: () => handleCloseClick(workspace) }
+                          ])
+                    ]}
+                  >
+                    <button className="more-actions-btn">
+                      <IconDots size={14} strokeWidth={1.5} />
                     </button>
-                  )}
-                  {!isDefault && (
-                    <MenuDropdown
-                      placement="bottom-end"
-                      items={[
-                        { id: 'open-in-terminal', label: 'Open in Terminal', onClick: () => openDevtoolsAndSwitchToTerminal(dispatch, workspace.pathname) },
-                        { id: 'rename', label: 'Rename', onClick: () => handleRenameClick(workspace) },
-                        { id: 'remove', label: 'Remove', onClick: () => handleCloseClick(workspace) }
-                      ]}
-                    >
-                      <button className="more-actions-btn">
-                        <IconDots size={14} strokeWidth={1.5} />
-                      </button>
-                    </MenuDropdown>
-                  )}
+                  </MenuDropdown>
                 </div>
               </div>
             );

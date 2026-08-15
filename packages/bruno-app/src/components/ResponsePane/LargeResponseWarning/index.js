@@ -1,31 +1,12 @@
 import React from 'react';
-import { IconDownload, IconCopy, IconEye, IconAlertTriangle } from '@tabler/icons';
+import { IconCopy, IconEye, IconAlertTriangle } from '@tabler/icons';
 import toast from 'react-hot-toast';
-import get from 'lodash/get';
 import StyledWrapper from './StyledWrapper';
 import { formatSize } from 'utils/common/index';
 import Button from 'ui/Button/index';
 
 const LargeResponseWarning = ({ item, responseSize, onRevealResponse }) => {
-  const { ipcRenderer } = window;
   const response = item.response || {};
-
-  const downloadResponseToFile = () => {
-    return new Promise((resolve, reject) => {
-      ipcRenderer
-        .invoke('renderer:save-response-to-file', response, item.requestSent.url, item.pathname)
-        .then((result) => {
-          if (result && result.success) {
-            toast.success('Response downloaded to file');
-          }
-          resolve();
-        })
-        .catch((err) => {
-          toast.error(get(err, 'error.message') || 'Something went wrong!');
-          reject(err);
-        });
-    });
-  };
 
   const copyResponse = () => {
     try {
@@ -70,17 +51,6 @@ const LargeResponseWarning = ({ item, responseSize, onRevealResponse }) => {
           size="sm"
         >
           View
-        </Button>
-        <Button
-          icon={<IconDownload size={18} strokeWidth={1.5} />}
-          iconPosition="left"
-          onClick={downloadResponseToFile}
-          disabled={!response.dataBuffer}
-          title="Download response to file"
-          color="secondary"
-          size="sm"
-        >
-          Download
         </Button>
         <Button
           icon={<IconCopy size={18} strokeWidth={1.5} />}

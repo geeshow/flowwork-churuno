@@ -24,7 +24,8 @@ import {
   getAllVariables,
   transformRequestToSaveToFilesystem,
   transformCollectionRootToSave,
-  flattenItems
+  flattenItems,
+  getDefaultRequestPaneTab
 } from 'utils/collections';
 import { uuid, waitForNextTick } from 'utils/common';
 import { cancelNetworkRequest, connectWS, sendGrpcRequest, sendNetworkRequest, sendWsRequest } from 'utils/network/index';
@@ -2691,38 +2692,11 @@ export const moveCollectionToWorkspace = (collectionUid) => (dispatch, getState)
   });
 };
 
-export const browseDirectory = () => (dispatch, getState) => {
-  const { ipcRenderer } = window;
-
-  return new Promise((resolve, reject) => {
-    ipcRenderer.invoke('renderer:browse-directory').then(resolve).catch(reject);
-  });
-};
-
-export const browseDirectories = () => (dispatch, getState) => {
-  const { ipcRenderer } = window;
-
-  return new Promise((resolve, reject) => {
-    ipcRenderer.invoke('renderer:browse-directories').then(resolve).catch(reject);
-  });
-};
-
 export const browseFiles = (filters, properties) => (_dispatch, _getState) => {
   const { ipcRenderer } = window;
 
   return new Promise((resolve, reject) => {
     ipcRenderer.invoke('renderer:browse-files', filters, properties).then(resolve).catch(reject);
-  });
-};
-
-export const exportCollectionToPostman = (location, fileName, content, overwrite = false) => (_dispatch, _getState) => {
-  const { ipcRenderer } = window;
-
-  return new Promise((resolve, reject) => {
-    ipcRenderer
-      .invoke('renderer:export-collection-postman', location, fileName, content, overwrite)
-      .then(resolve)
-      .catch(reject);
   });
 };
 
@@ -3360,6 +3334,29 @@ export const mountCollection
                   ? { pathname: collection.pathname, ...collectionSnapshotState, hasSnapshotEntry: true }
                   : { pathname: collection.pathname, hasSnapshotEntry: false }
               ));
+
+              // Web mode: transient request files survive a reload on the server, so
+              // reopen a tab for each one (their tabs are excluded from the snapshot).
+              if (window.__BRUNO_WEB_MODE__) {
+                await waitForNextTick();
+                const mounted = findCollectionByUid(getState().collections.collections, collectionUid);
+                const tempDirectory = getState().collections.tempDirectories?.[collectionUid];
+                if (mounted && tempDirectory) {
+                  flattenItems(mounted.items)
+                    .filter((i) => isItemARequest(i) && i.pathname?.startsWith(tempDirectory))
+                    .forEach((i) => {
+                      dispatch(addTab({
+                        uid: i.uid,
+                        collectionUid,
+                        type: i.type,
+                        pathname: i.pathname,
+                        requestPaneTab: getDefaultRequestPaneTab(i),
+                        preview: false,
+                        isTransient: true
+                      }));
+                    });
+                }
+              }
             }
           })
           .then(resolve)
@@ -3369,13 +3366,6 @@ export const mountCollection
           });
       });
     };
-
-export const showInFolder = (collectionPath) => () => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:show-in-folder', collectionPath).then(resolve).catch(reject);
-  });
-};
 
 export const updateRunnerConfiguration
   = (collectionUid, selectedRequestItems, requestItemsOrder, delay) => (dispatch) => {

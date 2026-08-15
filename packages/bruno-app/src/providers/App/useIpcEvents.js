@@ -2,16 +2,8 @@ import { useEffect } from 'react';
 import {
   updateCookies,
   updatePreferences,
-  setGitVersion,
-  setIsOpeningCollection
+  setGitVersion
 } from 'providers/ReduxStore/slices/app';
-import {
-  updateServerStatus,
-  addRequestLogEntries,
-  syncRunningMockServers
-} from 'providers/ReduxStore/slices/mock-server/index';
-import { isMockServerLogListening } from 'utils/mock-server/mock-server-log-subscription';
-import { syncMockServersFromWorkspaceStore } from 'utils/mock-server/mock-server-instances';
 import {
   addTab
 } from 'providers/ReduxStore/slices/tabs';
@@ -149,10 +141,6 @@ const useIpcEvents = () => {
 
     const removeOpenWorkspaceListener = ipcRenderer.on('main:workspace-opened', (workspacePath, workspaceUid, workspaceConfig) => {
       dispatch(workspaceOpenedEvent(workspacePath, workspaceUid, workspaceConfig));
-    });
-
-    const removeOpenCollectionModalListener = ipcRenderer.on('main:open-collection', () => {
-      dispatch(setIsOpeningCollection(true));
     });
 
     const removeWorkspacesReadyListener = ipcRenderer.on('main:workspaces-ready', () => {
@@ -382,32 +370,9 @@ const useIpcEvents = () => {
       dispatch(setGitVersion(val));
     });
 
-    // Mock server events
-    const removeMockServerStatusListener = ipcRenderer.on('main:mock-server-status-changed', (val) => {
-      dispatch(updateServerStatus(val));
-    });
-
-    const removeMockServerRequestLogListener = ipcRenderer.on('main:mock-server-request-log-batch', (val) => {
-      if (!isMockServerLogListening(val?.mockServerUid)) {
-        return;
-      }
-
-      dispatch(addRequestLogEntries(val));
-    });
-
-    const removeMockServerStoreUpdatedListener = ipcRenderer.on('main:mock-server-store-updated', (workspacePath, workspaceUid) => {
-      const state = store.getState();
-      if (state.workspaces.activeWorkspaceUid !== workspaceUid) {
-        return;
-      }
-
-      dispatch(syncMockServersFromWorkspaceStore(workspacePath, workspaceUid));
-    });
-
     const removeLoadNotificationsListener = ipcRenderer.on('main:load-notifications', (notifications) => {
       dispatch(loadNotifications(notifications));
     });
-    dispatch(syncRunningMockServers());
 
     const removeCollectionTreeLoadedListener = ipcRenderer.on('main:collection-tree-loaded', ({ collectionUid, tree }) => {
       dispatch(collectionLoadedFromTree({ collectionUid, tree }));
@@ -430,7 +395,6 @@ const useIpcEvents = () => {
       removeOpenCollectionListener();
       removeCollectionMigrationProgressListener();
       removeOpenWorkspaceListener();
-      removeOpenCollectionModalListener();
       removeWorkspacesReadyListener();
       removeWorkspaceConfigUpdatedListener();
       removeWorkspaceEnvironmentAddedListener();
@@ -461,9 +425,6 @@ const useIpcEvents = () => {
       removeRuntimeVariablesUpdateListener();
       removeSystemResourcesListener();
       gitVersionListener();
-      removeMockServerStatusListener();
-      removeMockServerRequestLogListener();
-      removeMockServerStoreUpdatedListener();
       removeLoadNotificationsListener();
     };
   }, [isElectron]);

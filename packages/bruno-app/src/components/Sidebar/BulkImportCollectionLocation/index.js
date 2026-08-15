@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import path from 'utils/common/path';
-import { browseDirectory, importCollection } from 'providers/ReduxStore/slices/collections/actions';
+import { importCollection } from 'providers/ReduxStore/slices/collections/actions';
 import Modal from 'components/Modal';
 import { isElectron } from 'utils/common/platform';
 import { IconX, IconLoader2, IconCheck, IconCaretDown } from '@tabler/icons';
@@ -490,19 +490,6 @@ export const BulkImportCollectionLocation = ({
     }
   });
 
-  const browse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string' && dirPath.length > 0) {
-          formik.setFieldValue('collectionLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('collectionLocation', '');
-        console.error(error);
-      });
-  };
-
   useEffect(() => {
     if (!isElectron()) {
       return () => { };
@@ -848,7 +835,6 @@ export const BulkImportCollectionLocation = ({
                     autoCapitalize="off"
                     spellCheck="false"
                     value={formik.values.collectionLocation || ''}
-                    onClick={browse}
                     onChange={(e) => {
                       formik.setFieldValue('collectionLocation', e.target.value);
                     }}
@@ -858,11 +844,6 @@ export const BulkImportCollectionLocation = ({
                       {formik.errors.collectionLocation}
                     </div>
                   ) : null}
-                  <div className="mt-1">
-                    <span className="text-link cursor-pointer hover:underline" onClick={browse}>
-                      Browse
-                    </span>
-                  </div>
                 </div>
 
                 <div className="mt-4">

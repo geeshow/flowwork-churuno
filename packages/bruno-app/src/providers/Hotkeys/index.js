@@ -7,12 +7,11 @@ import GlobalSearchModal from 'components/GlobalSearchModal';
 import SaveRequestsModal from 'providers/App/ConfirmAppClose/SaveRequestsModal';
 import filter from 'lodash/filter';
 import each from 'lodash/each';
-import { findCollectionByUid, findItemInCollection, flattenItems, isItemARequest, hasRequestChanges, findEnvironmentInCollection } from 'utils/collections';
+import { findCollectionByUid, flattenItems, isItemARequest, hasRequestChanges, findEnvironmentInCollection } from 'utils/collections';
 import { addTab, focusTab, reorderTabs } from 'providers/ReduxStore/slices/tabs';
 import { saveMultipleRequests, saveMultipleCollections, saveMultipleFolders, saveEnvironment, reopenClosedTab } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleSidebarCollapse, savePreferences } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_COLLAPSED_KEY } from 'utils/common/localStorage';
-import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 import { isEnvironmentValidationError } from 'utils/environments';
 import toast from 'react-hot-toast';
 import { getKeyBindingsForActionAllOS } from './keyMappings';
@@ -277,58 +276,10 @@ export const HotkeysProvider = (props) => {
     };
   }, [dispatch, userKeyBindings, keybindingsEnabled, sidebarCollapsed]);
 
-  // Open terminal — context-aware:
-  // focusedSidebarPath: null = no sidebar focus, '' = request focused (no-op), '/path' = folder/collection
-  const focusedSidebarPath = useSelector((state) => state.app.focusedSidebarPath);
   const activeWorkspace = useSelector((state) => {
     const { workspaces, activeWorkspaceUid } = state.workspaces;
     return workspaces?.find((w) => w.uid === activeWorkspaceUid);
   });
-
-  useEffect(() => {
-    bindAction('openTerminal', (e) => {
-      // 1. Sidebar focus takes priority
-      if (focusedSidebarPath) {
-        openDevtoolsAndSwitchToTerminal(dispatch, focusedSidebarPath);
-        return false;
-      }
-      if (focusedSidebarPath === '') {
-        // Request focused in sidebar → no-op
-        return false;
-      }
-
-      // 2. No sidebar focus → check active tab type
-      const activeTab = find(tabs, (t) => t.uid === activeTabUid);
-      if (activeTab) {
-        if (activeTab.type === 'collection-settings' && activeTab.collectionUid) {
-          const collection = findCollectionByUid(collections, activeTab.collectionUid);
-          if (collection?.pathname) {
-            openDevtoolsAndSwitchToTerminal(dispatch, collection.pathname);
-            return false;
-          }
-        } else if (activeTab.type === 'folder-settings' && activeTab.collectionUid && activeTab.uid) {
-          const collection = findCollectionByUid(collections, activeTab.collectionUid);
-          if (collection) {
-            const item = findItemInCollection(collection, activeTab.uid);
-            if (item?.pathname) {
-              openDevtoolsAndSwitchToTerminal(dispatch, item.pathname);
-              return false;
-            }
-          }
-        }
-      }
-
-      // 3. Default to workspace root
-      if (activeWorkspace?.pathname) {
-        openDevtoolsAndSwitchToTerminal(dispatch, activeWorkspace.pathname);
-      }
-      return false;
-    });
-
-    return () => {
-      unbindAction('openTerminal');
-    };
-  }, [focusedSidebarPath, activeTabUid, tabs, collections, activeWorkspace, dispatch, userKeyBindings, keybindingsEnabled]);
 
   // Move tab left (active-collection-tabs-only)
   useEffect(() => {
@@ -400,45 +351,6 @@ export const HotkeysProvider = (props) => {
       unbindAction('changeLayout');
     };
   }, [preferences, dispatch, userKeyBindings, keybindingsEnabled]);
-
-  // Zoom in
-  useEffect(() => {
-    bindAction('zoomIn', () => {
-      const { ipcRenderer } = window;
-      ipcRenderer?.invoke('renderer:zoom-in');
-      return false;
-    });
-
-    return () => {
-      unbindAction('zoomIn');
-    };
-  }, [userKeyBindings, keybindingsEnabled]);
-
-  // Zoom out
-  useEffect(() => {
-    bindAction('zoomOut', () => {
-      const { ipcRenderer } = window;
-      ipcRenderer?.invoke('renderer:zoom-out');
-      return false;
-    });
-
-    return () => {
-      unbindAction('zoomOut');
-    };
-  }, [userKeyBindings, keybindingsEnabled]);
-
-  // Reset zoom
-  useEffect(() => {
-    bindAction('resetZoom', () => {
-      const { ipcRenderer } = window;
-      ipcRenderer?.invoke('renderer:reset-zoom');
-      return false;
-    });
-
-    return () => {
-      unbindAction('resetZoom');
-    };
-  }, [userKeyBindings, keybindingsEnabled]);
 
   // Close Bruno
   useEffect(() => {

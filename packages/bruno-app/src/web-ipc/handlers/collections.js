@@ -65,6 +65,11 @@ const emitRequestFile = (collectionUid, pathname, content, changeType) => {
     const data = parseRequest(content, { format: formatForFile(pathname) });
     data.raw = content;
     hydrateRequest(data, pathname);
+    // scratch collections hold transient requests at their root, without a
+    // /.transient/ path segment
+    if (findCollectionForPath(pathname)?.scratch) {
+      data.isTransient = true;
+    }
     payload = { meta, data, partial: false, loading: false, size: sizeInMB(content.length) };
   } catch (error) {
     payload = {
@@ -97,6 +102,7 @@ const emitEnvironmentFile = (collectionUid, pathname, content) => {
 const streamDirectory = async (collectionEntry, node, isRoot) => {
   const { uid: collectionUid, format } = collectionEntry;
   const children = node.children || [];
+  const ignoredDirs = new Set(collectionEntry.brunoConfig?.ignore || []);
 
   if (isRoot) {
     const rootFileName = format === 'yml' ? 'opencollection.yml' : 'collection.bru';
@@ -117,7 +123,21 @@ const streamDirectory = async (collectionEntry, node, isRoot) => {
 
   for (const child of children) {
     if (child.type === 'dir') {
+      if (ignoredDirs.has(child.name)) {
+        continue;
+      }
       if (child.name.startsWith('.')) {
+        // transient requests live in <collection>/.transient — restore them so
+        // an unsaved request survives a page reload (its tab is reopened by the
+        // web-mode restore block in the mount thunks)
+        if (isRoot && child.name === '.transient') {
+          for (const transientFile of child.children || []) {
+            if (transientFile.type === 'file' && isParseableFile(transientFile.name)) {
+              const { content } = await serverApi.fsRead(transientFile.pathname);
+              emitRequestFile(collectionUid, transientFile.pathname, content, 'addFile');
+            }
+          }
+        }
         continue;
       }
       if (isRoot && child.name === 'environments') {
@@ -177,12 +197,12 @@ const mountCollection = async ({ collectionUid, collectionPathname }) => {
   }
 
   const tree = await serverApi.fsTree(collectionPathname);
-  // stream after returning so the renderer registers the mount first
-  setTimeout(() => {
-    streamDirectory(entry, tree, true).catch((error) => {
-      console.error(`[web-ipc] failed to load collection tree for ${collectionPathname}`, error);
-    });
-  }, 0);
+  // The tree (environments included) must be in the store before the mount
+  // resolves — the renderer restores the snapshot's selected environment and
+  // tabs right after mounting, and needs the items to match against.
+  await streamDirectory(entry, tree, true).catch((error) => {
+    console.error(`[web-ipc] failed to load collection tree for ${collectionPathname}`, error);
+  });
 
   return `${collectionPathname}/.transient`;
 };
@@ -221,6 +241,49 @@ const registerCollectionHandlers = () => {
     const content = stringifyRequest(request, { format });
     await serverApi.fsWrite(pathname, content);
     emitRequestFile(collectionUidFor(pathname), pathname, content, 'addFile');
+  });
+
+  // Streams a collection that is not mounted through renderer:mount-collection —
+  // the workspace scratch collection uses this to restore its transient requests.
+  handle('renderer:web:stream-collection', async ({ collectionPathname }) => {
+    const entry = findCollectionForPath(collectionPathname);
+    if (!entry) {
+      return;
+    }
+    const tree = await serverApi.fsTree(collectionPathname);
+    await streamDirectory(entry, tree, true);
+  });
+
+  // Persists a transient request's draft to its backing file without emitting a
+  // change event — an event would clobber the draft the user is still editing.
+  handle('renderer:web:persist-transient-draft', async ({ pathname, request, format }) => {
+    const content = stringifyRequest(request, { format: format || formatForFile(pathname) });
+    await serverApi.fsWrite(pathname, content);
+  });
+
+  handle('renderer:delete-transient-requests', async (filePaths, tempDirectory) => {
+    const results = { deleted: [], skipped: [], errors: [] };
+    for (const filePath of filePaths || []) {
+      if (!tempDirectory || (!filePath.startsWith(`${tempDirectory}/`) && filePath !== tempDirectory)) {
+        results.skipped.push({ path: filePath, reason: 'Not in collection temp directory' });
+        continue;
+      }
+      try {
+        await serverApi.fsDelete(filePath);
+        results.deleted.push(filePath);
+      } catch (error) {
+        results.errors.push({ path: filePath, error: error.message });
+      }
+    }
+    return results;
+  });
+
+  handle('renderer:save-transient-request', async ({ sourcePathname, targetDirname, targetFilename, request, format }) => {
+    const targetPathname = `${targetDirname}/${targetFilename}`;
+    const content = stringifyRequest(request, { format });
+    await serverApi.fsWrite(targetPathname, content);
+    emitRequestFile(collectionUidFor(targetPathname), targetPathname, content, 'addFile');
+    await serverApi.fsDelete(sourcePathname);
   });
 
   handle('renderer:save-request', async (pathname, request, format) => {

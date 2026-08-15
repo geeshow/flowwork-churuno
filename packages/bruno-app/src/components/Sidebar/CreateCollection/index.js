@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import path from 'utils/common/path';
-import { browseDirectory, createCollection } from 'providers/ReduxStore/slices/collections/actions';
+import { createCollection } from 'providers/ReduxStore/slices/collections/actions';
 import toast from 'react-hot-toast';
 import Portal from 'components/Portal';
 import Modal from 'components/Modal';
@@ -74,18 +74,6 @@ const CreateCollection = ({ onClose, defaultLocation: propDefaultLocation, initi
       }
     }
   });
-
-  const browse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string') {
-          formik.setFieldValue('collectionLocation', dirPath);
-        }
-      })
-      .catch(() => {
-        formik.setFieldValue('collectionLocation', '');
-      });
-  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -164,14 +152,12 @@ const CreateCollection = ({ onClose, defaultLocation: propDefaultLocation, initi
                 id="collection-location"
                 type="text"
                 name="collectionLocation"
-                className="block textbox mt-2 w-full cursor-pointer"
+                className="block textbox mt-2 w-full"
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                readOnly={true}
                 value={formik.values.collectionLocation || ''}
-                onClick={browse}
                 onChange={(e) => {
                   formik.setFieldValue('collectionLocation', e.target.value);
                 }}
@@ -179,14 +165,6 @@ const CreateCollection = ({ onClose, defaultLocation: propDefaultLocation, initi
               {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
                 <div className="text-red-500">{formik.errors.collectionLocation}</div>
               ) : null}
-              <div className="mt-1">
-                <span
-                  className="text-link cursor-pointer hover:underline"
-                  onClick={browse}
-                >
-                  Browse
-                </span>
-              </div>
               {formik.values.collectionName?.trim()?.length > 0 && (
                 <div className="mt-4">
                   <div className="flex items-center justify-between">

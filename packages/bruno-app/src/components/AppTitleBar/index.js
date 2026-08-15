@@ -1,16 +1,15 @@
 import React from 'react';
-import { IconCheck, IconChevronDown, IconFolder, IconHome, IconPin, IconPinned, IconPlus, IconDownload, IconSettings, IconMinus, IconSquare, IconX, IconCopy } from '@tabler/icons';
-import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
+import { IconCheck, IconChevronDown, IconHome, IconPin, IconPinned, IconPlus, IconDownload, IconSettings } from '@tabler/icons';
+import { forwardRef, useCallback, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { savePreferences, showManageWorkspacePage, toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
+import { savePreferences, setActiveApp, showManageWorkspacePage, toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_COLLAPSED_KEY } from 'utils/common/localStorage';
 import { closeConsole, openConsole } from 'providers/ReduxStore/slices/logs';
-import { createWorkspaceWithUniqueName, openWorkspaceDialog, switchWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
+import { switchWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
 import { sortWorkspaces, toggleWorkspacePin } from 'utils/workspaces';
 import { focusTab } from 'providers/ReduxStore/slices/tabs';
-import get from 'lodash/get';
 
 import Bruno from 'components/Bruno';
 import MenuDropdown from 'ui/MenuDropdown';
@@ -20,7 +19,6 @@ import CreateWorkspace from 'components/WorkspaceSidebar/CreateWorkspace';
 import ImportWorkspace from 'components/WorkspaceSidebar/ImportWorkspace';
 
 import IconBottombarToggle from 'components/Icons/IconBottombarToggle/index';
-import AppMenu from './AppMenu';
 import StyledWrapper from './StyledWrapper';
 import ResponseLayoutToggle from 'components/ResponsePane/ResponseLayoutToggle';
 import { isMacOS, isWindowsOS, isLinuxOS } from 'utils/common/platform';
@@ -41,84 +39,13 @@ export const getWorkspaceDisplayName = (name) => {
 
 const AppTitleBar = () => {
   const dispatch = useDispatch();
-  const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isMaximized, setIsMaximized] = useState(false);
   const osClass = getOsClass();
-  const isWindows = osClass === 'os-windows';
-  const isLinux = osClass === 'os-linux';
-  const showWindowControls = isWindows || isLinux;
-
-  // Listen for fullscreen changes
-  useEffect(() => {
-    const { ipcRenderer } = window;
-    if (!ipcRenderer) return;
-
-    ipcRenderer.invoke('renderer:window-is-fullscreen')
-      .then((fullscreen) => {
-        setIsFullScreen(fullscreen);
-      })
-      .catch((error) => {
-        console.error('Error getting initial fullscreen state:', error);
-      });
-
-    const removeEnterFullScreenListener = ipcRenderer.on('main:enter-full-screen', () => {
-      setIsFullScreen(true);
-    });
-
-    const removeLeaveFullScreenListener = ipcRenderer.on('main:leave-full-screen', () => {
-      setIsFullScreen(false);
-    });
-
-    return () => {
-      removeEnterFullScreenListener();
-      removeLeaveFullScreenListener();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!showWindowControls) return;
-    const { ipcRenderer } = window;
-    if (!ipcRenderer) return;
-
-    ipcRenderer.invoke('renderer:window-is-maximized')
-      .then((maximized) => {
-        setIsMaximized(maximized);
-      })
-      .catch((error) => {
-        console.error('Error getting initial maximized state:', error);
-      });
-
-    const removeMaximizedListener = ipcRenderer.on('main:window-maximized', () => {
-      setIsMaximized(true);
-    });
-
-    const removeUnmaximizedListener = ipcRenderer.on('main:window-unmaximized', () => {
-      setIsMaximized(false);
-    });
-
-    return () => {
-      removeMaximizedListener();
-      removeUnmaximizedListener();
-    };
-  }, [showWindowControls]);
-
-  const handleMinimize = useCallback(() => {
-    window.ipcRenderer?.send('renderer:window-minimize');
-  }, []);
-
-  const handleMaximize = useCallback(() => {
-    window.ipcRenderer?.send('renderer:window-maximize');
-    // State will be updated via IPC events from main process (main:window-maximized/main:window-unmaximized)
-  }, []);
-
-  const handleClose = useCallback(() => {
-    window.ipcRenderer?.send('renderer:window-close');
-  }, []);
 
   // Get workspace info
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
   const preferences = useSelector((state) => state.app.preferences);
   const sidebarCollapsed = useSelector((state) => state.app.sidebarCollapsed);
+  const activeApp = useSelector((state) => state.app.activeApp);
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
 
@@ -153,30 +80,9 @@ const AppTitleBar = () => {
     toast.success(`Switched to ${getWorkspaceDisplayName(workspaces.find((w) => w.uid === workspaceUid)?.name)}`);
   };
 
-  const handleOpenWorkspace = async () => {
-    try {
-      const result = await dispatch(openWorkspaceDialog());
-      if (result) {
-        toast.success('Workspace opened successfully');
-      }
-    } catch (error) {
-      toast.error(error.message || 'Failed to open workspace');
-    }
-  };
-
-  const handleCreateWorkspace = useCallback(async () => {
-    const defaultLocation = get(preferences, 'general.defaultLocation', '');
-    if (!defaultLocation) {
-      setCreateWorkspaceModalOpen(true);
-      return;
-    }
-
-    try {
-      await dispatch(createWorkspaceWithUniqueName(defaultLocation));
-    } catch (error) {
-      toast.error(error?.message || 'Failed to create workspace');
-    }
-  }, [preferences, dispatch]);
+  const handleCreateWorkspace = useCallback(() => {
+    setCreateWorkspaceModalOpen(true);
+  }, []);
 
   const handleManageWorkspaces = () => {
     dispatch(showManageWorkspacePage());
@@ -245,12 +151,6 @@ const AppTitleBar = () => {
         onClick: handleCreateWorkspace
       },
       {
-        id: 'open-workspace',
-        leftSection: IconFolder,
-        label: 'Open workspace',
-        onClick: handleOpenWorkspace
-      },
-      {
         id: 'import-workspace',
         leftSection: IconDownload,
         label: 'Import workspace',
@@ -268,7 +168,7 @@ const AppTitleBar = () => {
   }, [sortedWorkspaces, activeWorkspaceUid, preferences, handlePinWorkspace, handleCreateWorkspace]);
 
   return (
-    <StyledWrapper className={`app-titlebar ${osClass} ${isFullScreen ? 'fullscreen' : ''}`}>
+    <StyledWrapper className={`app-titlebar ${osClass}`}>
       {createWorkspaceModalOpen && (
         <CreateWorkspace onClose={() => setCreateWorkspaceModalOpen(false)} />
       )}
@@ -278,8 +178,6 @@ const AppTitleBar = () => {
 
       <div className="titlebar-content">
         <div className="titlebar-left">
-          {showWindowControls && <AppMenu />}
-
           <ActionIcon onClick={handleHomeClick} label="Home" size="lg" className="home-button">
             <IconHome size={16} stroke={1.5} />
           </ActionIcon>
@@ -295,10 +193,23 @@ const AppTitleBar = () => {
           </MenuDropdown>
         </div>
 
-        {/* Center section: Bruno logo + text */}
+        {/* Center section: flowwork / Bruno app switcher */}
         <div className="titlebar-center">
-          <Bruno width={18} />
-          <span className="bruno-text">Bruno</span>
+          <button
+            className={`app-switch ${activeApp === 'flowwork' ? 'active' : ''}`}
+            onClick={() => dispatch(setActiveApp('flowwork'))}
+            data-testid="app-switch-flowwork"
+          >
+            <span className="flowwork-text">flowwork</span>
+          </button>
+          <button
+            className={`app-switch ${activeApp === 'bruno' ? 'active' : ''}`}
+            onClick={() => dispatch(setActiveApp('bruno'))}
+            data-testid="app-switch-bruno"
+          >
+            <Bruno width={18} />
+            <span className="bruno-text">Bruno</span>
+          </button>
         </div>
 
         {/* Right section: Action buttons */}
@@ -326,32 +237,6 @@ const AppTitleBar = () => {
 
             <ResponseLayoutToggle />
           </div>
-
-          {showWindowControls && (
-            <div className="window-controls">
-              <button
-                className="window-control-btn minimize"
-                onClick={handleMinimize}
-                aria-label="Minimize"
-              >
-                <IconMinus size={16} stroke={1} />
-              </button>
-              <button
-                className="window-control-btn maximize"
-                onClick={handleMaximize}
-                aria-label={isMaximized ? 'Restore' : 'Maximize'}
-              >
-                {isMaximized ? <IconCopy size={14} stroke={1} /> : <IconSquare size={14} stroke={1} />}
-              </button>
-              <button
-                className="window-control-btn close"
-                onClick={handleClose}
-                aria-label="Close"
-              >
-                <IconX size={16} stroke={1} />
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </StyledWrapper>

@@ -1,0 +1,80 @@
+/**
+ * flowwork 백엔드(/api/flowwork/*, web-server/flowwork.py) HTTP 클라이언트.
+ * 워크플로우가 참조하는 API 카탈로그는 bruno repo main 브랜치의 .bru 기준이다.
+ */
+import { serverBaseUrl } from '../../../web-ipc/server-api';
+
+// 동일 워크플로우 동시 저장 충돌 (낙관적 잠금) — 조회 이후 다른 사용자가 저장/삭제함
+export class VersionConflictError extends Error {
+  constructor(message, currentVersion) {
+    super(message);
+    this.name = 'VersionConflictError';
+    this.currentVersion = currentVersion;
+  }
+}
+
+const request = async (path, options = {}) => {
+  const res = await fetch(`${serverBaseUrl}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch (_ignored) {
+      // non-JSON error body — keep statusText
+    }
+    if (detail && typeof detail === 'object' && detail.code === 'version_conflict') {
+      throw new VersionConflictError(detail.message || '저장 충돌', detail.current_version ?? null);
+    }
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+  }
+  return res.json();
+};
+
+const get = (path) => request(path);
+const post = (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) });
+const put = (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) });
+
+const api = {
+  listWorkflows: () => get('/api/flowwork/workflows').then((r) => r.workflows),
+  getWorkflow: (id) => get(`/api/flowwork/workflows/${encodeURIComponent(id)}`),
+  saveWorkflow: (wf, { force = false } = {}) =>
+    put(`/api/flowwork/workflows/${encodeURIComponent(wf.id)}${force ? '?force=true' : ''}`, wf),
+  deleteWorkflow: (id) => request(`/api/flowwork/workflows/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  searchCatalog: (q = '') => get(`/api/flowwork/catalog/search?q=${encodeURIComponent(q)}`),
+  getEnvironments: () => get('/api/flowwork/catalog/environments').then((r) => r.values),
+
+  getDomainColors: () => get('/api/flowwork/domains').then((r) => r.colors),
+  setDomainColor: (domain, color) => put(`/api/flowwork/domains/${encodeURIComponent(domain)}`, { color }),
+
+  listExecutions: () => get('/api/flowwork/executions').then((r) => r.executions),
+  getExecution: (id) => get(`/api/flowwork/executions/${encodeURIComponent(id)}`),
+  // 실행에 사용된 입력값을 이력에 기록 (서버가 비밀번호 등 리댁션)
+  recordExecutionInputs: (id, values, workflowId) =>
+    post(`/api/flowwork/executions/${encodeURIComponent(id)}/inputs`, { values, workflow_id: workflowId }),
+
+  // 실행 이력에 남기지 않는 보조 호출 (API_COMBO 옵션 조회 / DEPENDENT_LOOKUP)
+  invoke: (req) =>
+    post('/api/flowwork/proxy', {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body ?? null
+    }),
+
+  proxy: ({ execution_id, step_id, workflow_id, request: req }) =>
+    post('/api/flowwork/proxy', {
+      execution_id,
+      step_id,
+      workflow_id,
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body ?? null
+    })
+};
+
+export default api;

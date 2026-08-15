@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import Bruno from 'components/Bruno';
 import Button from 'ui/Button';
 import { useTheme } from 'providers/Theme';
-import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import { savePreferences } from 'providers/ReduxStore/slices/app';
 import WelcomeStep from './WelcomeStep';
 import ThemeStep from './ThemeStep';
@@ -15,7 +14,7 @@ import StyledWrapper from './StyledWrapper';
 
 const TOTAL_STEPS = 4;
 
-const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpenCollection, onStartRequest }) => {
+const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onStartRequest }) => {
   const dispatch = useDispatch();
   const preferences = useSelector((state) => state.app.preferences);
   const defaultLocation = get(preferences, 'general.defaultLocation', '');
@@ -30,16 +29,6 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
 
   const [step, setStep] = useState(1);
   const [collectionLocation, setCollectionLocation] = useState(defaultLocation);
-
-  const handleBrowse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string') {
-          setCollectionLocation(dirPath);
-        }
-      })
-      .catch(() => {});
-  };
 
   const persistPreferences = () => {
     if (collectionLocation && collectionLocation !== defaultLocation) {
@@ -86,13 +75,12 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
     <StorageStep
       key="storage"
       collectionLocation={collectionLocation}
-      onBrowse={handleBrowse}
+      onLocationChange={setCollectionLocation}
     />,
     <GetStartedStep
       key="getstarted"
       onCreateCollection={handleActionAndDismiss(onCreateCollection)}
       onImportCollection={handleActionAndDismiss(onImportCollection)}
-      onOpenCollection={handleActionAndDismiss(onOpenCollection)}
       onStartRequest={handleActionAndDismiss(onStartRequest)}
     />
   ];

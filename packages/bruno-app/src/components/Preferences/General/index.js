@@ -4,27 +4,16 @@ import debounce from 'lodash/debounce';
 import { useFormik } from 'formik';
 import { useSelector, useDispatch } from 'react-redux';
 import { savePreferences } from 'providers/ReduxStore/slices/app';
-import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import StyledWrapper from './StyledWrapper';
 import * as Yup from 'yup';
 import toast from 'react-hot-toast';
-import path from 'utils/common/path';
-import { IconTrash } from '@tabler/icons';
 
 const General = () => {
   const preferences = useSelector((state) => state.app.preferences);
   const dispatch = useDispatch();
-  const inputFileCaCertificateRef = useRef();
 
   const preferencesSchema = Yup.object().shape({
     sslVerification: Yup.boolean(),
-    customCaCertificate: Yup.object({
-      enabled: Yup.boolean(),
-      filePath: Yup.string().nullable()
-    }),
-    keepDefaultCaCertificates: Yup.object({
-      enabled: Yup.boolean()
-    }),
     storeCookies: Yup.boolean(),
     sendCookies: Yup.boolean(),
     timeout: Yup.mixed()
@@ -57,31 +46,18 @@ const General = () => {
       }
       return true;
     }),
-    oauth2: Yup.object({
-      useSystemBrowser: Yup.boolean()
-    }),
     defaultLocation: Yup.string().max(1024)
   });
 
   const formik = useFormik({
     initialValues: {
       sslVerification: preferences.request.sslVerification,
-      customCaCertificate: {
-        enabled: get(preferences, 'request.customCaCertificate.enabled', false),
-        filePath: get(preferences, 'request.customCaCertificate.filePath', null)
-      },
-      keepDefaultCaCertificates: {
-        enabled: get(preferences, 'request.keepDefaultCaCertificates.enabled', true)
-      },
       timeout: preferences.request.timeout,
       storeCookies: get(preferences, 'request.storeCookies', true),
       sendCookies: get(preferences, 'request.sendCookies', true),
       autoSave: {
         enabled: get(preferences, 'autoSave.enabled', false),
         interval: get(preferences, 'autoSave.interval', 1000)
-      },
-      oauth2: {
-        useSystemBrowser: get(preferences, 'request.oauth2.useSystemBrowser', false)
       },
       defaultLocation: get(preferences, 'general.defaultLocation', '')
     },
@@ -103,19 +79,9 @@ const General = () => {
         request: {
           ...preferences.request,
           sslVerification: newPreferences.sslVerification,
-          customCaCertificate: {
-            enabled: newPreferences.customCaCertificate.enabled,
-            filePath: newPreferences.customCaCertificate.filePath
-          },
-          keepDefaultCaCertificates: {
-            enabled: newPreferences.keepDefaultCaCertificates.enabled
-          },
           timeout: newPreferences.timeout,
           storeCookies: newPreferences.storeCookies,
-          sendCookies: newPreferences.sendCookies,
-          oauth2: {
-            useSystemBrowser: newPreferences.oauth2.useSystemBrowser
-          }
+          sendCookies: newPreferences.sendCookies
         },
         autoSave: {
           enabled: newPreferences.autoSave.enabled,
@@ -152,30 +118,6 @@ const General = () => {
     };
   }, [formik.values, formik.dirty, formik.isValid, debouncedSave]);
 
-  const addCaCertificate = (e) => {
-    const filePath = window?.ipcRenderer?.getFilePath(e?.target?.files?.[0]);
-    if (filePath) {
-      formik.setFieldValue('customCaCertificate.filePath', filePath);
-    }
-  };
-
-  const deleteCaCertificate = () => {
-    formik.setFieldValue('customCaCertificate.filePath', null);
-  };
-
-  const browseDefaultLocation = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string') {
-          formik.setFieldValue('defaultLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('defaultLocation', '');
-        console.error(error);
-      });
-  };
-
   return (
     <StyledWrapper className="w-full">
       <div className="section-header">General Settings</div>
@@ -191,77 +133,6 @@ const General = () => {
           />
           <label className="block ml-2 select-none" htmlFor="sslVerification">
             SSL/TLS Certificate Verification
-          </label>
-        </div>
-        <div className="flex items-center mt-2">
-          <input
-            id="customCaCertificateEnabled"
-            type="checkbox"
-            name="customCaCertificate.enabled"
-            checked={formik.values.customCaCertificate.enabled}
-            onChange={formik.handleChange}
-            className="mousetrap mr-0"
-          />
-          <label className="block ml-2 select-none" htmlFor="customCaCertificateEnabled">
-            Use Custom CA Certificate
-          </label>
-        </div>
-        {formik.values.customCaCertificate.filePath ? (
-          <div
-            className={`flex items-center mt-2 pl-6 ${formik.values.customCaCertificate.enabled ? '' : 'opacity-25'}`}
-          >
-            <span className="flex items-center border px-2 rounded-md">
-              {path.basename(formik.values.customCaCertificate.filePath)}
-              <button
-                type="button"
-                tabIndex="-1"
-                className="pl-1"
-                disabled={formik.values.customCaCertificate.enabled ? false : true}
-                onClick={deleteCaCertificate}
-              >
-                <IconTrash strokeWidth={1.5} size={14} />
-              </button>
-            </span>
-          </div>
-        ) : (
-          <div
-            className={`flex items-center mt-2 pl-6 ${formik.values.customCaCertificate.enabled ? '' : 'opacity-25'}`}
-          >
-            <button
-              type="button"
-              tabIndex="-1"
-              className="flex items-center border px-2 rounded-md"
-              disabled={formik.values.customCaCertificate.enabled ? false : true}
-              onClick={() => inputFileCaCertificateRef.current.click()}
-            >
-              Select File
-              <input
-                id="caCertFilePath"
-                type="file"
-                name="customCaCertificate.filePath"
-                className="hidden"
-                ref={inputFileCaCertificateRef}
-                disabled={formik.values.customCaCertificate.enabled ? false : true}
-                onChange={addCaCertificate}
-              />
-            </button>
-          </div>
-        )}
-        <div className="flex items-center mt-2">
-          <input
-            id="keepDefaultCaCertificatesEnabled"
-            type="checkbox"
-            name="keepDefaultCaCertificates.enabled"
-            checked={formik.values.keepDefaultCaCertificates.enabled}
-            onChange={formik.handleChange}
-            className={`mousetrap mr-0 ${formik.values.customCaCertificate.enabled && formik.values.customCaCertificate.filePath ? '' : 'opacity-25'}`}
-            disabled={formik.values.customCaCertificate.enabled && formik.values.customCaCertificate.filePath ? false : true}
-          />
-          <label
-            className={`block ml-2 select-none ${formik.values.customCaCertificate.enabled && formik.values.customCaCertificate.filePath ? '' : 'opacity-25'}`}
-            htmlFor="keepDefaultCaCertificatesEnabled"
-          >
-            Keep Default CA Certificates
           </label>
         </div>
         <div className="flex items-center mt-2">
@@ -288,19 +159,6 @@ const General = () => {
           />
           <label className="block ml-2 select-none" htmlFor="sendCookies">
             Send Cookies automatically
-          </label>
-        </div>
-        <div className="flex items-center mt-2">
-          <input
-            id="oauth2.useSystemBrowser"
-            type="checkbox"
-            name="oauth2.useSystemBrowser"
-            checked={formik.values.oauth2.useSystemBrowser}
-            onChange={formik.handleChange}
-            className="mousetrap mr-0"
-          />
-          <label className="block ml-2 select-none" htmlFor="oauth2.useSystemBrowser">
-            Use System Browser for OAuth2 Authorization
           </label>
         </div>
         <div className="flex flex-col mt-6">
@@ -370,25 +228,15 @@ const General = () => {
             type="text"
             name="defaultLocation"
             id="defaultLocation"
-            className="block textbox mt-2 w-full cursor-pointer default-location-input"
+            className="block textbox mt-2 w-full default-location-input"
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            readOnly={true}
             onChange={formik.handleChange}
             value={formik.values.defaultLocation || ''}
-            onClick={browseDefaultLocation}
-            placeholder="Click to browse for default location"
+            placeholder="Enter a default location"
           />
-          <div className="mt-1">
-            <span
-              className="text-link cursor-pointer hover:underline default-location-browse"
-              onClick={browseDefaultLocation}
-            >
-              Browse
-            </span>
-          </div>
         </div>
         {formik.touched.defaultLocation && formik.errors.defaultLocation ? (
           <div className="text-red-500">{formik.errors.defaultLocation}</div>

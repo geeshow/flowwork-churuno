@@ -11,9 +11,6 @@ import {
   IconEdit,
   IconX,
   IconCheck,
-  IconFolder,
-  IconUpload,
-  IconServer2,
   IconFileCode,
   IconFileOff,
   IconCode,
@@ -22,9 +19,8 @@ import {
 } from '@tabler/icons';
 import IconSparkles from 'components/Icons/IconSparkles';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
-import { switchWorkspace, renameWorkspaceAction, exportWorkspaceAction, confirmWorkspaceCreation, cancelWorkspaceCreation } from 'providers/ReduxStore/slices/workspaces/actions';
+import { switchWorkspace, renameWorkspaceAction, confirmWorkspaceCreation, cancelWorkspaceCreation } from 'providers/ReduxStore/slices/workspaces/actions';
 import { updateWorkspace } from 'providers/ReduxStore/slices/workspaces';
-import { showInFolder } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleCollectionFileMode } from 'providers/ReduxStore/slices/collections';
 import { toggleAiSidebar } from 'providers/ReduxStore/slices/chat';
 import { showMigrateToYmlModal } from 'providers/ReduxStore/slices/collection-migration';
@@ -42,14 +38,10 @@ import EnvironmentSelector from 'components/Environments/EnvironmentSelector';
 import ToolHint from 'components/ToolHint';
 import JsSandboxMode from 'components/SecuritySettings/JsSandboxMode';
 import ActionIcon from 'ui/ActionIcon';
-import { getRevealInFolderLabel } from 'utils/common/platform';
 import { normalizePath } from 'utils/common/path';
 import classNames from 'classnames';
 import StyledWrapper from './StyledWrapper';
 import { useTheme } from 'providers/Theme';
-import { useBetaFeature, BETA_FEATURES } from 'utils/beta-features';
-import CreateMockServerModal from 'components/MockServer/CreateMockServerModal';
-import { getMockServerInstances, openMockServerDashboard } from 'utils/mock-server/mock-server-instances';
 
 const readDismissedCollections = () => {
   try {
@@ -76,8 +68,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   // Get the current active workspace
   const currentWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
   const gitRootPath = collection?.git?.gitRootPath;
-  const isMockServerEnabled = useBetaFeature(BETA_FEATURES.MOCK_SERVER);
-  const mockServerInstances = useSelector((state) => getMockServerInstances(state, activeWorkspaceUid));
 
   // Active request (used by the Request / App / File view-mode toggle)
   const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
@@ -104,7 +94,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   const [workspaceNameError, setWorkspaceNameError] = useState('');
   const [closeWorkspaceModalOpen, setCloseWorkspaceModalOpen] = useState(false);
   const [createWorkspaceModalOpen, setCreateWorkspaceModalOpen] = useState(false);
-  const [showCreateMockServerModal, setShowCreateMockServerModal] = useState(false);
 
   const [migratePillDismissed, setMigratePillDismissed] = useState(true);
   useEffect(() => {
@@ -300,19 +289,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
     }));
   };
 
-  const viewMockServer = () => {
-    const existingInstance = mockServerInstances.find((instance) => (
-      instance.sourceType === 'collection' && instance.collectionUid === collection.uid
-    ));
-
-    if (existingInstance) {
-      dispatch(openMockServerDashboard(existingInstance, collection.uid));
-      return;
-    }
-
-    setShowCreateMockServerModal(true);
-  };
-
   const handleFileModeClick = () => {
     dispatch(
       toggleCollectionFileMode({
@@ -332,9 +308,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
     ...(!hasOpenApiSyncConfigured
       ? [{ id: 'openapi-sync', label: 'OpenAPI', leftSection: OpenAPISyncIcon, onClick: viewOpenApiSync }]
       : []),
-    ...(isMockServerEnabled
-      ? [{ id: 'mock-server', label: 'Mock Server', leftSection: IconServer2, onClick: viewMockServer }]
-      : []),
     { id: 'collection-settings', label: 'Collection Settings', leftSection: IconSettings, onClick: viewCollectionSettings }
   ];
 
@@ -353,32 +326,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
       return;
     }
     setCloseWorkspaceModalOpen(true);
-  };
-
-  const handleShowInFolder = () => {
-    workspaceActionsRef.current?.hide();
-    const pathname = currentWorkspace?.pathname;
-    if (pathname) {
-      dispatch(showInFolder(pathname)).catch(() => {
-        toast.error('Error opening the folder');
-      });
-    }
-  };
-
-  const handleExportWorkspace = () => {
-    workspaceActionsRef.current?.hide();
-    const uid = currentWorkspace?.uid;
-    if (!uid) return;
-
-    dispatch(exportWorkspaceAction(uid))
-      .then((result) => {
-        if (!result?.canceled) {
-          toast.success('Workspace exported successfully');
-        }
-      })
-      .catch((error) => {
-        toast.error(error?.message || 'Error exporting workspace');
-      });
   };
 
   const validateWorkspaceName = (name) => {
@@ -525,13 +472,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
         <CreateWorkspace onClose={handleAdvancedCreateClose} />
       )}
 
-      {showCreateMockServerModal && (
-        <CreateMockServerModal
-          defaultCollectionUid={collection.uid}
-          onClose={() => setShowCreateMockServerModal(false)}
-        />
-      )}
-
       <div className="flex items-center justify-between gap-2 py-2 px-4">
         {/* Left side: Switcher dropdown or rename input */}
         <div className="collection-switcher">
@@ -665,18 +605,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
                   <IconEdit size={16} strokeWidth={1.5} />
                 </div>
                 <span>Rename</span>
-              </div>
-              <div className="dropdown-item" onClick={handleShowInFolder}>
-                <div className="dropdown-icon">
-                  <IconFolder size={16} strokeWidth={1.5} />
-                </div>
-                <span>{getRevealInFolderLabel()}</span>
-              </div>
-              <div className="dropdown-item" onClick={handleExportWorkspace}>
-                <div className="dropdown-icon">
-                  <IconUpload size={16} strokeWidth={1.5} />
-                </div>
-                <span>Export</span>
               </div>
               <div className="dropdown-item" onClick={handleCloseWorkspaceClick}>
                 <div className="dropdown-icon">

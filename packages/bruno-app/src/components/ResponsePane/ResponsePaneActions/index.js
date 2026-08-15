@@ -1,8 +1,7 @@
 import React, { forwardRef, useRef } from 'react';
 import styled from 'styled-components';
-import { IconDots, IconDownload, IconEraser, IconBookmark, IconCopy, IconLayoutColumns, IconLayoutRows } from '@tabler/icons';
+import { IconDots, IconEraser, IconBookmark, IconCopy, IconLayoutColumns, IconLayoutRows } from '@tabler/icons';
 import MenuDropdown from 'ui/MenuDropdown';
-import ResponseDownload from '../ResponseDownload';
 import ResponseBookmark from '../ResponseBookmark';
 import ResponseClear from '../ResponseClear';
 import ResponseLayoutToggle, { useResponseLayoutToggle } from '../ResponseLayoutToggle';
@@ -42,7 +41,6 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
 
   // Refs to access child component imperative handles (click, isDisabled)
   const bookmarkButtonRef = useRef(null);
-  const downloadButtonRef = useRef(null);
   const clearButtonRef = useRef(null);
   const copyButtonRef = useRef(null);
   const layoutToggleButtonRef = useRef(null);
@@ -60,15 +58,6 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
         return copyButtonRef.current?.isDisabled ?? false;
       },
       onClick: () => copyButtonRef.current?.click()
-    },
-    {
-      id: 'download-response',
-      label: 'Download response',
-      leftSection: IconDownload,
-      get disabled() {
-        return downloadButtonRef.current?.isDisabled ?? false;
-      },
-      onClick: () => downloadButtonRef.current?.click()
     },
     {
       id: 'clear-response',
@@ -108,15 +97,6 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
         return bookmarkButtonRef.current?.isDisabled ?? false;
       },
       onClick: () => bookmarkButtonRef.current?.click()
-    },
-    {
-      id: 'download-response',
-      label: 'Download response',
-      leftSection: IconDownload,
-      get disabled() {
-        return downloadButtonRef.current?.isDisabled ?? false;
-      },
-      onClick: () => downloadButtonRef.current?.click()
     },
     {
       id: 'clear-response',
@@ -163,7 +143,6 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
           dataBuffer={dataBuffer}
         />
         {item.type !== 'graphql-request' && <ResponseBookmark ref={bookmarkButtonRef} item={item} collection={collection} responseSize={responseSize} />}
-        <ResponseDownload ref={downloadButtonRef} item={item} />
         <ResponseClear ref={clearButtonRef} item={item} collection={collection} />
         <ResponseLayoutToggle ref={layoutToggleButtonRef} />
       </div>

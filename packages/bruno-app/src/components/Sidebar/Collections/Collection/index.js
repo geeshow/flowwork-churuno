@@ -18,16 +18,13 @@ import {
   IconFoldDown,
   IconX,
   IconSettings,
-  IconTerminal2,
-  IconFolder,
   IconBook,
-  IconServer,
   IconFileArrowRight,
   IconAppWindow
 } from '@tabler/icons';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
 import { toggleCollection, collapseFullCollection } from 'providers/ReduxStore/slices/collections';
-import { mountCollection, moveCollectionAndPersist, handleCollectionItemDrop, pasteItem, showInFolder, saveCollectionSecurityConfig } from 'providers/ReduxStore/slices/collections/actions';
+import { mountCollection, moveCollectionAndPersist, handleCollectionItemDrop, pasteItem, saveCollectionSecurityConfig } from 'providers/ReduxStore/slices/collections/actions';
 import { useDispatch, useSelector } from 'react-redux';
 import { addTab, makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
 import { setFocusedSidebarPath } from 'providers/ReduxStore/slices/app';
@@ -51,24 +48,17 @@ import ShareCollection from 'components/ShareCollection/index';
 import GenerateDocumentation from './GenerateDocumentation';
 import { CollectionItemDragPreview } from './CollectionItem/CollectionItemDragPreview/index';
 import { sortByNameThenSequence } from 'utils/common/index';
-import { getRevealInFolderLabel } from 'utils/common/platform';
-import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 import ActionIcon from 'ui/ActionIcon';
 import MenuDropdown from 'ui/MenuDropdown';
 import { useSidebarAccordion } from 'components/Sidebar/SidebarAccordionContext';
 import { createEmptyStateMenuItems } from 'utils/collections/emptyStateRequest';
 import useKeybinding from 'hooks/useKeybinding';
-import { useBetaFeature } from 'utils/beta-features';
-import { BETA_FEATURES } from 'utils/beta-features';
-import StatusBadge from 'ui/StatusBadge';
-import CreateMockServerModal from 'components/MockServer/CreateMockServerModal';
 
 // Delay before showing empty collection state (ms)
 // This prevents flicker from race condition between loading state and item batch updates
 const EMPTY_STATE_DELAY_MS = 300;
 
 const Collection = ({ collection, searchText }) => {
-  const isMockServerEnabled = useBetaFeature(BETA_FEATURES.MOCK_SERVER);
   const { dropdownContainerRef } = useSidebarAccordion();
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
@@ -79,7 +69,6 @@ const Collection = ({ collection, searchText }) => {
   const [showGenerateDocumentationModal, setShowGenerateDocumentationModal] = useState(false);
   const [showRemoveCollectionModal, setShowRemoveCollectionModal] = useState(false);
   const [showMoveToWorkspaceModal, setShowMoveToWorkspaceModal] = useState(false);
-  const [showCreateMockServerModal, setShowCreateMockServerModal] = useState(false);
   const [dropType, setDropType] = useState(null);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const [showEmptyState, setShowEmptyState] = useState(false);
@@ -110,10 +99,6 @@ const Collection = ({ collection, searchText }) => {
         type: 'openapi-sync'
       })
     );
-  };
-
-  const openMockServerDashboard = () => {
-    setShowCreateMockServerModal(true);
   };
 
   const handleRun = () => {
@@ -207,13 +192,6 @@ const Collection = ({ collection, searchText }) => {
         type: 'collection-settings'
       })
     );
-  };
-
-  const handleShowInFolder = () => {
-    dispatch(showInFolder(collection.pathname)).catch((error) => {
-      console.error('Error opening the folder', error);
-      toast.error('Error opening the folder');
-    });
   };
 
   const handlePasteItem = () => {
@@ -459,19 +437,6 @@ const Collection = ({ collection, searchText }) => {
       onClick: handleCollapseFullCollection
     },
     {
-      id: 'show-in-folder',
-      leftSection: IconFolder,
-      label: getRevealInFolderLabel(),
-      onClick: handleShowInFolder
-    },
-    ...(isMockServerEnabled ? [{
-      id: 'create-mock-server',
-      leftSection: IconServer,
-      label: 'Create Mock server',
-      rightSection: <StatusBadge status="info" size="xs">Beta</StatusBadge>,
-      onClick: openMockServerDashboard
-    }] : []),
-    {
       id: 'divider-1',
       type: 'divider'
     },
@@ -480,15 +445,6 @@ const Collection = ({ collection, searchText }) => {
       leftSection: IconSettings,
       label: 'Settings',
       onClick: viewCollectionSettings
-    },
-    {
-      id: 'terminal',
-      leftSection: IconTerminal2,
-      label: 'Open in Terminal',
-      onClick: async () => {
-        const collectionCwd = collection.pathname;
-        await openDevtoolsAndSwitchToTerminal(dispatch, collectionCwd);
-      }
     },
     ...(isMoveToWorkspaceVisible
       ? [
@@ -535,12 +491,6 @@ const Collection = ({ collection, searchText }) => {
       )}
       {showCloneCollectionModalOpen && (
         <CloneCollection collectionUid={collection.uid} onClose={() => setShowCloneCollectionModalOpen(false)} />
-      )}
-      {showCreateMockServerModal && (
-        <CreateMockServerModal
-          defaultCollectionUid={collection.uid}
-          onClose={() => setShowCreateMockServerModal(false)}
-        />
       )}
       <CollectionItemDragPreview />
       <div

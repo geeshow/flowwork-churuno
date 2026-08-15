@@ -55,17 +55,6 @@ const OpenAPISyncHeader = ({
     }
   };
 
-  const revealInFolder = async () => {
-    if (!sourceUrl) return;
-    try {
-      const absolutePath = await window.ipcRenderer.invoke('renderer:resolve-path', sourceUrl, collection.pathname);
-      await window.ipcRenderer.invoke('renderer:show-in-folder', absolutePath);
-    } catch (err) {
-      console.error('Error revealing in folder:', err);
-      toast.error('Failed to open in file manager');
-    }
-  };
-
   const menuItems = [
     {
       id: 'settings',
@@ -118,14 +107,9 @@ const OpenAPISyncHeader = ({
       <div className="spec-url-row">
         <span className="spec-url-label">{sourceIsLocal ? 'Source File:' : 'Source URL:'}</span>
         {sourceIsLocal ? (
-          <button
-            className="spec-url-value spec-file-reveal"
-            title="Reveal in file manager"
-            type="button"
-            onClick={revealInFolder}
-          >
+          <span className="spec-url-value" title={displayPath}>
             {displayPath}
-          </button>
+          </span>
         ) : (
           <a
             className="spec-url-value"

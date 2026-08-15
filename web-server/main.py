@@ -13,6 +13,7 @@ Run:  uvicorn main:app --port 8008   (or: python main.py)
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -27,6 +28,21 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 SERVER_DIR = Path(__file__).resolve().parent
+
+
+def _load_dotenv(path: Path) -> None:
+    """web-server/.env의 KEY=VALUE 줄을 환경에 로드 (이미 설정된 키는 유지)."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv(SERVER_DIR / ".env")
 DATA_DIR = Path(os.environ.get("BRUNO_WEB_DATA_DIR", SERVER_DIR / "collections")).resolve()
 REPO_DIR = Path(os.environ.get("BRUNO_WEB_REPO_DIR", SERVER_DIR / "repo")).resolve()
 WORKTREES_DIR = Path(os.environ.get("BRUNO_WEB_WORKTREES_DIR", SERVER_DIR / "worktrees")).resolve()
@@ -37,6 +53,8 @@ APP_DIST = Path(
     os.environ.get("BRUNO_WEB_APP_DIST", SERVER_DIR.parent / "packages" / "bruno-app" / "dist")
 ).resolve()
 PORT = int(os.environ.get("BRUNO_WEB_PORT", "8008"))
+MOCK_ENABLED = os.environ.get("BRUNO_WEB_MOCK", "1") == "1"
+MOCK_PORT = int(os.environ.get("BRUNO_WEB_MOCK_PORT", "9100"))
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
@@ -57,12 +75,29 @@ app.add_middleware(
 # Git workspaces — one worktree per workspace/* branch
 # ---------------------------------------------------------------------------
 
-def run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+def run_git(args: list[str], cwd: Path, input: Optional[str] = None) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, input=input)
+
+
+def add_worktree(branch: str) -> Optional[dict]:
+    """Ensure a worktree exists for the branch; return its workspace record."""
+    name = branch[len(WORKSPACE_BRANCH_PREFIX):]
+    worktree = WORKTREES_DIR / name
+    if not (worktree / ".git").exists():
+        worktree.parent.mkdir(parents=True, exist_ok=True)
+        has_local = run_git(["show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], REPO_DIR).returncode == 0
+        if has_local:
+            result = run_git(["worktree", "add", str(worktree), branch], REPO_DIR)
+        else:
+            result = run_git(["worktree", "add", "--track", "-b", branch, str(worktree), f"origin/{branch}"], REPO_DIR)
+        if result.returncode != 0:
+            print(f"[git] failed to add worktree for {branch}: {result.stderr.strip()}")
+            return None
+    return {"name": name, "branch": branch, "pathname": str(worktree)}
 
 
 def setup_workspaces() -> list[dict]:
-    """Create/refresh a worktree per workspace/* branch. Empty list = legacy mode."""
+    """The repo checkout (main) plus one worktree per workspace/* branch. Empty list = legacy mode."""
     if not (REPO_DIR / ".git").exists():
         return []
 
@@ -77,21 +112,13 @@ def setup_workspaces() -> list[dict]:
             if branch.startswith(WORKSPACE_BRANCH_PREFIX):
                 branches.add(branch)
 
-    workspaces = []
+    # The main checkout is the default workspace — the client treats the first entry as default.
+    main_branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], REPO_DIR).stdout.strip() or "main"
+    workspaces = [{"name": main_branch, "branch": main_branch, "pathname": str(REPO_DIR)}]
     for branch in sorted(branches):
-        name = branch[len(WORKSPACE_BRANCH_PREFIX):]
-        worktree = WORKTREES_DIR / name
-        if not (worktree / ".git").exists():
-            worktree.parent.mkdir(parents=True, exist_ok=True)
-            has_local = run_git(["show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], REPO_DIR).returncode == 0
-            if has_local:
-                result = run_git(["worktree", "add", str(worktree), branch], REPO_DIR)
-            else:
-                result = run_git(["worktree", "add", "--track", "-b", branch, str(worktree), f"origin/{branch}"], REPO_DIR)
-            if result.returncode != 0:
-                print(f"[git] failed to add worktree for {branch}: {result.stderr.strip()}")
-                continue
-        workspaces.append({"name": name, "branch": branch, "pathname": str(worktree)})
+        workspace = add_worktree(branch)
+        if workspace:
+            workspaces.append(workspace)
     return workspaces
 
 
@@ -161,6 +188,15 @@ def safe_path(raw: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# flowwork — 워크플로우 기능 (카탈로그는 main 체크아웃의 .bru 기준)
+# ---------------------------------------------------------------------------
+
+import flowwork
+
+app.include_router(flowwork.build_router(REPO_DIR, SERVER_DIR / "executions", schedule_commit))
+
+
+# ---------------------------------------------------------------------------
 # Filesystem API
 # ---------------------------------------------------------------------------
 
@@ -194,28 +230,114 @@ def list_workspaces():
     return {"workspaces": WORKSPACES, "scratchRoot": str(SCRATCH_DIR)}
 
 
+WORKSPACE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+class CreateWorkspaceBody(BaseModel):
+    name: str
+
+
+class CloneWorkspaceBody(BaseModel):
+    source: str
+    name: str
+
+
+def validate_new_workspace_name(name: str) -> str:
+    name = name.strip()
+    if not WORKSPACE_NAME_RE.match(name):
+        raise HTTPException(
+            status_code=400,
+            detail="workspace name may only contain letters, digits, '.', '_' and '-', and must not start with a punctuation character",
+        )
+    if any(w["name"].lower() == name.lower() for w in WORKSPACES):
+        raise HTTPException(status_code=409, detail=f"a workspace named '{name}' already exists")
+    branch = f"{WORKSPACE_BRANCH_PREFIX}{name}"
+    for ref in (f"refs/heads/{branch}", f"refs/remotes/origin/{branch}"):
+        if run_git(["show-ref", "--verify", "--quiet", ref], REPO_DIR).returncode == 0:
+            raise HTTPException(status_code=409, detail=f"branch '{branch}' already exists")
+    return name
+
+
+def create_workspace_branch(name: str, start_point: Optional[str]) -> dict:
+    """Create workspace/<name> (from start_point, or as an empty history) plus its worktree."""
+    if not (REPO_DIR / ".git").exists():
+        raise HTTPException(status_code=400, detail="git workspace mode is not enabled")
+
+    branch = f"{WORKSPACE_BRANCH_PREFIX}{name}"
+    if start_point is None:
+        # No files at all: an empty tree committed with no parent.
+        empty_tree = run_git(["mktree"], REPO_DIR, input="").stdout.strip()
+        commit = run_git(["commit-tree", empty_tree, "-m", f"bruno-web: create workspace {name}"], REPO_DIR)
+        if commit.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"git commit-tree failed: {commit.stderr.strip()}")
+        start_point = commit.stdout.strip()
+
+    result = run_git(["branch", branch, start_point], REPO_DIR)
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"git branch failed: {result.stderr.strip()}")
+
+    workspace = add_worktree(branch)
+    if not workspace:
+        run_git(["branch", "-D", branch], REPO_DIR)
+        raise HTTPException(status_code=500, detail=f"failed to create a worktree for '{branch}'")
+
+    if GIT_PUSH:
+        push = run_git(["push", "-u", "origin", branch], REPO_DIR)
+        if push.returncode != 0:
+            print(f"[git] push failed on {branch}: {push.stderr.strip()[:200]}")
+
+    WORKSPACES.append(workspace)
+    return workspace
+
+
+@app.post("/api/workspaces")
+def create_workspace(body: CreateWorkspaceBody):
+    """New workspace/<name> branch with no collections, plus its worktree."""
+    name = validate_new_workspace_name(body.name)
+    return {"workspace": create_workspace_branch(name, start_point=None)}
+
+
+@app.post("/api/workspaces/clone")
+def clone_workspace(body: CloneWorkspaceBody):
+    """Duplicate an existing workspace's branch into workspace/<name>."""
+    name = validate_new_workspace_name(body.name)
+    source = next((w for w in WORKSPACES if w["name"] == body.source), None)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"source workspace not found: {body.source}")
+    return {"workspace": create_workspace_branch(name, start_point=source["branch"])}
+
+
+def collection_record(directory: Path) -> Optional[dict]:
+    for config_name, fmt in (("bruno.json", "bru"), ("opencollection.yml", "yml")):
+        config_path = directory / config_name
+        if config_path.is_file():
+            return {
+                "pathname": str(directory),
+                "configFile": config_name,
+                "format": fmt,
+                "content": config_path.read_text(encoding="utf-8", errors="replace"),
+            }
+    return None
+
+
 @app.get("/api/collections")
 def list_collections(root: Optional[str] = None):
-    """Directories directly under the root that contain a collection config."""
+    """Collections in the root: the root itself if it holds a collection config, else its direct subdirectories."""
     base = safe_path(root) if root else DATA_DIR
     if not base.is_dir():
         raise HTTPException(status_code=404, detail=f"root not found: {root}")
+
+    root_collection = collection_record(base)
+    if root_collection:
+        return {"root": str(base), "collections": [root_collection]}
+
     collections = []
     for child in sorted(base.iterdir()):
         if not child.is_dir() or child.name in IGNORED_DIRS:
             continue
-        for config_name, fmt in (("bruno.json", "bru"), ("opencollection.yml", "yml")):
-            config_path = child / config_name
-            if config_path.is_file():
-                collections.append(
-                    {
-                        "pathname": str(child),
-                        "configFile": config_name,
-                        "format": fmt,
-                        "content": config_path.read_text(encoding="utf-8", errors="replace"),
-                    }
-                )
-                break
+        record = collection_record(child)
+        if record:
+            collections.append(record)
     return {"root": str(base), "collections": collections}
 
 
@@ -333,14 +455,55 @@ class ExecuteBody(BaseModel):
     followRedirects: bool = True
     maxRedirects: int = 5
     verifyTls: bool = True
+    # execution-history context — which collection/request this run belongs to
+    collectionPath: Optional[str] = None
+    requestName: Optional[str] = None
 
 
 # Headers httpx must compute itself; forwarding stale values corrupts the request.
 STRIPPED_REQUEST_HEADERS = {"content-length", "transfer-encoding"}
 
+HISTORY_DIR_NAME = ".bruno-history"
+
 
 def now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def record_timeline(body: ExecuteBody, result: dict):
+    """Append the run's timeline to <worktree>/.bruno-history/timeline.jsonl.
+
+    Only runs whose collection lives inside a git worktree are recorded; the
+    file rides the same auto-commit/push flow as collection saves. Response
+    bodies are deliberately not persisted — only the timeline and metadata.
+    """
+    if not body.collectionPath:
+        return
+    workspace = find_worktree(Path(body.collectionPath).resolve())
+    if not workspace:
+        return
+    record = {
+        "executedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "collection": Path(body.collectionPath).name,
+        "request": body.requestName,
+        "method": body.method.upper(),
+        "url": body.url,
+        "status": result.get("status"),
+        "statusText": result.get("statusText"),
+        "durationMs": result.get("durationMs"),
+        "size": result.get("size"),
+        "error": result.get("error"),
+        "timeline": result.get("timeline") or [],
+    }
+    history_file = Path(workspace["pathname"]) / HISTORY_DIR_NAME / "timeline.jsonl"
+    try:
+        history_file.parent.mkdir(exist_ok=True)
+        with history_file.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError as error:
+        print(f"[history] failed to write {history_file}: {error}")
+        return
+    schedule_commit(history_file)
 
 
 def build_request_kwargs(body: ExecuteBody, headers: list[tuple[str, str]]) -> dict:
@@ -377,6 +540,19 @@ async def http_execute(body: ExecuteBody):
     def log(entry_type: str, message: str):
         timeline.append({"timestamp": now_ms(), "type": entry_type, "message": message})
 
+    def finish(payload: dict) -> dict:
+        record_timeline(body, payload)
+        return payload
+
+    if "{{" in body.url:
+        message = (
+            f"URL contains unresolved variables: {body.url} — "
+            "select an environment (top-right dropdown) that defines them, "
+            "and reload the page if the environment file changed on disk."
+        )
+        log("error", message)
+        return finish({"error": message, "timeline": timeline})
+
     headers = [
         (h.name, h.value) for h in body.headers if h.name.strip() and h.name.lower() not in STRIPPED_REQUEST_HEADERS
     ]
@@ -384,7 +560,7 @@ async def http_execute(body: ExecuteBody):
     try:
         request_kwargs = build_request_kwargs(body, headers)
     except Exception as error:
-        return {"error": f"Failed to build request body: {error}", "timeline": timeline}
+        return finish({"error": f"Failed to build request body: {error}", "timeline": timeline})
 
     timeout_seconds = (body.timeoutMs / 1000) if body.timeoutMs else None
     log("info", f"Preparing request to {body.url}")
@@ -406,15 +582,15 @@ async def http_execute(body: ExecuteBody):
             content = response.content
     except httpx.TimeoutException:
         log("error", "Request timed out")
-        return {"error": "Request timed out", "timeline": timeline}
+        return finish({"error": "Request timed out", "timeline": timeline})
     except httpx.HTTPError as error:
         message = str(error) or error.__class__.__name__
         log("error", message)
-        return {"error": message, "timeline": timeline}
+        return finish({"error": message, "timeline": timeline})
     except Exception as error:  # noqa: BLE001 — surface anything to the client
         message = str(error) or error.__class__.__name__
         log("error", message)
-        return {"error": message, "timeline": timeline}
+        return finish({"error": message, "timeline": timeline})
 
     duration_ms = int((time.perf_counter() - started) * 1000)
     status_text = response.reason_phrase or ""
@@ -423,7 +599,7 @@ async def http_execute(body: ExecuteBody):
         log("responseHeader", f"{name}: {value}")
     log("info", f"Received {len(content)} bytes in {duration_ms} ms")
 
-    return {
+    return finish({
         "status": response.status_code,
         "statusText": status_text,
         "headers": list(response.headers.multi_items()),
@@ -433,7 +609,7 @@ async def http_execute(body: ExecuteBody):
         "finalUrl": str(response.url),
         "timeline": timeline,
         "error": None,
-    }
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -543,6 +719,37 @@ async def mock_delay(seconds: float):
     seconds = min(seconds, 10)
     await asyncio.sleep(seconds)
     return {"delayed": seconds}
+
+
+# ---------------------------------------------------------------------------
+# flowwork mock upstream — serves the collections' localhost:9100 base URLs
+# ---------------------------------------------------------------------------
+
+import socket
+
+
+def _port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
+@app.on_event("startup")
+def start_mock_upstream():
+    if not MOCK_ENABLED:
+        return
+    if _port_in_use(MOCK_PORT):
+        print(f"[mock] port {MOCK_PORT} already in use — assuming an external mock upstream is running")
+        return
+
+    import uvicorn
+
+    from mock_upstream import app as mock_app
+
+    config = uvicorn.Config(mock_app, host="127.0.0.1", port=MOCK_PORT, log_level="warning")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, name="mock-upstream", daemon=True)
+    thread.start()
+    print(f"[mock] flowwork mock upstream listening on http://127.0.0.1:{MOCK_PORT}")
 
 
 # ---------------------------------------------------------------------------

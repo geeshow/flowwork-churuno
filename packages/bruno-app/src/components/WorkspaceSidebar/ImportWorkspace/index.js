@@ -6,7 +6,6 @@ import toast from 'react-hot-toast';
 import get from 'lodash/get';
 import { IconFileZip } from '@tabler/icons';
 import Modal from 'components/Modal';
-import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import { importWorkspaceAction } from 'providers/ReduxStore/slices/workspaces/actions';
 import { formatIpcError } from 'utils/common/error';
 import { multiLineMsg } from 'utils/common/index';
@@ -104,19 +103,6 @@ const ImportWorkspace = ({ onClose }) => {
         setSelectedFile(fileInfo);
       }
     }
-  };
-
-  const browse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string' && dirPath.length > 0) {
-          formik.setFieldValue('workspaceLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('workspaceLocation', '');
-        console.error(error);
-      });
   };
 
   const handleClearFile = () => {
@@ -219,26 +205,16 @@ const ImportWorkspace = ({ onClose }) => {
             type="text"
             name="workspaceLocation"
             ref={locationInputRef}
-            readOnly={true}
-            className="block textbox mt-2 w-full cursor-pointer"
+            className="block textbox mt-2 w-full"
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
             value={formik.values.workspaceLocation || ''}
-            onClick={browse}
           />
           {formik.touched.workspaceLocation && formik.errors.workspaceLocation ? (
             <div className="text-red-500 text-sm mt-1">{formik.errors.workspaceLocation}</div>
           ) : null}
-          <div className="mt-1">
-            <span
-              className="text-link cursor-pointer hover:underline"
-              onClick={browse}
-            >
-              Browse
-            </span>
-          </div>
         </div>
       </div>
     </Modal>

@@ -6,19 +6,17 @@ import {
   IconArrowsSort,
   IconDotsVertical,
   IconDownload,
-  IconFolder,
   IconPlus,
   IconSearch,
   IconSortAscendingLetters,
   IconSortDescendingLetters,
   IconSquareX,
-  IconBox,
-  IconTerminal2
+  IconBox
 } from '@tabler/icons';
 
 import { importCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { sortCollections } from 'providers/ReduxStore/slices/collections/index';
-import { savePreferences, setIsCreatingCollection, setIsOpeningCollection, toggleSidebarSearch } from 'providers/ReduxStore/slices/app';
+import { savePreferences, setIsCreatingCollection, toggleSidebarSearch } from 'providers/ReduxStore/slices/app';
 import { normalizePath } from 'utils/common/path';
 import { isScratchCollection, flattenItems, isItemTransientRequest } from 'utils/collections';
 import { sanitizeName } from 'utils/common/regex';
@@ -37,7 +35,6 @@ import usePostmanPackagePrompt from 'hooks/usePostmanPackagePrompt';
 import WelcomeModal from 'components/WelcomeModal';
 import Collections from 'components/Sidebar/Collections';
 import SidebarSection from 'components/Sidebar/SidebarSection';
-import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 import useKeybinding from 'hooks/useKeybinding';
 
 const CollectionsSection = () => {
@@ -183,10 +180,6 @@ const CollectionsSection = () => {
     setCollectionsToClose([]);
   };
 
-  const handleOpenCollection = () => {
-    dispatch(setIsOpeningCollection(true));
-  };
-
   const handleStartRequest = () => {
     const scratchCollectionUid = activeWorkspace?.scratchCollectionUid;
     if (!scratchCollectionUid) {
@@ -247,14 +240,6 @@ const CollectionsSection = () => {
       }
     },
     {
-      id: 'open',
-      leftSection: IconFolder,
-      label: 'Open collection',
-      onClick: () => {
-        handleOpenCollection();
-      }
-    },
-    {
       id: 'import',
       leftSection: IconDownload,
       label: 'Import collection',
@@ -279,14 +264,6 @@ const CollectionsSection = () => {
       label: 'Close all',
       onClick: () => {
         selectAllCollectionsToClose();
-      }
-    },
-    {
-      id: 'open-in-terminal',
-      leftSection: IconTerminal2,
-      label: 'Open in Terminal',
-      onClick: () => {
-        openDevtoolsAndSwitchToTerminal(dispatch, activeWorkspace?.pathname);
       }
     }
   ];
@@ -342,10 +319,6 @@ const CollectionsSection = () => {
           onCreateCollection={() => {
             handleDismissWelcomeModal();
             setCreateCollectionModalOpen(true);
-          }}
-          onOpenCollection={() => {
-            handleDismissWelcomeModal();
-            handleOpenCollection();
           }}
           onStartRequest={() => {
             handleDismissWelcomeModal();

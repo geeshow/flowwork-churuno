@@ -1,0 +1,255 @@
+"""flowwork 컬렉션용 목 업스트림 API.
+
+flowwork 컬렉션의 환경이 가리키는 두 대역을 모두 제공한다:
+  - coreBaseUrl = http://localhost:9100/core      (사용자/계좌/메타코드/약정)
+  - baseUrl     = http://localhost:9100/payments  (고객/정산)
+
+main.py 기동 시 자동으로 함께 뜨며 (BRUNO_WEB_MOCK=0 으로 비활성화),
+단독 실행도 가능하다:
+
+    python mock_upstream.py
+"""
+from __future__ import annotations
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI(title="flowwork-mock-upstream")
+
+# ---------------------------------------------------------------------------
+# payments 대역 — 고객/정산
+# ---------------------------------------------------------------------------
+
+# 고객별 정산 상태 (데모 데이터)
+_SETTLEMENTS = {
+    "C1": {"settlementId": "S-1001", "status": "ACTIVE", "amount": 15000},
+    "C2": {"settlementId": "S-1002", "status": "CLOSED", "amount": 0},
+}
+
+# 고객 마스터
+_CUSTOMERS = {
+    "C1": {"id": "C1", "name": "김철수", "phone": "010-1111-2222"},
+    "C2": {"id": "C2", "name": "이영희", "phone": "010-3333-4444"},
+}
+
+
+@app.get("/payments/api/customers")
+async def list_customers():
+    return {"data": list(_CUSTOMERS.values())}
+
+
+@app.get("/payments/api/customers/{customer_id}")
+async def get_customer(customer_id: str):
+    return {"data": _CUSTOMERS.get(customer_id)}
+
+
+@app.get("/payments/api/customers/{customer_id}/settlement")
+async def get_settlement(customer_id: str):
+    data = _SETTLEMENTS.get(customer_id)
+    if data is None:
+        return {"data": {"status": "NONE"}}
+    return {"data": data}
+
+
+class CancelBody(BaseModel):
+    reason: str | None = None
+
+
+@app.post("/payments/api/settlements/{settlement_id}/cancel")
+async def cancel_settlement(settlement_id: str, body: CancelBody):
+    return {"data": {"settlementId": settlement_id, "status": "CANCELLED", "reason": body.reason}}
+
+
+# ---------------------------------------------------------------------------
+# core 대역 — 약정/사용자/계좌/메타코드
+# ---------------------------------------------------------------------------
+
+_AGREEMENT_CODES = [
+    {"code": "FUND", "name": "펀드"},
+    {"code": "TRUST", "name": "신탁"},
+    {"code": "ISA", "name": "ISA"},
+    {"code": "PENSION", "name": "연금"},
+]
+
+_META_CODES = {
+    "account_status": [
+        {"code": "ACTIVE", "name": "활성"},
+        {"code": "DORMANT", "name": "휴면"},
+        {"code": "CLOSED", "name": "해지"},
+    ],
+    "user_status": [
+        {"code": "NORMAL", "name": "정상"},
+        {"code": "LOCKED", "name": "잠금"},
+        {"code": "WITHDRAWN", "name": "탈퇴"},
+    ],
+}
+
+_USERS = {
+    "U1000": {"app_user_id": "U1000", "sec_user_id": "SEC-8F3A21", "CIF": "CIF001122", "name": "김철수", "phone": "010-1111-2222", "email": "chulsoo@example.com"},
+    "U1001": {"app_user_id": "U1001", "sec_user_id": "SEC-2B7C90", "CIF": "CIF334455", "name": "이영희", "phone": "010-3333-4444", "email": "younghee@example.com"},
+}
+
+_ACCOUNTS = {
+    "U1000": [
+        {"accountNo": "110-222-333", "status": "ACTIVE", "product": "펀드"},
+        {"accountNo": "110-444-555", "status": "DORMANT", "product": "신탁"},
+    ],
+    "U1001": [
+        {"accountNo": "220-666-777", "status": "ACTIVE", "product": "연금"},
+    ],
+}
+
+# sec_user_id로 조회하는 계좌 목록. 소유자(owner)/잔고(balance)는 중첩(다차원) 필드.
+_SEC_ACCOUNTS = {
+    "SEC-8F3A21": [
+        {"accountNo": "110-222-333", "name": "김철수", "accountType": "펀드", "status": "ACTIVE", "openedAt": "2021-03-15", "closedAt": None,
+         "owner": {"name": "김철수", "cif": "CIF001122"}, "balance": {"amount": 15230000, "currency": "KRW"}, "tags": ["우대", "비과세"]},
+        {"accountNo": "110-444-555", "name": "김철수", "accountType": "신탁", "status": "CLOSED", "openedAt": "2019-07-01", "closedAt": "2023-02-10",
+         "owner": {"name": "김철수", "cif": "CIF001122"}, "balance": {"amount": 0, "currency": "KRW"}, "tags": []},
+    ],
+    "SEC-2B7C90": [
+        {"accountNo": "220-666-777", "name": "이영희", "accountType": "연금", "status": "ACTIVE", "openedAt": "2022-11-20", "closedAt": None,
+         "owner": {"name": "이영희", "cif": "CIF334455"}, "balance": {"amount": 8400000, "currency": "KRW"}, "tags": ["온라인", "수수료면제"]},
+    ],
+}
+
+
+@app.get("/core/agreements/codes")
+async def list_agreement_codes():
+    return {"data": _AGREEMENT_CODES}
+
+
+@app.get("/core/meta/codes/{code_group}")
+async def get_meta_codes(code_group: str):
+    return {"data": _META_CODES.get(code_group, [])}
+
+
+@app.get("/core/users")
+async def get_user(sec_user_id: str | None = None, cif: str | None = None):
+    """sec_user_id 또는 CIF 중 하나로 사용자를 조회한다."""
+    for u in _USERS.values():
+        if (sec_user_id and u["sec_user_id"] == sec_user_id) or (cif and u["CIF"] == cif):
+            return {"data": u}
+    return {"data": None}
+
+
+@app.get("/core/users/{app_user_id}")
+async def get_user_by_app_id(app_user_id: str):
+    return {"data": _USERS.get(app_user_id)}
+
+
+@app.get("/core/users/{app_user_id}/accounts")
+async def list_accounts(app_user_id: str, status: str | None = None):
+    accounts = _ACCOUNTS.get(app_user_id, [])
+    if status:
+        accounts = [a for a in accounts if a["status"] == status]
+    return {"data": accounts}
+
+
+@app.get("/core/accounts")
+async def list_accounts_by_sec(sec_user_id: str | None = None):
+    """sec_user_id로 계좌 목록 조회 (계좌번호/이름/계좌타입/계좌상태/가입일자/해지일자)."""
+    return {"data": _SEC_ACCOUNTS.get(sec_user_id, [])}
+
+
+class CloseBody(BaseModel):
+    reason: str | None = None
+
+
+@app.post("/core/accounts/{account_no}/close")
+async def close_account(account_no: str, body: CloseBody):
+    """계좌 폐쇄 — 계좌번호로 상태를 CLOSED로 바꾼다 (데모)."""
+    return {
+        "data": {
+            "accountNo": account_no,
+            "status": "CLOSED",
+            "closedAt": "2026-08-09",
+            "reason": body.reason,
+        }
+    }
+
+
+# 데모용 출금 비밀번호(모든 계좌 공통). 실제 서비스라면 절대 이렇게 두지 않는다.
+_DEMO_WITHDRAW_PASSWORD = "0000"
+
+
+class WithdrawBody(BaseModel):
+    amount: float | None = None
+    password: str | None = None
+
+
+def _find_account(account_no: str) -> dict | None:
+    for accounts in _SEC_ACCOUNTS.values():
+        for a in accounts:
+            if a["accountNo"] == account_no:
+                return a
+    return None
+
+
+@app.post("/core/accounts/{account_no}/withdraw")
+async def withdraw(account_no: str, body: WithdrawBody):
+    """계좌 출금 — 비밀번호 확인 후 잔액에서 금액을 차감한다 (데모)."""
+    account = _find_account(account_no)
+    if account is None:
+        return {"data": {"accountNo": account_no, "status": "FAILED", "reason": "계좌 없음"}}
+    if body.password != _DEMO_WITHDRAW_PASSWORD:
+        return {"data": {"accountNo": account_no, "status": "FAILED", "reason": "비밀번호 불일치"}}
+    amount = body.amount or 0
+    balance = account["balance"]["amount"]
+    if amount <= 0:
+        return {"data": {"accountNo": account_no, "status": "FAILED", "reason": "금액 오류"}}
+    if amount > balance:
+        return {"data": {"accountNo": account_no, "status": "FAILED", "reason": "잔액 부족", "balanceAfter": balance}}
+    return {
+        "data": {
+            "accountNo": account_no,
+            "status": "APPROVED",
+            "withdrawnAmount": amount,
+            "balanceAfter": balance - amount,
+            "reason": None,
+        }
+    }
+
+
+class SellBody(BaseModel):
+    password: str | None = None
+
+
+@app.post("/core/accounts/{account_no}/sell")
+async def sell_all(account_no: str, body: SellBody):
+    """매도 — 계좌번호+비밀번호로 보유 포지션을 전량 매도한다 (데모)."""
+    account = _find_account(account_no)
+    if account is None:
+        return {"data": {"accountNo": account_no, "status": "FAILED", "reason": "계좌 없음"}}
+    if body.password != _DEMO_WITHDRAW_PASSWORD:
+        return {"data": {"accountNo": account_no, "status": "FAILED", "reason": "비밀번호 불일치"}}
+    return {
+        "data": {
+            "accountNo": account_no,
+            "status": "SOLD",
+            "soldAmount": account["balance"]["amount"],
+            "positions": 3,
+        }
+    }
+
+
+@app.post("/core/accounts/{account_no}/settle")
+async def force_settle(account_no: str):
+    """강제 정산 — 계좌번호로 미정산 잔액을 강제 정산한다 (데모)."""
+    account = _find_account(account_no)
+    if account is None:
+        return {"data": {"accountNo": account_no, "status": "FAILED", "reason": "계좌 없음"}}
+    return {
+        "data": {
+            "accountNo": account_no,
+            "settlementId": f"FS-{account_no[-3:]}",
+            "status": "SETTLED",
+            "amount": 0,
+        }
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="127.0.0.1", port=9100)

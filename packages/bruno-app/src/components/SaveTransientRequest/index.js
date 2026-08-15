@@ -14,7 +14,7 @@ import FolderBreadcrumbs from './FolderBreadcrumbs';
 import useCollectionFolderTree from 'hooks/useCollectionFolderTree';
 import { removeSaveTransientRequestModal } from 'providers/ReduxStore/slices/collections';
 import { insertTaskIntoQueue } from 'providers/ReduxStore/slices/app';
-import { newFolder, closeTabs, mountCollection, createCollection, browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
+import { newFolder, closeTabs, mountCollection, createCollection } from 'providers/ReduxStore/slices/collections/actions';
 import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
 import { resolveRequestFilename } from 'utils/common/platform';
 import path, { normalizePath } from 'utils/common/path';
@@ -334,16 +334,6 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
     setNewCollection({ show: false, name: '', location: '', format: DEFAULT_COLLECTION_FORMAT });
   };
 
-  const handleBrowseCollectionLocation = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string') {
-          setNewCollection((prev) => ({ ...prev, location: dirPath }));
-        }
-      })
-      .catch(() => {});
-  };
-
   const handleCreateNewCollection = async () => {
     const trimmedName = newCollection.name.trim();
     if (!trimmedName) {
@@ -506,22 +496,11 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                           <div className="new-collection-location-row">
                             <input
                               type="text"
-                              className="new-collection-input cursor-pointer"
-                              placeholder="Select location"
+                              className="new-collection-input"
+                              placeholder="Enter location"
                               value={newCollection.location}
-                              readOnly
-                              onClick={handleBrowseCollectionLocation}
+                              onChange={(e) => setNewCollection((prev) => ({ ...prev, location: e.target.value }))}
                             />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              color="secondary"
-                              size="sm"
-                              rounded="sm"
-                              onClick={handleBrowseCollectionLocation}
-                            >
-                              Browse
-                            </Button>
                           </div>
                         </div>
 

@@ -3,8 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 export const TABS = {
   CONSOLE: 'console',
   NETWORK: 'network',
-  PERFORMANCE: 'performance',
-  TERMINAL: 'terminal'
+  PERFORMANCE: 'performance'
 };
 
 export const TAB_IDENFIERS = Object.values(TABS);

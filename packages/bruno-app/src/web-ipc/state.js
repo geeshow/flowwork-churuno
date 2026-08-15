@@ -19,7 +19,12 @@ export const getStableUid = (key) => {
   return uidByKey.get(key);
 };
 
-export const registerCollection = ({ pathname, format, brunoConfig, scratch = false }) => {
+export const registerCollection = ({ pathname, format, brunoConfig, scratch = false, uid = null }) => {
+  // Some collections (workspace scratch) get their uid computed by the renderer
+  // itself — seed the map so every later getStableUid(pathname) agrees with it.
+  if (uid) {
+    uidByKey.set(pathname, uid);
+  }
   const entry = { uid: getStableUid(pathname), pathname, format, brunoConfig, scratch };
   state.collections.set(pathname, entry);
   return entry;

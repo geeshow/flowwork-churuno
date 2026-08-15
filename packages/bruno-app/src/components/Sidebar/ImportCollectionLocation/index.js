@@ -5,7 +5,6 @@ import * as Yup from 'yup';
 import get from 'lodash/get';
 import path from 'utils/common/path';
 import { IconCaretDown } from '@tabler/icons';
-import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import { postmanToBruno } from 'utils/importers/postman-collection';
 import { convertInsomniaToBruno } from 'utils/importers/insomnia-collection';
 import { convertOpenapiToBruno } from 'utils/importers/openapi-collection';
@@ -227,19 +226,6 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format, sour
       </div>
     );
   });
-  const browse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string' && dirPath.length > 0) {
-          formik.setFieldValue('collectionLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('collectionLocation', '');
-        console.error(error);
-      });
-  };
-
   useEffect(() => {
     if (inputRef && inputRef.current) {
       inputRef.current.focus();
@@ -308,13 +294,12 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format, sour
                   id="collection-location"
                   type="text"
                   name="collectionLocation"
-                  className="block textbox mt-2 w-full cursor-pointer"
+                  className="block textbox mt-2 w-full"
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
                   value={formik.values.collectionLocation || ''}
-                  onClick={browse}
                   onChange={(e) => {
                     formik.setFieldValue('collectionLocation', e.target.value);
                   }}
@@ -323,16 +308,6 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format, sour
               {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
                 <div className="text-red-500">{formik.errors.collectionLocation}</div>
               ) : null}
-
-              <div className="mt-1">
-                <span
-                  data-testid="import-collection-browse-link"
-                  className="text-link cursor-pointer hover:underline"
-                  onClick={browse}
-                >
-                  Browse
-                </span>
-              </div>
 
               {showAdvancedOptions && !isZipImport && (
                 <div className="mt-4">

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { IconPlus, IconFolder, IconDownload } from '@tabler/icons';
+import { IconPlus, IconDownload } from '@tabler/icons';
 import { importCollection, importCollectionFromZip } from 'providers/ReduxStore/slices/collections/actions';
-import { setIsCreatingCollection, setIsOpeningCollection, toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
+import { setIsCreatingCollection, toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_COLLAPSED_KEY } from 'utils/common/localStorage';
 import toast from 'react-hot-toast';
 import ImportCollection from 'components/Sidebar/ImportCollection';
@@ -54,10 +54,6 @@ const WorkspaceOverview = ({ workspace }) => {
       console.error('Error ensuring collections folder exists:', error);
       toast.error('Error preparing workspace for collection creation');
     }
-  };
-
-  const handleOpenCollection = () => {
-    dispatch(setIsOpeningCollection(true));
   };
 
   const handleImportCollection = () => {
@@ -162,14 +158,6 @@ const WorkspaceOverview = ({ workspace }) => {
                 disabled={isCreatingCollection}
               >
                 Create Collection
-              </Button>
-              <Button
-                color="light"
-                size="sm"
-                icon={<IconFolder size={14} strokeWidth={1.5} />}
-                onClick={handleOpenCollection}
-              >
-                Open Collection
               </Button>
               <Button
                 color="light"

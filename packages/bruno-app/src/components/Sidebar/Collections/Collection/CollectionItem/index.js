@@ -14,17 +14,15 @@ import {
   IconCopy,
   IconClipboard,
   IconCode,
-  IconFolder,
   IconTrash,
   IconSettings,
   IconInfoCircle,
-  IconTerminal2,
   IconAppWindow,
   IconEyeOff
 } from '@tabler/icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { addTab, focusTab, makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
-import { handleCollectionItemDrop, sendRequest, showInFolder, pasteItem, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
+import { handleCollectionItemDrop, sendRequest, pasteItem, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleCollectionItem, addResponseExample } from 'providers/ReduxStore/slices/collections';
 import { insertTaskIntoQueue } from 'providers/ReduxStore/slices/app';
 import { uuid } from 'utils/common';
@@ -49,7 +47,6 @@ import CollectionItemIcon from './CollectionItemIcon';
 import ExampleItem from './ExampleItem';
 import ExampleIcon from 'components/Icons/ExampleIcon';
 import { scrollToTheActiveTab } from 'utils/tabs';
-import { useBetaFeature, BETA_FEATURES } from 'utils/beta-features';
 import {
   getTabUidForItem as getTabUidForItemSelector,
   isTabForItemActive as isTabForItemActiveSelector,
@@ -64,16 +61,13 @@ import {
   findParentItemInCollection
 } from 'utils/collections/index';
 import { sortByNameThenSequence } from 'utils/common/index';
-import { getRevealInFolderLabel } from 'utils/common/platform';
 import CreateExampleModal from 'components/ResponseExample/CreateExampleModal';
-import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 import ActionIcon from 'ui/ActionIcon';
 import MenuDropdown from 'ui/MenuDropdown';
 import { useSidebarAccordion } from 'components/Sidebar/SidebarAccordionContext';
 import useKeybinding from 'hooks/useKeybinding';
 
 const CollectionItem = ({ item, collectionUid, collectionPathname, searchText }) => {
-  const isMockServerEnabled = useBetaFeature(BETA_FEATURES.MOCK_SERVER);
   const { dropdownContainerRef } = useSidebarAccordion();
   const selectorInput = {
     itemUid: item.uid,
@@ -450,15 +444,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
       });
     }
 
-    items.push(
-      {
-        id: 'show-in-folder',
-        leftSection: IconFolder,
-        label: getRevealInFolderLabel(),
-        onClick: handleShowInFolder
-      }
-    );
-
     if (isFolder) {
       items.push({
         id: 'ignore',
@@ -478,23 +463,12 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
     });
 
     if (isFolder) {
-      items.push(
-        {
-          id: 'settings',
-          leftSection: IconSettings,
-          label: 'Settings',
-          onClick: viewFolderSettings
-        },
-        {
-          id: 'open-terminal',
-          leftSection: IconTerminal2,
-          label: 'Open in Terminal',
-          onClick: async () => {
-            const folderCwd = item.pathname || collectionPathname;
-            await openDevtoolsAndSwitchToTerminal(dispatch, folderCwd);
-          }
-        }
-      );
+      items.push({
+        id: 'settings',
+        leftSection: IconSettings,
+        label: 'Settings',
+        onClick: viewFolderSettings
+      });
     }
 
     items.push({
@@ -531,13 +505,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
   // Sort items by their "seq" property.
   const sortItemsBySequence = (items = []) => {
     return items.sort((a, b) => a.seq - b.seq);
-  };
-
-  const handleShowInFolder = () => {
-    dispatch(showInFolder(item.pathname)).catch((error) => {
-      console.error('Error opening the folder', error);
-      toast.error('Error opening the folder');
-    });
   };
 
   const handleCreateExample = async (name, description = '', mockFields) => {
@@ -697,7 +664,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
         onSave={handleCreateExample}
         title="Create Response Example"
         initialName={getInitialExampleName(item)}
-        showMockFields={isMockServerEnabled}
       />
       <div
         className={itemRowClassName}

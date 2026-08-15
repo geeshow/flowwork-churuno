@@ -17,7 +17,8 @@ const resolveBaseUrl = () => {
   return '';
 };
 
-const baseUrl = resolveBaseUrl();
+export const serverBaseUrl = resolveBaseUrl();
+const baseUrl = serverBaseUrl;
 
 const request = async (path, options = {}) => {
   const res = await fetch(`${baseUrl}${path}`, {
@@ -48,6 +49,8 @@ const serverApi = {
   health: () => get('/api/health'),
   fsRoot: () => get('/api/fs/root'),
   listWorkspaces: () => get('/api/workspaces'),
+  createWorkspace: (name) => post('/api/workspaces', { name }),
+  cloneWorkspace: (source, name) => post('/api/workspaces/clone', { source, name }),
   listCollections: (root) => get('/api/collections', root ? { root } : undefined),
   fsTree: (path) => get('/api/fs/tree', { path }),
   fsRead: (path) => get('/api/fs/read', { path }),

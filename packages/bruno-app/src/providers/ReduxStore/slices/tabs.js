@@ -24,14 +24,6 @@ const initialState = {
   recentlyClosedTabs: [] // LIFO stack of closed tabs, grouped by collection
 };
 
-const normalizeMockTabType = (type) => (
-  type === 'mock-server-dashboard' || type === 'mocker' ? 'mock-server' : type
-);
-
-const findMockServerTab = (tabs, mockServerUid) => find(tabs, (tab) => (
-  normalizeMockTabType(tab.type) === 'mock-server' && tab.mockServerUid === mockServerUid
-));
-
 const tabTypeAlreadyExists = (tabs, collectionUid, type) => {
   return find(tabs, (tab) => tab.collectionUid === collectionUid && tab.type === type);
 };
@@ -79,8 +71,6 @@ export const tabsSlice = createSlice({
         exampleName,
         exampleIndex,
         isTransient,
-        mockServerUid,
-        tabName,
         responseName,
         openInEditMode
       } = action.payload;
@@ -95,8 +85,7 @@ export const tabsSlice = createSlice({
         'workspaceEnvironments',
         'openapi-sync',
         'openapi-spec',
-        'changelog',
-        'mock-server'
+        'changelog'
       ];
 
       const existingTab = find(state.tabs, (tab) => tab.uid === uid);
@@ -112,16 +101,7 @@ export const tabsSlice = createSlice({
       }
 
       if (nonReplaceableTabTypes.includes(type)) {
-        let existingTab = null;
-
-        if (type === 'mock-server' && mockServerUid) {
-          existingTab = findMockServerTab(state.tabs, mockServerUid);
-          if (existingTab && existingTab.type !== 'mock-server') {
-            existingTab.type = 'mock-server';
-          }
-        } else {
-          existingTab = tabTypeAlreadyExists(state.tabs, collectionUid, type);
-        }
+        const existingTab = tabTypeAlreadyExists(state.tabs, collectionUid, type);
 
         if (existingTab) {
           state.activeTabUid = ensureTabUid(existingTab);
@@ -164,8 +144,6 @@ export const tabsSlice = createSlice({
           ...(exampleName ? { exampleName } : {}),
           ...(typeof exampleIndex === 'number' ? { exampleIndex } : {}),
           ...(isTransient ? { isTransient: true } : {}),
-          ...(mockServerUid ? { mockServerUid } : {}),
-          ...(tabName ? { tabName } : {}),
           ...(responseName ? { responseName } : {}),
           ...(openInEditMode ? { openInEditMode: true } : {})
         };
@@ -204,8 +182,6 @@ export const tabsSlice = createSlice({
         ...(exampleName ? { exampleName } : {}),
         ...(typeof exampleIndex === 'number' ? { exampleIndex } : {}),
         ...(isTransient ? { isTransient: true } : {}),
-        ...(mockServerUid ? { mockServerUid } : {}),
-        ...(tabName ? { tabName } : {}),
         ...(responseName ? { responseName } : {}),
         ...(openInEditMode ? { openInEditMode: true } : {})
       });
@@ -571,17 +547,6 @@ export const tabsSlice = createSlice({
 
         const tab = deserializeTab(snapshotTab, collection);
         ensureTabUid(tab);
-
-        if (normalizeMockTabType(tab.type) === 'mock-server' && tab.mockServerUid) {
-          const existingTab = findMockServerTab(state.tabs, tab.mockServerUid);
-          if (existingTab) {
-            if (checkIsActiveTab(tab, activeTab, collection)) {
-              state.activeTabUid = ensureTabUid(existingTab);
-            }
-            return;
-          }
-          tab.type = 'mock-server';
-        }
 
         state.tabs.push(tab);
 

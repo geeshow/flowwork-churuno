@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { updateTabState } from 'providers/ReduxStore/slices/tabs';
 import EnvironmentList from './EnvironmentList';
 import StyledWrapper from './StyledWrapper';
-import ExportEnvironmentModal from 'components/Environments/Common/ExportEnvironmentModal';
 
 const EnvironmentSettings = ({ collection }) => {
   const dispatch = useDispatch();
@@ -28,8 +27,6 @@ const EnvironmentSettings = ({ collection }) => {
     dispatch(updateTabState({ uid: activeTabUid, tabState: { envUid: env.uid } }));
   };
 
-  const [showExportModal, setShowExportModal] = useState(false);
-
   return (
     <StyledWrapper>
       <EnvironmentList
@@ -40,15 +37,7 @@ const EnvironmentSettings = ({ collection }) => {
         isModified={isModified}
         setIsModified={setIsModified}
         collection={collection}
-        setShowExportModal={setShowExportModal}
       />
-      {showExportModal && (
-        <ExportEnvironmentModal
-          onClose={() => setShowExportModal(false)}
-          environments={environments}
-          environmentType="collection"
-        />
-      )}
     </StyledWrapper>
   );
 };

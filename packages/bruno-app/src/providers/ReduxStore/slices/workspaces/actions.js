@@ -22,7 +22,6 @@ import {
 } from '../app';
 import { openConsole, closeConsole, setActiveTab as setActiveDevToolsTab, TAB_IDENFIERS as DEVTOOL_TABS } from '../logs';
 import { normalizePath } from 'utils/common/path';
-import { hydrateMockServerInstances } from 'utils/mock-server/mock-server-instances';
 import { hydrateTabs, getActiveTabFromSnapshot, hydrateSnapshotLookups, getCollectionSnapshotFromLookups, WORKSPACE_TAB_UID_SUFFIX_BY_TYPE } from 'utils/snapshot';
 import toast from 'react-hot-toast';
 import { closeAiSidebar } from '../chat';
@@ -187,13 +186,10 @@ export const cancelWorkspaceCreation = (tempWorkspaceUid) => {
   };
 };
 
-export const createWorkspaceAction = (workspaceName, workspaceFolderName, workspaceLocation) => {
+export const createWorkspaceAction = (workspaceName) => {
   return async (dispatch) => {
     try {
-      const result = await ipcRenderer.invoke('renderer:create-workspace',
-        workspaceName,
-        workspaceFolderName,
-        workspaceLocation);
+      const result = await ipcRenderer.invoke('renderer:create-workspace', workspaceName);
 
       const { workspaceConfig, workspaceUid, workspacePath } = result;
 
@@ -210,6 +206,30 @@ export const createWorkspaceAction = (workspaceName, workspaceFolderName, worksp
     } catch (error) {
       throw error;
     }
+  };
+};
+
+export const cloneWorkspaceAction = (sourceWorkspaceUid, newName) => {
+  return async (dispatch, getState) => {
+    const source = getState().workspaces.workspaces.find((w) => w.uid === sourceWorkspaceUid);
+    if (!source) {
+      throw new Error('Workspace not found');
+    }
+
+    const result = await ipcRenderer.invoke('renderer:clone-workspace', source.pathname, newName);
+
+    const { workspaceConfig, workspaceUid, workspacePath } = result;
+
+    dispatch(createWorkspace({
+      uid: workspaceUid,
+      name: newName,
+      pathname: workspacePath,
+      ...workspaceConfig
+    }));
+
+    await dispatch(switchWorkspace(workspaceUid));
+
+    return result;
   };
 };
 
@@ -230,31 +250,6 @@ export const openWorkspace = () => {
         await dispatch(switchWorkspace(workspaceUid));
 
         return result;
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
-};
-
-export const openWorkspaceDialog = () => {
-  return async (dispatch) => {
-    try {
-      const result = await ipcRenderer.invoke('renderer:open-workspace-dialog');
-      if (result) {
-        const { workspaceConfig, workspaceUid } = result;
-
-        dispatch(createWorkspace({
-          uid: workspaceUid,
-          pathname: result.workspacePath,
-          ...workspaceConfig
-        }));
-
-        await dispatch(switchWorkspace(workspaceUid));
-
-        return result;
-      } else {
-        return null;
       }
     } catch (error) {
       throw error;
@@ -622,10 +617,6 @@ export const switchWorkspace = (workspaceUid) => {
       // Mount scratch collection and load workspace collections
       const scratchCollection = await dispatch(mountScratchCollection(workspaceUid));
       const { updatedWorkspace, openedCollectionPaths } = await loadWorkspaceCollectionsForSwitch(dispatch, workspace);
-
-      if (workspace.pathname) {
-        await dispatch(hydrateMockServerInstances(workspace.pathname, workspaceUid));
-      }
 
       const latestWorkspace = updatedWorkspace || getState().workspaces.workspaces.find((w) => w.uid === workspaceUid);
       const workspaceCollectionPaths = [...new Map(
@@ -1269,33 +1260,6 @@ export const copyWorkspaceEnvironment = (workspaceUid, environmentUid, newName) 
   };
 };
 
-export const exportWorkspaceAction = (workspaceUid) => {
-  return async (dispatch, getState) => {
-    try {
-      const { workspaces } = getState().workspaces;
-      const workspace = workspaces.find((w) => w.uid === workspaceUid);
-
-      if (!workspace) {
-        throw new Error('Workspace not found');
-      }
-
-      if (!workspace.pathname) {
-        throw new Error('Workspace path not found');
-      }
-
-      const result = await ipcRenderer.invoke('renderer:export-workspace', workspace.pathname, workspace.name);
-
-      if (result.canceled) {
-        return { canceled: true };
-      }
-
-      return result;
-    } catch (error) {
-      throw error;
-    }
-  };
-};
-
 export const importWorkspaceAction = (zipFilePath, extractLocation) => {
   return async (dispatch) => {
     try {
@@ -1485,6 +1449,25 @@ export const mountScratchCollection = (workspaceUid) => {
       }));
 
       dispatch(updateCollectionMountStatus({ collectionUid: scratchCollectionUid, mountStatus: 'mounted' }));
+
+      // Web mode: scratch transient files survive a reload on the server —
+      // stream them back into the store and reopen a tab for each.
+      if (window.__BRUNO_WEB_MODE__) {
+        await ipcRenderer.invoke('renderer:web:stream-collection', { collectionPathname: tempDirectoryPath });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const scratchCollection = getState().collections.collections.find((c) => c.uid === scratchCollectionUid);
+        (scratchCollection?.items || []).forEach((item) => {
+          if (!item.pathname || item.type === 'folder') return;
+          dispatch(addTab({
+            uid: item.uid,
+            collectionUid: scratchCollectionUid,
+            type: item.type,
+            pathname: item.pathname,
+            preview: false,
+            isTransient: true
+          }));
+        });
+      }
 
       return { uid: scratchCollectionUid, pathname: tempDirectoryPath };
     } catch (error) {

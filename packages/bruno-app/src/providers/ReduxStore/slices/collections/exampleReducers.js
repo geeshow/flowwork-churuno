@@ -1,13 +1,19 @@
 import { find, map, filter, cloneDeep, each, concat } from 'lodash';
 import { parseQueryParams, buildQueryString as stringifyQueryParams } from '@usebruno/common/utils';
 import { uuid } from 'utils/common';
-import { findItemForExampleEditor,
-  getMockResponseUidFromItemUid,
-  isMockResponseEditorItemUid,
-  buildMockResponseEditorItem
-} from 'utils/mock-server/mock-responses/editor';
+import { findCollectionByUid, findItemInCollection } from 'utils/collections';
 import { parsePathParams, splitOnFirst } from 'utils/url';
 import statusCodePhraseMap from 'components/ResponsePane/StatusCode/get-status-code-phrase';
+
+const findItemForExampleEditor = (state, collectionUid, itemUid) => {
+  const collection = findCollectionByUid(state.collections, collectionUid);
+
+  if (!collection) {
+    return null;
+  }
+
+  return findItemInCollection(collection, itemUid);
+};
 
 export const addResponseExample = (state, action) => {
   const { itemUid, collectionUid, example } = action.payload;
@@ -165,19 +171,6 @@ export const deleteResponseExample = (state, action) => {
 
 export const cancelResponseExampleEdit = (state, action) => {
   const { itemUid, collectionUid, exampleUid } = action.payload;
-
-  if (isMockResponseEditorItemUid(itemUid)) {
-    const responseUid = getMockResponseUidFromItemUid(itemUid);
-    const editor = state.mockResponseEditors?.[responseUid];
-
-    if (!editor?.savedMockResponse) {
-      return;
-    }
-
-    editor.item = buildMockResponseEditorItem(editor.savedMockResponse);
-    editor.rules = cloneDeep(editor.savedMockResponse.rules || { operator: 'AND', conditions: [] });
-    return;
-  }
 
   const item = findItemForExampleEditor(state, collectionUid, itemUid);
   if (!item) return;

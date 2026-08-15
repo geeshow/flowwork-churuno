@@ -114,7 +114,9 @@ const sendHttpRequest = async (item, collection, environment, runtimeVariables) 
         postData: har.postData ?? null,
         timeoutMs: timeoutMs > 0 ? timeoutMs : null,
         followRedirects: true,
-        verifyTls: preferences?.request?.sslVerification !== false
+        verifyTls: preferences?.request?.sslVerification !== false,
+        collectionPath: collection.pathname,
+        requestName: item.name
       },
       { signal: abortController.signal }
     );
