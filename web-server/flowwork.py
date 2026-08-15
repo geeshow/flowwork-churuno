@@ -312,6 +312,9 @@ def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable
                 continue
             department = department_dir.name
             for bru_path in sorted(department_dir.rglob("*.bru")):
+                # folder.bru는 폴더 메타데이터라 API가 아니다
+                if bru_path.name == "folder.bru":
+                    continue
                 try:
                     parsed = parse_bru_request(bru_path.read_text(encoding="utf-8"))
                 except OSError:
