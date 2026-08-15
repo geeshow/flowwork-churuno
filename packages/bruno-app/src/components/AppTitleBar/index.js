@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconCheck, IconChevronDown, IconHome, IconPin, IconPinned, IconPlus, IconDownload, IconSettings } from '@tabler/icons';
+import { IconCheck, IconChevronDown, IconHome, IconLock, IconPin, IconPinned, IconPlus, IconDownload, IconSettings } from '@tabler/icons';
 import { forwardRef, useCallback, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
@@ -21,7 +21,7 @@ import ImportWorkspace from 'components/WorkspaceSidebar/ImportWorkspace';
 import IconBottombarToggle from 'components/Icons/IconBottombarToggle/index';
 import StyledWrapper from './StyledWrapper';
 import ResponseLayoutToggle from 'components/ResponsePane/ResponseLayoutToggle';
-import { isMacOS, isWindowsOS, isLinuxOS } from 'utils/common/platform';
+import { isMacOS, isWindowsOS, isLinuxOS, isWebMode } from 'utils/common/platform';
 import classNames from 'classnames';
 
 const getOsClass = () => {
@@ -117,14 +117,18 @@ const AppTitleBar = () => {
     const items = sortedWorkspaces.map((workspace) => {
       const isActive = workspace.uid === activeWorkspaceUid;
       const isPinned = preferences?.workspaces?.pinnedWorkspaceUids?.includes(workspace.uid);
+      // 웹 모드의 default 워크스페이스 = main 브랜치. 직접 수정 금지라 전환을 막는다.
+      const isReadOnlyMain = isWebMode() && workspace.type === 'default';
 
       return {
         id: workspace.uid,
         label: getWorkspaceDisplayName(workspace.name),
         onClick: () => handleWorkspaceSwitch(workspace.uid),
+        disabled: isReadOnlyMain,
         className: `workspace-item ${isActive ? 'active' : ''}`,
         rightSection: (
           <div className="workspace-actions">
+            {isReadOnlyMain && <IconLock size={14} stroke={1.5} />}
             {workspace.type !== 'default' && (
               <ActionIcon
                 className={`pin-btn ${isPinned ? 'pinned' : ''}`}

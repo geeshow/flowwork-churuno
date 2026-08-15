@@ -22,7 +22,6 @@ import DeleteCollection from 'components/Sidebar/Collections/Collection/DeleteCo
 import ShareCollection from 'components/ShareCollection';
 import Dropdown from 'components/Dropdown';
 import StatusBadge from 'ui/StatusBadge';
-import ConnectGitRemote from './ConnectGitRemote';
 import RemoveGitRemote from './RemoveGitRemote';
 import StyledWrapper from './StyledWrapper';
 
@@ -37,10 +36,23 @@ const CollectionsList = ({ workspace }) => {
   const [shareCollectionModalOpen, setShareCollectionModalOpen] = useState(false);
   const [selectedCollectionUid, setSelectedCollectionUid] = useState(null);
   const [gitTarget, setGitTarget] = useState(null);
-  const [showConnectGitModal, setShowConnectGitModal] = useState(false);
   const [showRemoveGitModal, setShowRemoveGitModal] = useState(false);
 
   const isDefaultWorkspace = workspace?.type === 'default';
+
+  // 워크스페이스 = git 브랜치이므로 컬렉션의 주소는 디스크 경로가 아니라 브랜치 안의 위치다
+  const collectionGitUrl = (collectionPathname) => {
+    if (!workspace?.branchUrl || !collectionPathname) {
+      return null;
+    }
+    if (normalizePath(collectionPathname) === normalizePath(workspace.pathname)) {
+      return workspace.branchUrl;
+    }
+    const prefix = `${workspace.pathname}/`;
+    return collectionPathname.startsWith(prefix)
+      ? `${workspace.branchUrl}/${collectionPathname.slice(prefix.length)}`
+      : null;
+  };
 
   const unopenableCollections = useMemo(() => {
     return (workspace.unopenableCollections || []).map((wc) => ({
@@ -210,20 +222,6 @@ const CollectionsList = ({ workspace }) => {
     setDeleteCollectionModalOpen(true);
   };
 
-  const handleConnectGit = (collection) => {
-    dropdownRefs.current[collection.uid]?.hide();
-    if (collection.isLoaded === false) {
-      toast.error('Cannot connect a Git remote to a collection that is not present locally');
-      return;
-    }
-    setGitTarget({
-      path: collection.pathname,
-      name: collection.name,
-      remoteUrl: collection.gitRemoteUrl || ''
-    });
-    setShowConnectGitModal(true);
-  };
-
   const handleRemoveGit = (collection) => {
     dropdownRefs.current[collection.uid]?.hide();
     setGitTarget({
@@ -246,7 +244,6 @@ const CollectionsList = ({ workspace }) => {
   };
 
   const closeGitModals = () => {
-    setShowConnectGitModal(false);
     setShowRemoveGitModal(false);
     setGitTarget(null);
   };
@@ -291,15 +288,6 @@ const CollectionsList = ({ workspace }) => {
             setShareCollectionModalOpen(false);
             setSelectedCollectionUid(null);
           }}
-        />
-      )}
-
-      {showConnectGitModal && gitTarget && (
-        <ConnectGitRemote
-          collectionPath={gitTarget.path}
-          collectionName={gitTarget.name}
-          initialUrl={gitTarget.remoteUrl}
-          onClose={closeGitModals}
         />
       )}
 
@@ -348,7 +336,20 @@ const CollectionsList = ({ workspace }) => {
                     <StatusBadge status="warning" size="xs">Not cloned</StatusBadge>
                   )}
                 </div>
-                <div className="collection-path">{collection.pathname}</div>
+                {collectionGitUrl(collection.pathname) ? (
+                  <div className="collection-path">
+                    <a
+                      href={collectionGitUrl(collection.pathname)}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {collectionGitUrl(collection.pathname)}
+                    </a>
+                  </div>
+                ) : (
+                  <div className="collection-path">{collection.pathname}</div>
+                )}
                 {!isDefaultWorkspace && collection.isGitBacked && collection.gitRemoteUrl && (
                   <div className="collection-remote" title={collection.gitRemoteUrl}>
                     <IconBrandGit size={12} strokeWidth={1.75} />
@@ -396,18 +397,6 @@ const CollectionsList = ({ workspace }) => {
                           >
                             <IconCopy size={16} strokeWidth={1.5} />
                             <span>Copy Git URL</span>
-                          </div>
-                        )}
-                        {!collection.isGitBacked && collection.isLoaded !== false && (
-                          <div
-                            className="dropdown-item"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleConnectGit(collection);
-                            }}
-                          >
-                            <IconBrandGit size={16} strokeWidth={1.5} />
-                            <span>Connect to Git</span>
                           </div>
                         )}
                         {collection.isGitBacked && (

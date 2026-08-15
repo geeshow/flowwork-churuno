@@ -109,6 +109,18 @@
 - Preferences > General의 "Use System Browser for OAuth2 Authorization" 체크박스 삭제
   (시스템 브라우저 + bruno:// 딥링크 콜백은 데스크톱 전용)
 
+## 9. 워크스페이스 "Close" / 컬렉션 "Connect to Git"
+
+웹 모드에서는 워크스페이스가 git 브랜치(worktree)라서 "열고 닫는" 대상이 아니고,
+모든 컬렉션이 이미 워크스페이스 브랜치로 동기화되므로 컬렉션 단위 git 연결이 불필요하다.
+
+- 워크스페이스 홈 헤더의 ⋯ 메뉴 삭제 — Rename만 남아 이름변경 아이콘 버튼으로 대체,
+  Close는 Manage Workspace의 Remove(브랜치 삭제)로 일원화.
+  `components/Sidebar/CloseWorkspace` 및 e2e `tests/workspace/close-workspace-returns-to-default.spec.ts` 삭제
+- Overview 컬렉션 카드 ⋯ 메뉴의 "Connect to Git" 삭제 —
+  `WorkspaceOverview/CollectionsList/ConnectGitRemote` 삭제
+  (Copy Git URL / Remove Git Remote는 데스크톱산 워크스페이스 호환용으로 유지)
+
 ## 삭제된 npm 의존성 (bruno-app)
 
 - `@xterm/xterm` — Devtools 터미널 렌더링

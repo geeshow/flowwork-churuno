@@ -139,6 +139,13 @@ const useWebRouteSync = () => {
     const workspace = state.workspaces.workspaces.find((w) => w.name === route.workspaceName);
     if (!workspace) return; // boot not far enough — retried on the next state change
 
+    // main(default)은 읽기 전용 — URL 딥링크로도 열 수 없다. 해시를 버리면
+    // state→URL 미러링이 현재 상태의 정식 해시로 되돌려 놓는다.
+    if (workspace.type === 'default') {
+      setPendingHash('');
+      return;
+    }
+
     let collection = null;
     if (route.collectionDirName) {
       collection = state.collections.collections.find(

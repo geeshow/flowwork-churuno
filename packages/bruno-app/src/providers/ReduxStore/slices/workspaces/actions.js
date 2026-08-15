@@ -25,6 +25,7 @@ import { normalizePath } from 'utils/common/path';
 import { hydrateTabs, getActiveTabFromSnapshot, hydrateSnapshotLookups, getCollectionSnapshotFromLookups, WORKSPACE_TAB_UID_SUFFIX_BY_TYPE } from 'utils/snapshot';
 import toast from 'react-hot-toast';
 import { closeAiSidebar } from '../chat';
+import { isWebMode } from 'utils/common/platform';
 
 const { ipcRenderer } = window;
 let snapshotHydrationTimer = null;
@@ -583,6 +584,19 @@ export const loadWorkspaceApiSpecs = (workspaceUid) => {
 
 export const switchWorkspace = (workspaceUid) => {
   return async (dispatch, getState) => {
+    // 웹 모드의 default 워크스페이스는 main 브랜치 checkout이라 직접 수정하면 안 된다.
+    // 어떤 경로(부트 복원, 삭제 후 폴백, URL)로 오든 첫 작업 브랜치로 우회한다.
+    if (isWebMode()) {
+      const allWorkspaces = getState().workspaces.workspaces;
+      const target = allWorkspaces.find((w) => w.uid === workspaceUid);
+      if (target?.type === 'default') {
+        const fallback = allWorkspaces.find((w) => w.type !== 'default' && !w.isCreating);
+        if (!fallback) {
+          return;
+        }
+        workspaceUid = fallback.uid;
+      }
+    }
     dispatch(closeAiSidebar());
     clearSnapshotHydrationTimeout();
     dispatch(setSnapshotReady(false));

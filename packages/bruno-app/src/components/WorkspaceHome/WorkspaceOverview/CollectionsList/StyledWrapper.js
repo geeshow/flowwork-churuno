@@ -82,6 +82,15 @@ const StyledWrapper = styled.div`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    a {
+      color: inherit;
+
+      &:hover {
+        color: ${(props) => props.theme.textLink};
+        text-decoration: underline;
+      }
+    }
   }
 
   .collection-remote {

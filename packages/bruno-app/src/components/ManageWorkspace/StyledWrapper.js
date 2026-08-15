@@ -126,6 +126,15 @@ const StyledWrapper = styled.div`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    a {
+      color: ${(props) => props.theme.text.muted};
+
+      &:hover {
+        color: ${(props) => props.theme.textLink};
+        text-decoration: underline;
+      }
+    }
   }
 
   .workspace-actions {

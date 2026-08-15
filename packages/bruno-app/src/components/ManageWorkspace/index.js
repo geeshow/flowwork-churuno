@@ -63,6 +63,11 @@ const ManageWorkspace = () => {
   };
 
   const handleOpenWorkspace = (workspace) => {
+    // main(default)은 직접 수정하면 안 되므로 열 수 없다 — Duplicate로 작업 브랜치를 만들어 쓴다
+    if (workspace.type === 'default') {
+      toast.error('main is read-only — duplicate it into a workspace branch instead');
+      return;
+    }
     dispatch(switchWorkspace(workspace.uid));
     dispatch(showHomePage());
     toast.success(`Switched to ${workspace.name}`);
@@ -153,19 +158,25 @@ const ManageWorkspace = () => {
                     {workspace.branch && <code className="workspace-branch">{workspace.branch}</code>}
                     {isDefault && <span className="default-badge">Default</span>}
                   </div>
-                  {workspace.pathname && (
+                  {workspace.branchUrl ? (
+                    <div className="workspace-path">
+                      <a href={workspace.branchUrl} target="_blank" rel="noreferrer">{workspace.branchUrl}</a>
+                    </div>
+                  ) : workspace.pathname ? (
                     <div className="workspace-path">{workspace.pathname}</div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="workspace-actions">
-                  <button
-                    className="action-btn"
-                    onClick={() => handleOpenWorkspace(workspace)}
-                  >
-                    <IconLogin size={14} strokeWidth={1.5} />
-                    <span>Open</span>
-                  </button>
+                  {!isDefault && (
+                    <button
+                      className="action-btn"
+                      onClick={() => handleOpenWorkspace(workspace)}
+                    >
+                      <IconLogin size={14} strokeWidth={1.5} />
+                      <span>Open</span>
+                    </button>
+                  )}
                   <MenuDropdown
                     placement="bottom-end"
                     items={[
