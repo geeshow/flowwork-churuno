@@ -17,7 +17,6 @@ import ConfirmCloseEnvironment from 'components/Environments/ConfirmCloseEnviron
 import RequestTabNotFound from './RequestTabNotFound';
 import RequestTabLoading from './RequestTabLoading';
 import SpecialTab from './SpecialTab';
-import { IconAppWindow } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
 import MenuDropdown from 'ui/MenuDropdown';
 import CloneCollectionItem from 'components/Sidebar/Collections/Collection/CollectionItem/CloneCollectionItem/index';
@@ -619,15 +618,9 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
           }
         }}
       >
-        {item.type === 'app' ? (
-          <span className="tab-method flex items-center" aria-label="App">
-            <IconAppWindow size={14} strokeWidth={1.5} />
-          </span>
-        ) : (
-          <span className="tab-method uppercase" style={{ color: getMethodColor(method) }}>
-            {method}
-          </span>
-        )}
+        <span className="tab-method uppercase" style={{ color: getMethodColor(method) }}>
+          {method}
+        </span>
         <span ref={tabNameRef} className="ml-1 tab-name" title={item.name}>
           {item.name}
         </span>

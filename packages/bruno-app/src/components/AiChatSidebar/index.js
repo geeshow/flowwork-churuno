@@ -34,7 +34,6 @@ import {
   setMessageCodeStatus
 } from 'providers/ReduxStore/slices/chat';
 import {
-  updateAppCode,
   updateRequestTests,
   updateRequestScript,
   updateResponseScript,
@@ -234,7 +233,7 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
 
   const aiContext = useMemo(() => {
     if (!focusedTab || !collection) return null;
-    if (activeItem && (isItemARequest(activeItem) || activeItem.type === 'app')) {
+    if (activeItem && isItemARequest(activeItem)) {
       return { kind: 'request', item: activeItem, pathname: activeItem.pathname || '', name: activeItem.name || 'Untitled' };
     }
     if (activeItem && isItemAFolder(activeItem)) {
@@ -284,14 +283,6 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
 
   const requestName = aiContext?.name || activeItem?.name || 'Untitled';
 
-  const appEnabled = useMemo(() => {
-    if (aiContext?.kind !== 'request' || !activeItem) return true;
-    if (activeItem.type === 'app') return true;
-    return activeItem.draft
-      ? get(activeItem, 'draft.app.enabled', false)
-      : get(activeItem, 'app.enabled', false);
-  }, [aiContext?.kind, activeItem]);
-
   const requestMethod = useMemo(() => {
     if (aiContext?.kind === 'folder') return 'FOLDER';
     if (aiContext?.kind === 'collection') return 'ROOT';
@@ -299,12 +290,10 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
     if (activeItem.type === 'grpc-request') return 'GRPC';
     if (activeItem.type === 'ws-request') return 'WS';
     if (activeItem.type === 'graphql-request') return 'GQL';
-    if (activeItem.type === 'app') return 'APP';
-    if (appEnabled) return 'APP';
     return activeItem.draft
       ? get(activeItem, 'draft.request.method', 'GET')
       : get(activeItem, 'request.method', 'GET');
-  }, [aiContext?.kind, activeItem, appEnabled]);
+  }, [aiContext?.kind, activeItem]);
 
   // contentType drives the AI prompt, the diff target, and which entry of
   // allContent the backend treats as "active". For requests it follows the
@@ -331,7 +320,7 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
       case 'tests': return 'tests';
       case 'script': return scriptPaneTab === 'post-response' ? 'post-response' : 'pre-request';
       case 'docs': return 'docs';
-      default: return 'app';
+      default: return 'docs';
     }
   }, [aiContext, collection?.folderLevelSettingsSelectedTab, collection?.settingsSelectedTab, requestPaneTab, scriptPaneTab]);
 
@@ -369,9 +358,7 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
     if (aiContext.kind === 'request') {
       const item = aiContext.item;
       const draft = item.draft;
-      const draftAppCode = get(item, 'draft.app.code');
       return {
-        'app': draftAppCode != null ? draftAppCode : get(item, 'app.code', ''),
         'tests': draft ? get(draft, 'request.tests', '') : get(item, 'request.tests', ''),
         'pre-request': draft ? get(draft, 'request.script.req', '') : get(item, 'request.script.req', ''),
         'post-response': draft ? get(draft, 'request.script.res', '') : get(item, 'request.script.res', ''),
@@ -555,7 +542,7 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     try {
-      await dispatch(sendAiMessage(activeTabUid, text, allContent, requestContext, selectedModel, contentType, aiVariables, appEnabled, aiRequests));
+      await dispatch(sendAiMessage(activeTabUid, text, allContent, requestContext, selectedModel, contentType, aiVariables, aiRequests));
       setProcessingStage('applying');
       setTimeout(() => setProcessingStage(null), 500);
     } catch (err) {
@@ -595,7 +582,7 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
         case 'pre-request': dispatch(updateRequestScript({ ...payload, script: code })); break;
         case 'post-response': dispatch(updateResponseScript({ ...payload, script: code })); break;
         case 'docs': dispatch(updateRequestDocs({ ...payload, docs: code })); break;
-        default: dispatch(updateAppCode({ ...payload, code })); break;
+        default: return;
       }
     } else if (aiContext.kind === 'folder') {
       const payload = { folderUid: aiContext.folder.uid, collectionUid: collection.uid };
@@ -604,8 +591,6 @@ const AiChatSidebar = ({ collection, variant = 'sidebar' }) => {
         case 'pre-request': dispatch(updateFolderRequestScript({ ...payload, script: code })); break;
         case 'post-response': dispatch(updateFolderResponseScript({ ...payload, script: code })); break;
         case 'docs': dispatch(updateFolderDocs({ ...payload, docs: code })); break;
-        // Folders / collections have no 'app' equivalent. Bail rather than
-        // marking the diff accepted when nothing was dispatched.
         default: return;
       }
     } else {

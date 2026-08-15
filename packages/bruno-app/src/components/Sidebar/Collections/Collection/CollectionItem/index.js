@@ -17,7 +17,6 @@ import {
   IconTrash,
   IconSettings,
   IconInfoCircle,
-  IconAppWindow,
   IconEyeOff
 } from '@tabler/icons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -29,7 +28,6 @@ import { uuid } from 'utils/common';
 import { copyRequest, setFocusedSidebarPath } from 'providers/ReduxStore/slices/app';
 import NewRequest from 'components/Sidebar/NewRequest';
 import NewFolder from 'components/Sidebar/NewFolder';
-import NewApp from 'components/Sidebar/NewApp';
 import RenameCollectionItem from './RenameCollectionItem';
 import CloneCollectionItem from './CloneCollectionItem';
 import DeleteCollectionItem from './DeleteCollectionItem';
@@ -101,7 +99,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
   const [generateCodeItemModalOpen, setGenerateCodeItemModalOpen] = useState(false);
   const [newRequestModalOpen, setNewRequestModalOpen] = useState(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
-  const [newAppModalOpen, setNewAppModalOpen] = useState(false);
   const [runCollectionModalOpen, setRunCollectionModalOpen] = useState(false);
   const [itemInfoModalOpen, setItemInfoModalOpen] = useState(false);
   const [examplesExpanded, setExamplesExpanded] = useState(false);
@@ -272,9 +269,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
     if (event && event.detail != 1) return;
     // scroll to the active tab
     setTimeout(scrollToTheActiveTab, 50);
-    const isRequest = isItemARequest(item);
-    const isApp = item.type === 'app';
-    if (isRequest || isApp) {
+    if (isItemARequest(item)) {
       if (isTabForItemPresent) {
         dispatch(
           focusTab({
@@ -287,7 +282,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
         addTab({
           uid: item.uid,
           collectionUid: collectionUid,
-          ...(isRequest ? { requestPaneTab: getDefaultRequestPaneTab(item) } : {}),
+          requestPaneTab: getDefaultRequestPaneTab(item),
           type: item.type,
           pathname: item.pathname
         })
@@ -367,12 +362,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
           leftSection: IconFolderPlus,
           label: 'New Folder',
           onClick: () => setNewFolderModalOpen(true)
-        },
-        {
-          id: 'new-app',
-          leftSection: IconAppWindow,
-          label: 'New App',
-          onClick: () => setNewAppModalOpen(true)
         },
         {
           id: 'run',
@@ -557,10 +546,9 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
   };
 
   const folderItems = sortByNameThenSequence(filter(item.items, (i) => isItemAFolder(i) && !i.isTransient));
-  const appItems = sortItemsBySequence(filter(item.items, (i) => i.type === 'app' && !i.isTransient));
   const requestItems = sortItemsBySequence(filter(item.items, (i) => isItemARequest(i) && !i.isTransient));
   const showEmptyFolderMessage
-    = isFolder && !hasSearchText && !folderItems?.length && !appItems?.length && !requestItems?.length;
+    = isFolder && !hasSearchText && !folderItems?.length && !requestItems?.length;
 
   const emptyFolderMenuItems = createEmptyStateMenuItems({ dispatch, collection, itemUid: item.uid });
 
@@ -645,9 +633,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
       )}
       {newFolderModalOpen && (
         <NewFolder item={item} collectionUid={collectionUid} onClose={() => setNewFolderModalOpen(false)} />
-      )}
-      {newAppModalOpen && (
-        <NewApp item={item} collectionUid={collectionUid} onClose={() => setNewAppModalOpen(false)} />
       )}
       {runCollectionModalOpen && (
         <RunCollectionItem collectionUid={collectionUid} item={item} onClose={() => setRunCollectionModalOpen(false)} />
@@ -756,11 +741,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
         <div>
           {folderItems && folderItems.length
             ? folderItems.map((i) => {
-                return <CollectionItem key={i.uid} item={i} collectionUid={collectionUid} collectionPathname={collectionPathname} searchText={searchText} />;
-              })
-            : null}
-          {appItems && appItems.length
-            ? appItems.map((i) => {
                 return <CollectionItem key={i.uid} item={i} collectionUid={collectionUid} collectionPathname={collectionPathname} searchText={searchText} />;
               })
             : null}

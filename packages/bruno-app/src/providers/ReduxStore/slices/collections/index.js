@@ -3522,39 +3522,6 @@ export const collectionsSlice = createSlice({
         }
       }
     },
-    updateAppCode: (state, action) => {
-      const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
-      if (!collection) return;
-
-      const item = findItemInCollection(collection, action.payload.itemUid);
-      // Accept both request-attached apps and standalone 'app' items.
-      if (item && (isItemARequest(item) || item.type === 'app')) {
-        if (!item.draft) {
-          item.draft = cloneDeep(item);
-        }
-        item.draft.app = item.draft.app || {};
-        item.draft.app.code = action.payload.code;
-      }
-    },
-    toggleAppMode: (state, action) => {
-      const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
-      if (!collection) return;
-
-      const item = findItemInCollection(collection, action.payload.itemUid);
-      if (item && isItemARequest(item)) {
-        if (!item.draft) {
-          item.draft = cloneDeep(item);
-        }
-        item.draft.app = item.draft.app || {};
-        item.draft.app.enabled = action.payload.enabled;
-      }
-    },
-    appSetRuntimeVariable: (state, action) => {
-      const { collectionUid, key, value } = action.payload;
-      const collection = findCollectionByUid(state.collections, collectionUid);
-      if (!collection) return;
-      collection.runtimeVariables = { ...(collection.runtimeVariables || {}), [key]: value };
-    },
     updateFolderDocs: (state, action) => {
       const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
       const folder = collection ? findItemInCollection(collection, action.payload.folderUid) : null;
@@ -4159,9 +4126,6 @@ export const {
   updateFolderDocs,
   toggleCollectionFileMode,
   updateFileContent,
-  updateAppCode,
-  toggleAppMode,
-  appSetRuntimeVariable,
   moveCollection,
   streamDataReceived,
   collectionAddOauth2CredentialsByUrl,

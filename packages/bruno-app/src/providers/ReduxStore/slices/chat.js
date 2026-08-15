@@ -20,7 +20,7 @@ const ensureChat = (state, tabUid) => {
       conversationId: null,
       pathname: '',
       collectionUid: '',
-      contentType: 'app',
+      contentType: 'docs',
       messages: [],
       isLoading: false,
       error: null,
@@ -133,7 +133,7 @@ export const chatSlice = createSlice({
         last.content = content;
         last.code = code;
         last.originalCode = originalCode;
-        last.contentType = contentType || 'app';
+        last.contentType = contentType || 'docs';
         last.writes = writes || null;
         last.isStreaming = false;
         last.cancelled = Boolean(cancelled);
@@ -251,9 +251,8 @@ export const sendAiMessage = (
   allContent,
   requestContext,
   model,
-  contentType = 'app',
+  contentType = 'docs',
   variables = [],
-  appEnabled = true,
   requests = []
 ) => async (dispatch, getState) => {
   const { ipcRenderer } = window;
@@ -393,8 +392,7 @@ export const sendAiMessage = (
       variables,
       requests,
       requestId,
-      model,
-      appEnabled
+      model
     });
   });
 };

@@ -13,8 +13,6 @@ import {
   IconCheck,
   IconFileCode,
   IconFileOff,
-  IconCode,
-  IconAppWindow,
   IconTransform
 } from '@tabler/icons';
 import IconSparkles from 'components/Icons/IconSparkles';
@@ -24,10 +22,8 @@ import { updateWorkspace } from 'providers/ReduxStore/slices/workspaces';
 import { toggleCollectionFileMode } from 'providers/ReduxStore/slices/collections';
 import { toggleAiSidebar } from 'providers/ReduxStore/slices/chat';
 import { showMigrateToYmlModal } from 'providers/ReduxStore/slices/collection-migration';
-import { findItemInCollection, findItemInCollectionByPathname } from 'utils/collections';
-import find from 'lodash/find';
 import get from 'lodash/get';
-import { addTab, focusTab, setTabAppPreview } from 'providers/ReduxStore/slices/tabs';
+import { addTab, focusTab } from 'providers/ReduxStore/slices/tabs';
 import { uuid } from 'utils/common';
 import toast from 'react-hot-toast';
 import Dropdown from 'components/Dropdown';
@@ -60,7 +56,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   const activeWorkspaceUid = useSelector((state) => state.workspaces.activeWorkspaceUid);
   const collections = useSelector((state) => state.collections.collections);
   const tabs = useSelector((state) => state.tabs.tabs);
-  const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const preferences = useSelector((state) => state.app.preferences);
   const isAiEnabled = get(preferences, 'ai.enabled', false);
   const isAiSidebarOpen = useSelector((state) => state.chat.isOpen);
@@ -68,25 +63,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   // Get the current active workspace
   const currentWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
   const gitRootPath = collection?.git?.gitRootPath;
-
-  // Active request (used by the Request / App / File view-mode toggle)
-  const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
-  const activeItem = focusedTab && collection
-    ? (findItemInCollection(collection, activeTabUid)
-      || (focusedTab.pathname ? findItemInCollectionByPathname(collection, focusedTab.pathname) : null))
-    : null;
-  const isHttpRequestActive = activeItem?.type === 'http-request';
-  const activeItemSource = activeItem ? activeItem.draft || activeItem : null;
-  // The "Enable App" request setting (persisted as app.enabled) gates the whole
-  // Request/App/File mode toggle.
-  const appAvailable = isHttpRequestActive && get(activeItemSource, 'app.enabled', false) === true;
-  const appEnabled = appAvailable && focusedTab?.appPreview !== false;
-
-  const handleToggleAppMode = (enabled) => {
-    if (isHttpRequestActive) {
-      dispatch(setTabAppPreview({ uid: focusedTab.uid, appPreview: enabled }));
-    }
-  };
 
   // Workspace rename state
   const [isRenamingWorkspace, setIsRenamingWorkspace] = useState(false);
@@ -300,11 +276,7 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   // Build overflow menu items for the "..." dropdown
   const overflowMenuItems = [
     { id: 'variables', label: 'Variables', leftSection: IconEye, onClick: viewVariables },
-    // File mode is exposed via the Request/App/File view-mode toggle when the active
-    // request has apps enabled; keep it in the overflow as a fallback everywhere else.
-    ...(!appAvailable
-      ? [{ id: 'file-mode', label: collection.fileMode ? 'Switch to Code Mode' : 'Switch to File Mode', leftSection: collection.fileMode ? IconFileOff : IconFileCode, onClick: handleFileModeClick }]
-      : []),
+    { id: 'file-mode', label: collection.fileMode ? 'Switch to Code Mode' : 'Switch to File Mode', leftSection: collection.fileMode ? IconFileOff : IconFileCode, onClick: handleFileModeClick },
     ...(!hasOpenApiSyncConfigured
       ? [{ id: 'openapi-sync', label: 'OpenAPI', leftSection: OpenAPISyncIcon, onClick: viewOpenApiSync }]
       : []),
@@ -619,52 +591,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
         <div className="header-actions flex gap-1.5 items-center">
           {!isScratchCollection && (
             <>
-              {appAvailable && (
-                <div className="mode-toggle" data-testid="view-mode-toggle">
-                  <ToolHint text="Request" toolhintId="ViewModeRequestToolhintId" place="bottom">
-                    <button
-                      type="button"
-                      data-testid="view-mode-request"
-                      aria-label="Request view"
-                      className={`mode-btn ${!appEnabled && !collection.fileMode ? 'active' : ''}`}
-                      onClick={() => {
-                        if (collection.fileMode) handleFileModeClick();
-                        if (appEnabled) handleToggleAppMode(false);
-                      }}
-                    >
-                      <IconCode size={16} strokeWidth={1.5} />
-                    </button>
-                  </ToolHint>
-                  <ToolHint text="App" toolhintId="ViewModeAppToolhintId" place="bottom">
-                    <button
-                      type="button"
-                      data-testid="view-mode-app"
-                      aria-label="App view"
-                      className={`mode-btn ${appEnabled && !collection.fileMode ? 'active' : ''}`}
-                      onClick={() => {
-                        if (collection.fileMode) handleFileModeClick();
-                        if (!appEnabled) handleToggleAppMode(true);
-                      }}
-                    >
-                      <IconAppWindow size={16} strokeWidth={1.5} />
-                    </button>
-                  </ToolHint>
-                  <ToolHint text="File" toolhintId="ViewModeFileToolhintId" place="bottom">
-                    <button
-                      type="button"
-                      data-testid="view-mode-file"
-                      aria-label="File view"
-                      className={`mode-btn ${collection.fileMode ? 'active' : ''}`}
-                      onClick={() => {
-                        if (appEnabled) handleToggleAppMode(false);
-                        if (!collection.fileMode) handleFileModeClick();
-                      }}
-                    >
-                      <IconFileCode size={16} strokeWidth={1.5} />
-                    </button>
-                  </ToolHint>
-                </div>
-              )}
               {isAiEnabled && (
                 <ToolHint text="AI Assistant" toolhintId="AiAssistantToolhintId" place="bottom">
                   <ActionIcon

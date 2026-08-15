@@ -6,7 +6,6 @@ export const PROCESSING_STAGES = [
 ];
 
 export const CONTENT_TYPE_LABELS = {
-  'app': 'App',
   'tests': 'Tests',
   'pre-request': 'Script',
   'post-response': 'Script',
@@ -14,12 +13,6 @@ export const CONTENT_TYPE_LABELS = {
 };
 
 export const SUGGESTIONS_BY_TYPE = {
-  'app': [
-    { label: 'Create a form for this request', prompt: 'Create a simple form to send this request' },
-    { label: 'Add a loading spinner', prompt: 'Add a loading spinner while the request is pending' },
-    { label: 'Show response in a table', prompt: 'Display the response data in a table' },
-    { label: 'Add error handling', prompt: 'Add error handling with user-friendly messages' }
-  ],
   'tests': [
     { label: 'Generate basic tests', prompt: 'Generate tests for status code, response body, and headers' },
     { label: 'Test response structure', prompt: 'Write tests to validate the response body structure and data types' },
@@ -49,6 +42,5 @@ export const PLACEHOLDER_BY_TYPE = {
   'tests': { empty: 'Describe the tests you want...', filled: 'Ask to modify or add tests...' },
   'pre-request': { empty: 'Describe the script you want...', filled: 'Ask to modify the script...' },
   'post-response': { empty: 'Describe the script you want...', filled: 'Ask to modify the script...' },
-  'docs': { empty: 'Describe the documentation...', filled: 'Ask to update the docs...' },
-  'app': { empty: 'Describe the app you want to create...', filled: 'Ask to modify your app...' }
+  'docs': { empty: 'Describe the documentation...', filled: 'Ask to update the docs...' }
 };

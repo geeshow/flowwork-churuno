@@ -3,7 +3,6 @@ import classnames from 'classnames';
 import ManageWorkspace from 'components/ManageWorkspace';
 import RequestTabs from 'components/RequestTabs';
 import RequestTabPanel from 'components/RequestTabPanel';
-import AppPreviewKeepAlive from 'components/AppPreviewKeepAlive';
 import AiChatSidebar from 'components/AiChatSidebar';
 import AiChatPopout from 'components/AiChatSidebar/Popout';
 import Sidebar from 'components/Sidebar';
@@ -138,7 +137,6 @@ export default function Main() {
                     <TabPanelErrorBoundary key={activeTabUid} tabUid={activeTabUid}>
                       <RequestTabPanel key={activeTabUid} />
                     </TabPanelErrorBoundary>
-                    <AppPreviewKeepAlive />
                   </div>
                 </>
               )}

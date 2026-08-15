@@ -699,19 +699,6 @@ export const transformCollectionToSaveToExportAsFile = (collection, options = {}
 export const transformRequestToSaveToFilesystem = (item) => {
   const _item = item.draft ? item.draft : item;
 
-  // Standalone app items have no request, emit only what the filestore needs.
-  if (_item.type === 'app') {
-    return {
-      uid: _item.uid,
-      type: 'app',
-      name: _item.name,
-      seq: _item.seq,
-      tags: _item.tags,
-      settings: _item.settings,
-      app: { code: _item.app?.code || '' }
-    };
-  }
-
   // Transform examples to ensure status is a number
   const transformExamples = (examples = []) => {
     return map(examples, (example) => ({
@@ -725,10 +712,6 @@ export const transformRequestToSaveToFilesystem = (item) => {
     }));
   };
 
-  const appToSave = _item.app && (_item.app.enabled === true || (_item.app.code && _item.app.code.length))
-    ? { code: _item.app.code || null, enabled: _item.app.enabled === true }
-    : null;
-
   const itemToSave = {
     uid: _item.uid,
     type: _item.type,
@@ -737,7 +720,6 @@ export const transformRequestToSaveToFilesystem = (item) => {
     seq: _item.seq,
     settings: _item.settings,
     tags: _item.tags,
-    app: appToSave,
     examples: transformExamples(_item.examples || []),
     request: {
       method: _item.request.method,
@@ -932,19 +914,18 @@ export const getCollectionItemCounts = (items = []) => {
 
 /**
  * Orders a list of collection items exactly the way the Sidebar tree renders them:
- * folders first (via `sortByNameThenSequence`), then standalone apps by `seq`, then
- * requests by `seq`. The same ordering is applied recursively to every nested folder
- * so an exported/serialized tree matches the sidebar at all depths.
+ * folders first (via `sortByNameThenSequence`), then requests by `seq`. The same
+ * ordering is applied recursively to every nested folder so an exported/serialized
+ * tree matches the sidebar at all depths.
  *
- * Items that are none of folder/app/request (e.g. `js` script files) are excluded,
+ * Items that are neither folder nor request (e.g. `js` script files) are excluded,
  * mirroring the sidebar. Transient items are excluded too.
  */
 export const sortItemsBySidebarOrder = (items = []) => {
   const folderItems = sortByNameThenSequence(filter(items, (i) => isItemAFolder(i) && !i.isTransient));
-  const appItems = filter(items, (i) => i.type === 'app' && !i.isTransient).sort((a, b) => a.seq - b.seq);
   const requestItems = filter(items, (i) => isItemARequest(i) && !i.isTransient).sort((a, b) => a.seq - b.seq);
 
-  return [...folderItems, ...appItems, ...requestItems].map((item) =>
+  return [...folderItems, ...requestItems].map((item) =>
     Array.isArray(item.items) ? { ...item, items: sortItemsBySidebarOrder(item.items) } : item
   );
 };

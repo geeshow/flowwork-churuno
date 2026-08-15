@@ -2316,66 +2316,6 @@ const exportCollectionToPostman = async (
 };
 
 /**
- * Toggle the "Enable App" request setting idempotently (Settings tab).
- * Enabling exposes the App tab and the Request/App/File view-mode toggle.
- * @param page - The page object
- * @param enabled - Whether apps should be enabled for the request
- */
-const setAppEnabled = async (page: Page, enabled: boolean) => {
-  await test.step(`Set Enable App ${enabled ? 'ON' : 'OFF'}`, async () => {
-    await selectRequestPaneTab(page, 'Settings');
-    const toggle = page.getByTestId('enable-app-toggle');
-    await expect(toggle).toBeVisible();
-    const current = (await toggle.getAttribute('aria-checked')) === 'true';
-    if (current !== enabled) {
-      await toggle.click();
-      await expect(toggle).toHaveAttribute('aria-checked', String(enabled));
-    }
-  });
-};
-
-/**
- * Set the request's app code. Enables apps in the request settings (the App
- * tab is hidden otherwise), opens the App tab and writes the editor value
- * directly via the CodeMirror API (avoids auto-close-bracket corruption when
- * typing HTML/JS char-by-char). The app view must not be active (editor visible).
- * @param page - The page object
- * @param code - The HTML/JS app code
- */
-const setAppCode = async (page: Page, code: string) => {
-  await setAppEnabled(page, true);
-  await test.step('Set app code', async () => {
-    await selectRequestPaneTab(page, 'App');
-    const editor = appCodeEditor(page);
-    await editor.waitFor({ state: 'visible' });
-    await editor.evaluate((el, val) => {
-      const cm = (el as any).CodeMirror;
-      if (cm) cm.setValue(val);
-    }, code);
-  });
-};
-
-/**
- * The CodeMirror element of the request-level App-tab editor.
- * @param page - The page object
- */
-const appCodeEditor = (page: Page) => page.getByTestId('app-code-editor').locator('.CodeMirror').first();
-
-/**
- * Read the app code currently loaded in the App-tab editor (via the CodeMirror API).
- * @param page - The page object
- * @returns The editor's current value
- */
-const readAppEditor = (page: Page): Promise<string | undefined> =>
-  appCodeEditor(page).evaluate((el) => (el as any).CodeMirror?.getValue());
-
-/**
- * The App tab of the request pane tab bar.
- * @param page - The page object
- */
-const requestPaneAppTab = (page: Page) => page.getByTestId('responsive-tab-app');
-
-/**
  * Open the request pane's tab overflow dropdown if it is present. Tabs that
  * don't fit the pane width land there instead of the visible tab row.
  * @param page - The page object
@@ -2394,123 +2334,6 @@ const openRequestPaneTabOverflow = async (page: Page) => {
  */
 const requestPaneOverflowTabItem = (page: Page, label: string | RegExp) =>
   page.locator('.tippy-box .dropdown-item').filter({ hasText: label });
-
-/**
- * The keep-alive preview slot of the ACTIVE tab. The AppPreviewKeepAlive
- * overlay keeps app views of background tabs mounted (hidden) and the Electron
- * instance is shared across tests in a worker, so bare app-view lookups can
- * match a stale slot from another test. Always scope through the active slot.
- * @param page - The page object
- */
-const activeAppPreviewSlot = (page: Page) => page.locator('.app-preview-slot.active');
-
-/**
- * The app view of the ACTIVE tab (see activeAppPreviewSlot).
- * @param page - The page object
- */
-const activeAppView = (page: Page) => activeAppPreviewSlot(page).getByTestId('app-view');
-
-/**
- * Open the app view via the App tab's "Preview" button. Asserts the app view
- * takes over the request/response area.
- * @param page - The page object
- */
-const previewApp = async (page: Page) => {
-  await test.step('Preview app (App tab button)', async () => {
-    await selectRequestPaneTab(page, 'App');
-    await page.getByTestId('app-preview-btn').click();
-    await expect(activeAppView(page)).toBeVisible({ timeout: 5000 });
-  });
-};
-
-/**
- * Exit app mode via the app view's "Exit to editor" button.
- * @param page - The page object
- */
-const exitApp = async (page: Page) => {
-  await test.step('Exit app mode', async () => {
-    await activeAppView(page).getByTestId('app-exit-button').click();
-    await expect(activeAppView(page)).toHaveCount(0, { timeout: 5000 });
-  });
-};
-
-/**
- * Switch the active request's view mode using the collection toolbar toggle.
- * @param page - The page object
- * @param mode - 'request' | 'app' | 'file'
- */
-const selectViewMode = async (page: Page, mode: 'request' | 'app' | 'file') => {
-  await test.step(`Switch view mode to "${mode}"`, async () => {
-    await page.getByTestId(`view-mode-${mode}`).click();
-  });
-};
-
-/**
- * Read the decoded HTML the app webview is loading (its data: URL src).
- * Useful for asserting the injected ctx bootstrap and user code.
- * @param page - The page object
- * @returns The decoded HTML document string
- */
-const getAppWebviewHtml = async (page: Page): Promise<string> => {
-  const webview = activeAppView(page).locator('webview');
-  await webview.waitFor({ state: 'attached', timeout: 5000 });
-  const src = await webview.getAttribute('src');
-  if (!src) return '';
-  const comma = src.indexOf(',');
-  return decodeURIComponent(src.slice(comma + 1));
-};
-
-/**
- * Create a standalone (collection-level or folder-level) app via the sidebar
- * context menu. Opens the new tab once created.
- * @param page - The page object
- * @param appName - Name to give the new app
- * @param parent - Either `{ collectionName }` for a collection-level app,
- *                 or `{ collectionName, folderName }` for a folder-level app.
- */
-const createApp = async (
-  page: Page,
-  appName: string,
-  parent: { collectionName: string; folderName?: string }
-) => {
-  await test.step(`Create app "${appName}" in ${parent.folderName ? `folder "${parent.folderName}"` : `collection "${parent.collectionName}"`}`, async () => {
-    const locators = buildCommonLocators(page);
-
-    if (parent.folderName) {
-      const collectionScope = locators.sidebar.collectionScope(parent.collectionName);
-      const folderRow = collectionScope.locator('.collection-item-name').filter({ hasText: parent.folderName });
-      await folderRow.hover();
-      await folderRow.locator('.menu-icon').click();
-    } else {
-      await locators.sidebar.collection(parent.collectionName).hover();
-      const collectionAction = locators.actions.collectionActions(parent.collectionName);
-      await expect(collectionAction).toBeVisible({ timeout: 2000 });
-      await collectionAction.click();
-    }
-
-    await page.locator('.tippy-box:visible .dropdown-item').filter({ hasText: 'New App' }).click();
-
-    const modal = page.locator('.bruno-modal').filter({ hasText: 'New App' });
-    await expect(modal).toBeVisible({ timeout: 5000 });
-    await modal.locator('input[name="appName"]').fill(appName);
-    await modal.getByRole('button', { name: 'Create', exact: true }).click();
-    await expect(modal).toBeHidden({ timeout: 5000 });
-  });
-};
-
-/**
- * Switch the CollectionApp tab between Code and Preview views.
- * @param page - The page object
- * @param view - 'code' | 'preview'
- */
-const selectAppView = async (page: Page, view: 'code' | 'preview') => {
-  await test.step(`Switch collection app to "${view}"`, async () => {
-    // Scope through the active keep-alive slot — hidden slots of background
-    // app tabs (possibly from earlier tests in the shared Electron) also
-    // render this toggle.
-    await activeAppPreviewSlot(page).getByTestId(`collection-app-view-${view}`).click();
-  });
-};
 
 /**
  * Rename a websocket message by double-clicking its label and typing a new name.
@@ -2735,20 +2558,8 @@ export {
   exportCollectionToPostman,
   openFolderSettings,
   setTableRowDescriptionValue,
-  setAppCode,
-  setAppEnabled,
-  readAppEditor,
-  requestPaneAppTab,
   openRequestPaneTabOverflow,
   requestPaneOverflowTabItem,
-  activeAppPreviewSlot,
-  activeAppView,
-  previewApp,
-  exitApp,
-  selectViewMode,
-  getAppWebviewHtml,
-  createApp,
-  selectAppView,
   renameWsMessage,
   elementIsInsideDropdown,
   openSystemProxyPanel

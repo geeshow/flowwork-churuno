@@ -8,8 +8,7 @@ import {
   updateRequestTests,
   updateRequestScript,
   updateResponseScript,
-  updateRequestDocs,
-  updateAppCode
+  updateRequestDocs
 } from 'providers/ReduxStore/slices/collections';
 import { getActiveScriptTab } from 'utils/tabs';
 
@@ -44,13 +43,6 @@ const TabBarAiAssist = ({ item, collection, activeTab }) => {
           currentScript: getFromItem(item, 'request.docs') || '',
           onApply: (value) =>
             dispatch(updateRequestDocs({ docs: value, itemUid: item.uid, collectionUid: collection.uid }))
-        };
-      case 'app':
-        return {
-          scriptType: 'app-request',
-          currentScript: getFromItem(item, 'app.code') || '',
-          onApply: (value) =>
-            dispatch(updateAppCode({ code: value, itemUid: item.uid, collectionUid: collection.uid }))
         };
       case 'script': {
         const requestScript = getFromItem(item, 'request.script.req') || '';

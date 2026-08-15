@@ -30,18 +30,6 @@ const SUGGESTIONS = {
     { label: 'Request', prompt: 'Document the request method, URL, headers, parameters, and body' },
     { label: 'Examples', prompt: 'Add request and response examples with sample JSON' },
     { label: 'Errors', prompt: 'Document common error responses and status codes' }
-  ],
-  'app-request': [
-    { label: 'Send button', prompt: 'Add a button that calls bru.ctx.submitRequest() and displays the response status, headers, and pretty-printed body' },
-    { label: 'Form for body', prompt: 'Build a form whose fields override the request body, then send it with bru.ctx.submitRequest({ runtimeVariables }) and show the result' },
-    { label: 'Response viewer', prompt: 'Render bru.ctx.http.response with collapsible JSON and a banner showing status and response time; update on bru.ctx.http.onResponseChange' },
-    { label: 'Test results', prompt: 'List bru.ctx.tests and bru.ctx.assertions with pass/fail badges; refresh on bru.ctx.onTestsChange and bru.ctx.onAssertionsChange' }
-  ],
-  'app-collection': [
-    { label: 'Request list', prompt: 'List all requests from bru.ctx.listRequests() with their method and url, and a Run button next to each that calls bru.ctx.runRequest(pathname)' },
-    { label: 'Dashboard', prompt: 'Build a small dashboard that runs every request from bru.ctx.listRequests() on load and shows status code, response time, and a pass/fail dot for each' },
-    { label: 'Form runner', prompt: 'Render a form, and on submit call bru.ctx.runRequest(pathname, { runtimeVariables }) for a chosen request and display the response' },
-    { label: 'Variables panel', prompt: 'Show bru.ctx.variables.resolved in a table and allow editing values via bru.ctx.variables.runtime.set(name, value); react to bru.ctx.onVariablesChange' }
   ]
 };
 
@@ -49,15 +37,11 @@ const TITLES = {
   'tests': 'Generate Tests',
   'pre-request': 'Generate Pre-Request Script',
   'post-response': 'Generate Post-Response Script',
-  'docs': 'Generate Documentation',
-  'app-request': 'Generate App',
-  'app-collection': 'Generate App'
+  'docs': 'Generate Documentation'
 };
 
 const PREVIEW_LABELS = {
-  'docs': 'Preview · replaces current documentation',
-  'app-request': 'Preview · replaces current app',
-  'app-collection': 'Preview · replaces current app'
+  docs: 'Preview · replaces current documentation'
 };
 
 const isValidType = (t) => SUGGESTIONS[t] !== undefined;
