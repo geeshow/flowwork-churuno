@@ -96,6 +96,27 @@ def add_worktree(branch: str) -> Optional[dict]:
     return {"name": name, "branch": branch, "pathname": str(worktree)}
 
 
+def detect_parent_branch(branch: str, candidate_branches: list[str]) -> Optional[str]:
+    """어느 브랜치에서 분기했는지 추정 — 가장 최근(깊은) merge-base를 가진 후보가 부모.
+
+    빈(orphan) 브랜치는 어떤 후보와도 공통 조상이 없어 None(독립)이 된다.
+    동률이면 후보 순서(먼저 온 것 = main)가 이긴다.
+    """
+    best: Optional[str] = None
+    best_depth = -1
+    for candidate in candidate_branches:
+        if candidate == branch:
+            continue
+        mb = run_git(["merge-base", branch, candidate], REPO_DIR)
+        if mb.returncode != 0:
+            continue
+        depth_result = run_git(["rev-list", "--count", mb.stdout.strip()], REPO_DIR)
+        depth = int(depth_result.stdout.strip() or 0)
+        if depth > best_depth:
+            best, best_depth = candidate, depth
+    return best
+
+
 def setup_workspaces() -> list[dict]:
     """The repo checkout (main) plus one worktree per workspace/* branch. Empty list = legacy mode."""
     if not (REPO_DIR / ".git").exists():
@@ -114,11 +135,18 @@ def setup_workspaces() -> list[dict]:
 
     # The main checkout is the default workspace — the client treats the first entry as default.
     main_branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], REPO_DIR).stdout.strip() or "main"
-    workspaces = [{"name": main_branch, "branch": main_branch, "pathname": str(REPO_DIR)}]
+    workspaces = [{"name": main_branch, "branch": main_branch, "pathname": str(REPO_DIR), "parent": None}]
     for branch in sorted(branches):
         workspace = add_worktree(branch)
         if workspace:
             workspaces.append(workspace)
+
+    # 후보를 "앞서 처리된 브랜치"로 제한해 상호 부모(사이클)를 원천 차단한다 —
+    # 공통 이력이 깊은 형제 브랜치끼리 서로를 부모로 고르는 것을 막는다.
+    processed = [workspaces[0]["branch"]]
+    for workspace in workspaces[1:]:
+        workspace["parent"] = detect_parent_branch(workspace["branch"], processed)
+        processed.append(workspace["branch"])
     return workspaces
 
 
@@ -264,6 +292,7 @@ def create_workspace_branch(name: str, start_point: Optional[str]) -> dict:
         raise HTTPException(status_code=400, detail="git workspace mode is not enabled")
 
     branch = f"{WORKSPACE_BRANCH_PREFIX}{name}"
+    parent = start_point
     if start_point is None:
         # No files at all: an empty tree committed with no parent.
         empty_tree = run_git(["mktree"], REPO_DIR, input="").stdout.strip()
@@ -280,6 +309,7 @@ def create_workspace_branch(name: str, start_point: Optional[str]) -> dict:
     if not workspace:
         run_git(["branch", "-D", branch], REPO_DIR)
         raise HTTPException(status_code=500, detail=f"failed to create a worktree for '{branch}'")
+    workspace["parent"] = parent
 
     if GIT_PUSH:
         push = run_git(["push", "-u", "origin", branch], REPO_DIR)

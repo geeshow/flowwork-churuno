@@ -90,6 +90,16 @@ const CreateWorkspace = ({ onClose }) => {
               <div className="text-red-500 text-sm mt-1">{formik.errors.workspaceName}</div>
             ) : null}
           </div>
+          <div className="text-xs opacity-70 leading-5">
+            새 브랜치{' '}
+            <code className="font-semibold">
+              workspace/{formik.values.workspaceName.trim() || '<이름>'}
+            </code>
+            이(가) <span className="font-semibold">빈 상태(기준 브랜치 없음)</span>로 생성됩니다 — API 목록이 비어
+            있는 채로 시작합니다.
+            <br />
+            기존 워크스페이스를 기준으로 만들려면 Manage Workspaces의 Duplicate를 사용하세요.
+          </div>
         </form>
       </div>
     </Modal>

@@ -120,11 +120,14 @@ const registerRemoteCollections = (collections) => {
   });
 };
 
-const workspaceConfigFor = (name, type, collectionEntries) => ({
+const workspaceConfigFor = (name, type, collectionEntries, git = {}) => ({
   opencollection: '1.0.0',
   info: { name, type: 'workspace' },
   name,
   type,
+  // 워크스페이스 = git 브랜치. parent는 분기 기준 브랜치(빈 브랜치로 만든 경우 null).
+  branch: git.branch ?? null,
+  parent: git.parent ?? null,
   docs: '',
   collections: collectionEntries.map((entry) => ({ name: entry.brunoConfig.name, path: entry.pathname })),
   specs: [],
@@ -154,7 +157,7 @@ const registerBootHandlers = () => {
         const { collections } = await serverApi.listCollections(workspace.pathname);
         const entries = registerRemoteCollections(collections);
         allEntries.push(...entries);
-        emit('main:workspace-opened', workspace.pathname, workspace.uid, workspaceConfigFor(workspace.name, workspace.type, entries));
+        emit('main:workspace-opened', workspace.pathname, workspace.uid, workspaceConfigFor(workspace.name, workspace.type, entries, workspace));
       }
     } else {
       // legacy mode — a single workspace over the flat collections directory
@@ -238,7 +241,7 @@ const registerBootHandlers = () => {
     return {
       workspaceUid: entry.uid,
       workspacePath: entry.pathname,
-      workspaceConfig: workspaceConfigFor(entry.name, entry.type, [])
+      workspaceConfig: workspaceConfigFor(entry.name, entry.type, [], entry)
     };
   });
 
@@ -252,7 +255,7 @@ const registerBootHandlers = () => {
     return {
       workspaceUid: entry.uid,
       workspacePath: entry.pathname,
-      workspaceConfig: workspaceConfigFor(entry.name, entry.type, [])
+      workspaceConfig: workspaceConfigFor(entry.name, entry.type, [], entry)
     };
   });
 

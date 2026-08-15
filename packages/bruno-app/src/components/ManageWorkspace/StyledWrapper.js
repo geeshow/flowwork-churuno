@@ -62,6 +62,21 @@ const StyledWrapper = styled.div`
     border-bottom: 1px solid ${(props) => props.theme.workspace.border};
   }
 
+  .tree-connector {
+    flex-shrink: 0;
+    margin-right: 8px;
+    color: ${(props) => props.theme.colors.text.muted};
+    font-size: ${(props) => props.theme.font.size.sm};
+  }
+
+  .workspace-branch {
+    padding: 1px 6px;
+    border-radius: ${(props) => props.theme.border.radius.sm};
+    background: ${(props) => props.theme.background.surface1};
+    color: ${(props) => props.theme.colors.text.muted};
+    font-size: ${(props) => props.theme.font.size.xs};
+  }
+
   .workspace-info {
     display: flex;
     flex-direction: column;
