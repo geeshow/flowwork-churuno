@@ -20,6 +20,7 @@ import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
 import { switchWorkspace, renameWorkspaceAction, confirmWorkspaceCreation, cancelWorkspaceCreation } from 'providers/ReduxStore/slices/workspaces/actions';
 import { updateWorkspace } from 'providers/ReduxStore/slices/workspaces';
 import { toggleCollectionFileMode } from 'providers/ReduxStore/slices/collections';
+import { mountCollection } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleAiSidebar } from 'providers/ReduxStore/slices/chat';
 import { showMigrateToYmlModal } from 'providers/ReduxStore/slices/collection-migration';
 import get from 'lodash/get';
@@ -167,10 +168,9 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   const hasOpenApiUpdates = hasOpenApiSyncConfigured && collectionUpdates[collection.uid]?.hasUpdates;
   const hasOpenApiError = hasOpenApiSyncConfigured && collectionUpdates[collection.uid]?.error;
 
-  // Get mounted collections for the current workspace (excluding scratch collections)
-  const mountedCollections = collections.filter((c) => {
-    if (c.mountStatus !== 'mounted') return false;
-
+  // Every collection of the current workspace, mounted or not (excluding scratch) —
+  // unmounted ones are mounted on click in handleSwitchToCollection
+  const workspaceCollections = collections.filter((c) => {
     const isScratch = workspaces.some((w) => w.scratchCollectionUid === c.uid);
     if (isScratch) return false;
 
@@ -199,14 +199,31 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   // Switcher handlers
   const handleSwitchToWorkspace = (workspaceUid) => {
     switcherRef.current?.hide();
-    if (workspaceUid) {
-      dispatch(switchWorkspace(workspaceUid));
+    if (!workspaceUid) return;
+    // 이미 활성 워크스페이스면 재전환 대신 워크스페이스 홈 탭으로 이동한다
+    if (workspaceUid === activeWorkspaceUid) {
+      const scratchUid = currentWorkspace?.scratchCollectionUid;
+      if (scratchUid) {
+        dispatch(addTab({ uid: `${scratchUid}-overview`, collectionUid: scratchUid, type: 'workspaceOverview' }));
+      }
+      return;
     }
+    dispatch(switchWorkspace(workspaceUid));
   };
 
   const handleSwitchToCollection = (targetCollection) => {
     switcherRef.current?.hide();
     if (!targetCollection?.uid) return;
+
+    if (targetCollection.mountStatus !== 'mounted') {
+      dispatch(
+        mountCollection({
+          collectionUid: targetCollection.uid,
+          collectionPathname: targetCollection.pathname,
+          brunoConfig: targetCollection.brunoConfig
+        })
+      );
+    }
 
     const existingTab = tabs.find((t) => t.collectionUid === targetCollection.uid);
     if (existingTab) {
@@ -478,75 +495,68 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
           ) : (
             <div className="flex flex-row justify-center items-center gap-x-1">
               <DisplayIcon size={18} strokeWidth={1.5} className="cursor-pointer display-icon" onClick={handleDisplayIconClick} />
-              {isScratchCollection ? (
-                // 워크스페이스 홈에서는 전환할 대상이 자기 자신뿐이라 드롭다운을 두지 않는다
-                <button className="switcher-trigger" onClick={handleDisplayIconClick}>
-                  <span data-testid="workspace-switcher-name" className="switcher-name scratch-collection">{displayName}</span>
-                </button>
-              ) : (
-                <Dropdown
-                  placement="bottom-start"
-                  onCreate={onSwitcherCreate}
-                  appendTo={() => document.body}
-                  icon={(
-                    <button className="switcher-trigger">
-                      <span data-testid="workspace-switcher-name" className="switcher-name">{displayName}</span>
-                      <IconChevronDown size={14} strokeWidth={1.5} className="chevron" />
-                    </button>
-                  )}
-                >
-                  <div className="max-w-124 overflow-hidden">
-                    {currentWorkspace && (
-                      <>
-                        <div className="label-item">Workspace</div>
-                        <div
-                          className={classNames('dropdown-item', {
-                            'dropdown-item-active': isScratchCollection
-                          })}
-                          onClick={() => handleSwitchToWorkspace(currentWorkspace.uid)}
-                        >
-                          <div className="dropdown-icon">
-                            <IconCategory size={16} strokeWidth={1.5} />
-                          </div>
-                          <span className="dropdown-label collection-header-dropdown-label">
-                            {currentWorkspace.name || 'Untitled Workspace'}
-                          </span>
-                          {workspaceTabCount > 0 && (
-                            <span className="dropdown-tab-count">{workspaceTabCount}</span>
-                          )}
-                        </div>
-                      </>
-                    )}
-
-                    {mountedCollections.length > 0 && (
-                      <>
-                        <div className="dropdown-separator" />
-                        <div className="label-item">Collections</div>
-                        {mountedCollections.map((col) => {
-                          const colTabCount = getTabCount(col.uid);
-                          return (
-                            <div
-                              key={col.uid}
-                              className={classNames('dropdown-item', {
-                                'dropdown-item-active': !isScratchCollection && collection.uid === col.uid
-                              })}
-                              onClick={() => handleSwitchToCollection(col)}
-                            >
-                              <div className="dropdown-icon">
-                                <IconBox size={16} strokeWidth={1.5} />
-                              </div>
-                              <span className="dropdown-label collection-header-dropdown-label">{col.name || 'Untitled Collection'}</span>
-                              {colTabCount > 0 && (
-                                <span className="dropdown-tab-count">{colTabCount}</span>
-                              )}
-                            </div>
-                          );
+              <Dropdown
+                placement="bottom-start"
+                onCreate={onSwitcherCreate}
+                appendTo={() => document.body}
+                icon={(
+                  <button className="switcher-trigger">
+                    <span data-testid="workspace-switcher-name" className={classNames('switcher-name', { 'scratch-collection': isScratchCollection })}>{displayName}</span>
+                    <IconChevronDown size={14} strokeWidth={1.5} className="chevron" />
+                  </button>
+                )}
+              >
+                <div className="max-w-124 overflow-hidden">
+                  {currentWorkspace && (
+                    <>
+                      <div className="label-item">Workspace</div>
+                      <div
+                        className={classNames('dropdown-item', {
+                          'dropdown-item-active': isScratchCollection
                         })}
-                      </>
-                    )}
-                  </div>
-                </Dropdown>
-              )}
+                        onClick={() => handleSwitchToWorkspace(currentWorkspace.uid)}
+                      >
+                        <div className="dropdown-icon">
+                          <IconCategory size={16} strokeWidth={1.5} />
+                        </div>
+                        <span className="dropdown-label collection-header-dropdown-label">
+                          {currentWorkspace.name || 'Untitled Workspace'}
+                        </span>
+                        {workspaceTabCount > 0 && (
+                          <span className="dropdown-tab-count">{workspaceTabCount}</span>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {workspaceCollections.length > 0 && (
+                    <>
+                      <div className="dropdown-separator" />
+                      <div className="label-item">Collections</div>
+                      {workspaceCollections.map((col) => {
+                        const colTabCount = getTabCount(col.uid);
+                        return (
+                          <div
+                            key={col.uid}
+                            className={classNames('dropdown-item', {
+                              'dropdown-item-active': !isScratchCollection && collection.uid === col.uid
+                            })}
+                            onClick={() => handleSwitchToCollection(col)}
+                          >
+                            <div className="dropdown-icon">
+                              <IconBox size={16} strokeWidth={1.5} />
+                            </div>
+                            <span className="dropdown-label collection-header-dropdown-label">{col.name || 'Untitled Collection'}</span>
+                            {colTabCount > 0 && (
+                              <span className="dropdown-tab-count">{colTabCount}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              </Dropdown>
             </div>
           )}
 
