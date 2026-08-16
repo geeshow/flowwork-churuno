@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 
 import api from './api';
-import { colorForDomain } from './domainPalette';
 import EditPage from './Edit';
-import { ExecutionDetail, TaskRecentHistory } from './HistoryView';
+import { ExecutionDetail } from './HistoryView';
 import WorkflowLayout from './WorkflowLayout';
-import WorkflowRunner from './WorkflowRunner';
+import WorkflowScreen from './WorkflowScreen';
 import { executionHash } from './shareUrl';
 import StyledWrapper from './StyledWrapper';
 
@@ -29,7 +28,7 @@ import StyledWrapper from './StyledWrapper';
 const parseEditPage = (segments) => {
   const [a, b, c] = segments;
   if (a === 't' && b && c) return { kind: 'task', domain: b, task: c };
-  if (a === 'run' && b) return { kind: 'run', id: b };
+  if (a === 'run' && b) return { kind: 'run', id: b, tab: c };
   if (a === 'new') return { kind: 'new', domain: b, task: c };
   if (a === 'wf' && b) return { kind: 'editWf', id: b };
   return { kind: 'home' };
@@ -43,17 +42,21 @@ const parseFlowworkHash = (hash) => {
     return { view: 'edit', page: parseEditPage(segments.slice(2)) };
   }
   if (a === 'executions' && b) return { view: 'execution', executionId: b };
-  if (a === 'run' && b) return { view: 'run', id: b };
+  if (a === 'run' && b) return { view: 'run', id: b, tab: c };
   if (a === 't' && b && c) return { view: 'task', domain: b, task: c };
   return { view: 'home' };
 };
+
+// 작업 화면은 열려 있는 탭까지 주소에 담는다 — 링크로 그 탭을 바로 열 수 있다
+const runHash = (id, tab) =>
+  `/run/${encodeURIComponent(id)}${tab && tab !== 'run' ? `/${encodeURIComponent(tab)}` : ''}`;
 
 const editPageHash = (page) => {
   switch (page.kind) {
     case 'task':
       return `/t/${encodeURIComponent(page.domain)}/${encodeURIComponent(page.task)}`;
     case 'run':
-      return `/run/${encodeURIComponent(page.id)}`;
+      return runHash(page.id, page.tab);
     case 'new':
       return page.domain && page.task
         ? `/new/${encodeURIComponent(page.domain)}/${encodeURIComponent(page.task)}`
@@ -72,7 +75,7 @@ const hashForRoute = (route) => {
     case 'execution':
       return executionHash(route.executionId);
     case 'run':
-      return `#/flowwork/run/${encodeURIComponent(route.id)}`;
+      return `#/flowwork${runHash(route.id, route.tab)}`;
     case 'task':
       return `#/flowwork/t/${encodeURIComponent(route.domain)}/${encodeURIComponent(route.task)}`;
     default:
@@ -88,6 +91,19 @@ const hashForRoute = (route) => {
  */
 export default function Flowwork() {
   const [route, setRoute] = useState(() => parseFlowworkHash(window.location.hash) ?? { view: 'home' });
+  // 사용 모드가 읽는 브랜치 = 워크스페이스 이름
+  const [workspace, setWorkspace] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .editState()
+      .then((s) => alive && setWorkspace(s.prod_branch))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // route → URL: 현재 화면이 곧 주소창의 공유 링크가 된다 (replaceState — 이력 스팸 없음)
   useEffect(() => {
@@ -109,7 +125,7 @@ export default function Flowwork() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, [route]);
 
-  const openTask = (domain, task) => setRoute({ view: 'task', domain, task });
+  const openWorkflow = (id) => setRoute({ view: 'run', id });
   const openExecution = (executionId) => setRoute({ view: 'execution', executionId });
 
   if (route.view === 'edit') {
@@ -128,9 +144,10 @@ export default function Flowwork() {
   }
 
   const layoutProps = {
+    workspace,
     activeId: route.view === 'run' ? route.id : undefined,
     activeTask: route.view === 'task' ? { domain: route.domain, task: route.task } : undefined,
-    onOpenTask: openTask,
+    onOpenWorkflow: openWorkflow,
     onOpenHome: () => setRoute({ view: 'home' }),
     action: (
       <button
@@ -148,17 +165,15 @@ export default function Flowwork() {
       <div className="flowwork-content">
         <WorkflowLayout {...layoutProps}>
           {route.view === 'run' ? (
-            <RunDetail id={route.id} onOpenTask={openTask} onOpenExecution={openExecution} />
-          ) : route.view === 'task' ? (
-            <TaskDetail
-              domain={route.domain}
-              task={route.task}
-              onRun={(id) => setRoute({ view: 'run', id })}
+            <WorkflowScreen
+              id={route.id}
+              tab={route.tab ?? 'run'}
+              onTabChange={(tab) => setRoute({ view: 'run', id: route.id, tab })}
               onOpenExecution={openExecution}
             />
           ) : route.view === 'execution' ? (
             <section className="execution-page">
-              <ExecutionDetail executionId={route.executionId} onOpenTask={openTask} />
+              <ExecutionDetail executionId={route.executionId} onOpenWorkflow={openWorkflow} />
             </section>
           ) : (
             <section className="home-guide">
@@ -166,7 +181,7 @@ export default function Flowwork() {
                 <h2>워크플로우</h2>
                 <p className="muted">
                   Bruno에 저장된 API들을 순서대로 엮어 여러 단계 업무를 한 번에 실행하는 도구입니다. 왼쪽에서
-                  업무를 선택하면 실행할 수 있습니다.
+                  폴더를 펼쳐 작업을 선택하면 실행할 수 있습니다.
                 </p>
                 <p className="muted">워크플로우 등록/수정과 동작 원리 안내는 왼쪽 위 "편집 모드"에 있습니다.</p>
               </div>
@@ -175,100 +190,5 @@ export default function Flowwork() {
         </WorkflowLayout>
       </div>
     </StyledWrapper>
-  );
-}
-
-/** 선택한 업무(도메인/업무) 하위의 모든 워크플로우(작업)를 한 화면에 나열한다 (읽기 전용). */
-function TaskDetail({ domain, task, onRun, onOpenExecution }) {
-  const [rows, setRows] = useState(null);
-  const [colors, setColors] = useState({});
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-    Promise.all([api.listWorkflows(), api.getDomainColors()])
-      .then(([r, c]) => {
-        if (!alive) return;
-        setRows(r);
-        setColors(c);
-      })
-      .catch((e) => alive && setError(e.message));
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  if (error) return <div className="error-banner">{error}</div>;
-  if (!rows) return <p className="muted">불러오는 중…</p>;
-
-  const color = colorForDomain(domain.normalize('NFC'), colors);
-  const items = rows.filter(
-    (w) => w.domain.normalize('NFC') === domain.normalize('NFC') && w.task.normalize('NFC') === task.normalize('NFC')
-  );
-
-  return (
-    <section>
-      <div className="task-detail-head">
-        <div className="crumb">
-          <span className="task-bullet lg" style={{ background: color }} />
-          <span className="muted">{domain}</span>
-          <span className="muted">/</span>
-          <h2>{task}</h2>
-        </div>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="detail-empty">
-          <p className="muted">이 업무에는 아직 워크플로우가 없습니다. 편집 모드에서 추가할 수 있습니다.</p>
-        </div>
-      ) : (
-        <div className="wf-card-grid">
-          {items.map((w) => (
-            <div key={w.id} className="wf-card wf-card-main" style={{ borderLeftColor: color }}>
-              <button className="wf-card-open" onClick={() => onRun(w.id)}>
-                <span className="wf-card-title">
-                  <span className="task-bullet" style={{ background: color }} />
-                  {w.name}
-                </span>
-                {w.description ? <span className="muted">{w.description}</span> : null}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <TaskRecentHistory domain={domain} task={task} workflows={items} onOpen={onOpenExecution} />
-    </section>
-  );
-}
-
-function RunDetail({ id, onOpenTask, onOpenExecution }) {
-  const [wf, setWf] = useState(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-    setWf(null);
-    setError(null);
-    api
-      .getWorkflow(id)
-      .then((w) => alive && setWf(w))
-      .catch((e) => alive && setError(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [id]);
-
-  if (error) return <div className="error-banner">{error}</div>;
-  if (!wf) return <p className="muted">불러오는 중…</p>;
-  return (
-    <>
-      <div className="run-topbar">
-        <button className="link" onClick={() => onOpenTask(wf.domain, wf.task)}>
-          ← {wf.domain} / {wf.task}
-        </button>
-      </div>
-      <WorkflowRunner workflow={wf} onOpenExecution={onOpenExecution} />
-    </>
   );
 }

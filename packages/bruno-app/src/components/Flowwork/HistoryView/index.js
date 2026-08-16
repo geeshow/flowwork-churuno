@@ -34,7 +34,7 @@ const overallStatus = (entries) => {
  * 로그의 workflow_id로 워크플로우를 로드해 스텝 이름/결과표(resultView)를 함께 보여준다.
  * (응답은 저장 시 리댁션된 사본이라 비밀번호 등은 마스킹된 채 공유된다.)
  */
-export function ExecutionDetail({ executionId, onOpenTask }) {
+export function ExecutionDetail({ executionId, onOpenWorkflow }) {
   const [entries, setEntries] = useState(null);
   const [wfById, setWfById] = useState(new Map());
   const [topWfId, setTopWfId] = useState(undefined);
@@ -102,10 +102,10 @@ export function ExecutionDetail({ executionId, onOpenTask }) {
 
   return (
     <div>
-      {topWf && onOpenTask ? (
+      {topWf && onOpenWorkflow ? (
         <div className="run-topbar">
-          <button className="link" onClick={() => onOpenTask(topWf.domain, topWf.task)}>
-            ← {topWf.domain} / {topWf.task}
+          <button className="link" onClick={() => onOpenWorkflow(topWf.id)}>
+            ← {topWf.domain} / {topWf.task} / {topWf.name}
           </button>
         </div>
       ) : null}
@@ -174,84 +174,6 @@ export function ExecutionDetail({ executionId, onOpenTask }) {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-/**
- * 업무 화면 하단의 최근 이력 — 이 업무(도메인/업무)의 실행만 최신순으로 나열하고,
- * 작업(워크플로우)별 필터 칩을 제공한다.
- */
-export function TaskRecentHistory({ domain, task, workflows, onOpen, limit = 20 }) {
-  const [execs, setExecs] = useState(null);
-  const [error, setError] = useState(null);
-  const [filterWf, setFilterWf] = useState(null); // null = 전체
-
-  useEffect(() => {
-    let alive = true;
-    setFilterWf(null);
-    api
-      .listExecutions()
-      .then((e) => alive && setExecs(e))
-      .catch((e) => alive && setError(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [domain, task]);
-
-  const wfById = useMemo(() => new Map(workflows.map((w) => [w.id, w])), [workflows]);
-
-  if (error) return <div className="error-banner">{error}</div>;
-
-  // 이 업무의 실행만 (workflows가 이미 도메인/업무로 걸러져 있으므로 id 매칭으로 충분)
-  const rows = (execs ?? [])
-    .filter((e) => e.workflow_id && wfById.has(e.workflow_id))
-    .filter((e) => !filterWf || e.workflow_id === filterWf)
-    .slice(0, limit);
-
-  return (
-    <div className="task-history">
-      <div className="task-history-head">
-        <h3>최근 이력</h3>
-        <div className="task-history-filter">
-          <button className={`filter-chip ${filterWf === null ? 'active' : ''}`} onClick={() => setFilterWf(null)}>
-            전체
-          </button>
-          {workflows.map((w) => (
-            <button
-              key={w.id}
-              className={`filter-chip ${filterWf === w.id ? 'active' : ''}`}
-              onClick={() => setFilterWf(filterWf === w.id ? null : w.id)}
-            >
-              {w.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {!execs ? (
-        <p className="muted">불러오는 중…</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">{filterWf ? '이 작업의 실행 이력이 없습니다.' : '이 업무의 실행 이력이 없습니다.'}</p>
-      ) : (
-        <ul className="exec-list">
-          {rows.map((e) => (
-            <li key={e.execution_id}>
-              <button className="exec-row" onClick={() => onOpen(e.execution_id)}>
-                <span className="exec-crumb">
-                  <span className="exec-wf">{wfById.get(e.workflow_id)?.name ?? '(삭제된 워크플로우)'}</span>
-                </span>
-                <span className={`status-badge ${e.overall_status.toLowerCase()}`}>
-                  {e.overall_status === 'SUCCESS' ? '성공' : '실패'}
-                </span>
-                <span className="muted exec-time">
-                  {e.started_at ? new Date(e.started_at * 1000).toLocaleString() : ''}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

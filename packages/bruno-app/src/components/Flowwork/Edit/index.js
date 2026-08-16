@@ -4,14 +4,13 @@ import toast from 'react-hot-toast';
 
 import api from '../api';
 import ConfirmButton from '../ConfirmButton';
-import { colorForDomain } from '../domainPalette';
 import HomeGuide from '../HomeGuide';
 import NamePrompt from '../NamePrompt';
 import TaskMenu from '../TaskMenu';
 import { taskShareUrl } from '../shareUrl';
 import WorkflowEditor from '../editor/WorkflowEditor';
 import WorkflowLayout from '../WorkflowLayout';
-import WorkflowRunner from '../WorkflowRunner';
+import WorkflowScreen from '../WorkflowScreen';
 
 const CHANGE_LABEL = { A: '추가', M: '수정', D: '삭제' };
 
@@ -134,13 +133,15 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
       {notice ? <div className="notice-banner">{notice}</div> : null}
       <WorkflowLayout
         title="편집"
+        workspace={st?.base_branch}
         source="edit"
         refreshKey={refresh}
         activeId={page.kind === 'run' ? page.id : undefined}
         activeTask={page.kind === 'task' ? { domain: page.domain, task: page.task } : undefined}
-        onOpenTask={(d, t) => go({ kind: 'task', domain: d, task: t })}
+        onOpenWorkflow={(id) => go({ kind: 'run', id })}
         onOpenHome={() => go({ kind: 'home' })}
         taskChanged={(domain, task) => changedTasks.has(`${domain}/${task}`)}
+        workflowChanged={(id) => statusById.has(id)}
         domainBadge={(domain) =>
           changedDomains.has(domain) ? <span className="domain-dot-changed" title="하위 변경 있음" /> : null}
         taskMenu={(domain, task) => (
@@ -169,24 +170,34 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
           />
         )}
       >
-        {page.kind === 'task' ? (
-          <EditTaskDetail
-            domain={page.domain}
-            task={page.task}
-            statusById={statusById}
-            refreshKey={refresh}
-            onRun={(id) => go({ kind: 'run', id })}
-            onEdit={(id) => go({ kind: 'editWf', id })}
-            onNew={() => go({ kind: 'new', domain: page.domain, task: page.task })}
-            onDeleted={bump}
-          />
-        ) : page.kind === 'run' ? (
-          <EditRunDetail
+        {page.kind === 'run' ? (
+          <WorkflowScreen
             id={page.id}
-            statusById={statusById}
+            source="edit"
+            tab={page.tab ?? 'run'}
+            onTabChange={(tab) => go({ kind: 'run', id: page.id, tab })}
             refreshKey={refresh}
+            changed={statusById.has(page.id)}
             onEdit={(id) => go({ kind: 'editWf', id })}
-            onBack={(d, t) => go({ kind: 'task', domain: d, task: t })}
+            onDelete={(wf) => (
+              <ConfirmButton
+                className="link small danger"
+                confirmLabel="삭제 확정"
+                title="운영 반영 전까지는 변경 목록에서 원복할 수 있습니다"
+                onConfirm={() =>
+                  api
+                    .deleteWorkflow(wf.id)
+                    .then(() => {
+                      bump();
+                      go({ kind: 'home' });
+                    })
+                    .catch((e) => setError(e.message))}
+              >
+                <IconTrash size={14} strokeWidth={1.5} />
+                삭제
+              </ConfirmButton>
+            )}
+            onSaved={bump}
             onOpenExecution={onOpenExecution}
           />
         ) : (
@@ -460,143 +471,6 @@ function EditHome({ st, files, loaded, onAction }) {
 
       <HomeGuide />
     </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 업무 상세 (편집): 워크플로우 카드 + 변경 배지 + 실행/수정/삭제
-// ---------------------------------------------------------------------------
-function EditTaskDetail({ domain, task, statusById, refreshKey, onRun, onEdit, onNew, onDeleted }) {
-  const [rows, setRows] = useState(null);
-  const [colors, setColors] = useState({});
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-    Promise.all([api.listWorkflows('edit'), api.getDomainColors('edit')])
-      .then(([r, c]) => {
-        if (!alive) return;
-        setRows(r);
-        setColors(c);
-      })
-      .catch((e) => alive && setError(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [refreshKey]);
-
-  if (error) return <div className="error-banner">{error}</div>;
-  if (!rows) return <p className="muted">불러오는 중…</p>;
-
-  const color = colorForDomain(domain.normalize('NFC'), colors);
-  const items = rows.filter(
-    (w) => w.domain.normalize('NFC') === domain.normalize('NFC') && w.task.normalize('NFC') === task.normalize('NFC')
-  );
-
-  return (
-    <section>
-      <div className="task-detail-head">
-        <div className="crumb">
-          <span className="task-bullet lg" style={{ background: color }} />
-          {[domain, ...task.split('/').slice(0, -1)].map((crumb, depth) => (
-            <React.Fragment key={`${depth}-${crumb}`}>
-              <span className="muted">{crumb}</span>
-              <span className="muted">/</span>
-            </React.Fragment>
-          ))}
-          <h2>{taskLeaf(task)}</h2>
-        </div>
-        <button className="primary small" onClick={onNew}>
-          <IconPlus size={14} strokeWidth={2} />
-          새 워크플로우
-        </button>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="detail-empty">
-          <p className="muted">이 업무에는 워크플로우가 없습니다. "새 워크플로우"로 추가하세요.</p>
-        </div>
-      ) : (
-        <div className="wf-card-grid">
-          {items.map((w) => {
-            const stEntry = statusById.get(w.id);
-            return (
-              <div key={w.id} className="wf-card wf-card-main" style={{ borderLeftColor: color }}>
-                <button className="wf-card-open" onClick={() => onRun(w.id)}>
-                  <span className="wf-card-title">
-                    <span className="task-bullet" style={{ background: color }} />
-                    {w.name}
-                    {stEntry ? <ChangedBadge /> : null}
-                  </span>
-                  {w.description ? <span className="muted">{w.description}</span> : null}
-                </button>
-                <div className="wf-card-actions">
-                  <button className="link small" onClick={() => onEdit(w.id)}>
-                    <IconPencil size={14} strokeWidth={1.5} />
-                    수정
-                  </button>
-                  <ConfirmButton
-                    className="link small danger"
-                    confirmLabel="삭제 확정"
-                    title="운영 반영 전까지는 변경 목록에서 원복할 수 있습니다"
-                    onConfirm={() =>
-                      api
-                        .deleteWorkflow(w.id)
-                        .then(onDeleted)
-                        .catch((e) => setError(e.message))}
-                  >
-                    <IconTrash size={14} strokeWidth={1.5} />
-                    삭제
-                  </ConfirmButton>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 실행 상세 (편집): 편집 공간 기준 실행 — 운영 반영 전 내용으로 동작 확인
-// ---------------------------------------------------------------------------
-function EditRunDetail({ id, statusById, refreshKey, onEdit, onBack, onOpenExecution }) {
-  const [wf, setWf] = useState(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-    setWf(null);
-    setError(null);
-    api
-      .getWorkflow(id, 'edit')
-      .then((w) => alive && setWf(w))
-      .catch((e) => alive && setError(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [id, refreshKey]);
-
-  if (error) return <div className="error-banner">{error}</div>;
-  if (!wf) return <p className="muted">불러오는 중…</p>;
-
-  const stEntry = statusById.get(wf.id);
-  return (
-    <>
-      <div className="run-topbar">
-        <button className="link" onClick={() => onBack(wf.domain, wf.task)}>
-          ← {wf.domain} / {wf.task}
-        </button>
-        <div className="run-actions">
-          {stEntry ? <ChangedBadge /> : null}
-          <button className="link" onClick={() => onEdit(id)}>
-            수정 →
-          </button>
-        </div>
-      </div>
-      <WorkflowRunner workflow={wf} source="edit" onOpenExecution={onOpenExecution} />
-    </>
   );
 }
 

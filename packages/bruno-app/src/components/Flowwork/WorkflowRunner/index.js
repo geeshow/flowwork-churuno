@@ -185,15 +185,6 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
   return (
     <ApiComboProvider entries={catalog} env={env}>
       <div className="runner">
-        <header className="runner-head">
-          <div>
-            <span className="badge">{workflow.domain}</span>
-            <span className="badge">{workflow.task}</span>
-            <h2>{workflow.name}</h2>
-            {workflow.description ? <p className="muted">{workflow.description}</p> : null}
-          </div>
-        </header>
-
         {loadError ? <div className="error-banner">{loadError}</div> : null}
 
         <section className="panel">

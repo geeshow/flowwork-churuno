@@ -335,6 +335,8 @@ class WorkflowFileModel(BaseModel):
     task: str
     name: str
     description: Optional[str] = None
+    # 작업 화면 Docs 탭의 본문 (마크다운). 한 줄 요약인 description과 달리 길이 제한이 없다.
+    docs: Optional[str] = None
     baseInputs: list[dict[str, Any]] = Field(default_factory=list)
     steps: list[WorkflowStepModel] = Field(default_factory=list)
     version: Optional[str] = None  # 낙관적 잠금 — 파일에는 저장하지 않는다

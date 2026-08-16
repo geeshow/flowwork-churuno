@@ -239,6 +239,26 @@ const StyledWrapper = styled.div`
     text-decoration: underline;
   }
 
+  /* 워크스페이스 = 이 화면이 읽고 쓰는 브랜치 */
+  .wf-workspace {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 5px 8px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.base};
+    color: ${(props) => props.theme.colors.text.muted};
+    font-size: ${(props) => props.theme.font.size.xs};
+  }
+  .wf-workspace-name {
+    font-weight: 600;
+    color: ${(props) => props.theme.text};
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .domain-tree {
     display: flex;
     flex-direction: column;
@@ -347,6 +367,13 @@ const StyledWrapper = styled.div`
       border-color: ${(props) => props.theme.input.focusBorder};
       background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
     }
+    &.wf-item {
+      color: ${(props) => props.theme.colors.text.muted};
+      &.active,
+      &:hover {
+        color: ${(props) => props.theme.text};
+      }
+    }
   }
   /* 사이드바가 스크롤되므로 메뉴는 화면 좌표로 띄운다 */
   .task-menu-popup {
@@ -418,6 +445,13 @@ const StyledWrapper = styled.div`
     gap: 8px;
   }
 
+  .task-caret {
+    flex-shrink: 0;
+    width: 10px;
+    color: ${(props) => props.theme.colors.text.muted};
+    font-size: 9px;
+  }
+
   .task-bullet {
     width: 7px;
     height: 7px;
@@ -426,6 +460,11 @@ const StyledWrapper = styled.div`
     &.lg {
       width: 10px;
       height: 10px;
+    }
+    /* 작업(워크플로우)은 속이 빈 점 — 폴더와 한눈에 구분된다 */
+    &.hollow {
+      border: 1.5px solid;
+      background: transparent;
     }
     /* 운영 미반영 변경이 있는 업무는 불릿 자리에 U를 세운다 */
     &.changed {
@@ -454,33 +493,6 @@ const StyledWrapper = styled.div`
     padding: 16px 20px 40px;
   }
 
-  .detail-empty {
-    border: 1px dashed ${(props) => props.theme.border.border1};
-    border-radius: ${(props) => props.theme.border.radius.md};
-    padding: 60px 24px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    margin-top: 8px;
-    font-size: ${(props) => props.theme.font.size.sm};
-  }
-
-  /* ---------------- 업무 화면 (워크플로우 카드) ---------------- */
-  .task-detail-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 14px;
-
-    > button {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
-    }
-  }
   .crumb {
     display: flex;
     align-items: center;
@@ -488,83 +500,202 @@ const StyledWrapper = styled.div`
     flex-wrap: wrap;
   }
 
-  .wf-card-grid {
+  /* ---------------- 작업 화면 (Bruno 요청 화면과 같은 구성) ---------------- */
+  .wf-screen {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    min-height: 100%;
   }
-  .wf-card {
-    display: flex;
-    align-items: stretch;
-    border: 1px solid ${(props) => props.theme.border.border1};
-    border-left: 3px solid ${(props) => props.theme.border.border1};
-    border-radius: ${(props) => props.theme.border.radius.md};
-    background: ${(props) => props.theme.background.surface0};
-    &:hover {
-      border-color: ${(props) => props.theme.input.focusBorder};
-    }
-  }
-  .wf-card-open {
-    flex: 1;
-    min-width: 0;
+  .wf-screen-head {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 12px 14px;
-    text-align: left;
-    font-size: ${(props) => props.theme.font.size.sm};
+    gap: 6px;
+    padding-bottom: 12px;
   }
-  .wf-card-title {
+  .wf-screen-crumb {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: 600;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: ${(props) => props.theme.font.size.base};
+
+    strong {
+      font-size: ${(props) => props.theme.font.size.lg};
+    }
   }
-  .wf-card-actions {
+  .wf-screen-desc {
+    margin: 0;
+    font-size: ${(props) => props.theme.font.size.sm};
+  }
+  .wf-screen-actions {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 0 12px;
-    border-left: 1px solid ${(props) => props.theme.border.border0};
 
-    button.link {
+    button {
       display: inline-flex;
       align-items: center;
       gap: 4px;
     }
   }
 
-  /* ---------------- 최근 이력 ---------------- */
-  .task-history {
-    margin-top: 26px;
+  .wf-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid ${(props) => props.theme.border.border1};
   }
-  .task-history-head {
+  .wf-tab {
+    padding: 7px 14px;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    font-size: ${(props) => props.theme.font.size.sm};
+    color: ${(props) => props.theme.colors.text.muted};
+
+    &:hover {
+      color: ${(props) => props.theme.text};
+    }
+    &.active {
+      color: ${(props) => props.theme.text};
+      border-bottom-color: ${(props) => props.theme.textLink};
+      font-weight: 600;
+    }
+  }
+  .wf-tab-body {
+    flex: 1;
+    min-width: 0;
+    padding-top: 14px;
+  }
+
+  /* ---------------- Flowmap ---------------- */
+  .flowmap {
+    overflow-x: auto;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.md};
+    background: ${(props) => props.theme.background.surface0};
+  }
+  .flowmap-node {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    height: 100%;
+    padding: 8px 10px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.md};
+    background: ${(props) => props.theme.background.surface1};
+    font-size: ${(props) => props.theme.font.size.xs};
+    overflow: hidden;
+
+    &.source {
+      border-style: dashed;
+      background: transparent;
+    }
+    .step-type-badge {
+      align-self: flex-start;
+    }
+  }
+  .flowmap-node-head {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-    h3 {
-      margin: 0;
-    }
-  }
-  .task-history-filter {
-    display: flex;
     gap: 6px;
-    flex-wrap: wrap;
   }
-  .filter-chip {
-    padding: 3px 10px;
+  .flowmap-order {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
     border: 1px solid ${(props) => props.theme.border.border1};
-    border-radius: 999px;
-    font-size: ${(props) => props.theme.font.size.xs};
+    text-align: center;
+    line-height: 15px;
+  }
+  .flowmap-node-title {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    font-size: ${(props) => props.theme.font.size.sm};
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .flowmap-node-sub {
     color: ${(props) => props.theme.colors.text.muted};
-    &.active {
-      border-color: ${(props) => props.theme.textLink};
-      color: ${(props) => props.theme.textLink};
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .flowmap-chip {
+    flex-shrink: 0;
+    padding: 0 5px;
+    border: 1px solid ${(props) => props.theme.colors.text.yellow};
+    border-radius: 999px;
+    color: ${(props) => props.theme.colors.text.yellow};
+  }
+  .flowmap-arrowhead {
+    fill: ${(props) => props.theme.colors.text.muted};
+  }
+  .flowmap-edge {
+    path {
+      fill: none;
+      stroke: ${(props) => props.theme.colors.text.muted};
+      stroke-width: 1.2;
+    }
+    /* 선 위에 글자가 얹혀도 읽히도록 배경색으로 테두리를 두른다 */
+    text {
+      fill: ${(props) => props.theme.colors.text.muted};
+      font-size: 10px;
+      stroke: ${(props) => props.theme.background.surface0};
+      stroke-width: 3;
+      paint-order: stroke fill;
+    }
+    &.seq path {
+      stroke-width: 1.6;
+    }
+    &.data path {
+      stroke-dasharray: 3 3;
+    }
+    &.branch path {
+      stroke: ${(props) => props.theme.colors.text.yellow};
+      stroke-dasharray: 5 3;
+    }
+    &.branch text {
+      fill: ${(props) => props.theme.colors.text.yellow};
     }
   }
+
+  /* ---------------- Docs / 환경변수 탭 ---------------- */
+  .wf-docs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .wf-docs-bar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  /* Bruno의 Docs 편집기는 h-full로 부모를 채우므로 높이가 확정돼 있어야 한다
+     (min-height만 주면 마크다운 모드의 CodeEditor가 0px로 접힌다) */
+  .wf-docs-body {
+    height: 62vh;
+    min-height: 360px;
+  }
+  .wf-env {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .env-used th {
+      color: ${(props) => props.theme.text};
+    }
+  }
+  .env-used-chip {
+    margin-left: 6px;
+    padding: 0 6px;
+    border: 1px solid ${(props) => props.theme.colors.text.green};
+    border-radius: 999px;
+    color: ${(props) => props.theme.colors.text.green};
+    font-size: ${(props) => props.theme.font.size.xs};
+  }
+
   .exec-list {
     list-style: none;
     margin: 0;
@@ -587,18 +718,9 @@ const StyledWrapper = styled.div`
       border-color: ${(props) => props.theme.input.focusBorder};
     }
   }
-  .exec-crumb {
-    flex: 1;
-    min-width: 0;
-    text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .exec-wf {
-    font-weight: 600;
-  }
   .exec-time {
+    flex: 1;
+    text-align: left;
     font-size: ${(props) => props.theme.font.size.xs};
   }
 
@@ -623,22 +745,6 @@ const StyledWrapper = styled.div`
     align-items: center;
     justify-content: space-between;
     margin-bottom: 10px;
-  }
-
-  .runner-head {
-    margin-bottom: 14px;
-    h2 {
-      margin-top: 6px;
-    }
-  }
-  .badge {
-    display: inline-block;
-    padding: 2px 8px;
-    margin-right: 6px;
-    border: 1px solid ${(props) => props.theme.border.border1};
-    border-radius: 999px;
-    font-size: ${(props) => props.theme.font.size.xs};
-    color: ${(props) => props.theme.colors.text.muted};
   }
 
   .panel {
