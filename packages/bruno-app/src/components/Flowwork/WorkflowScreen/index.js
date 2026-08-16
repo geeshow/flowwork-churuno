@@ -1,12 +1,37 @@
 import React, { useEffect, useState } from 'react';
 
 import api from '../api';
+import DocsPane from '../DocsPane';
 import { colorForDomain } from '../domainPalette';
+import { stepTypeMeta } from '../StepCard';
 import WorkflowRunner from '../WorkflowRunner';
-import DocsTab from './DocsTab';
 import EnvTab from './EnvTab';
+import FileMode from './FileMode';
 import Flowmap from './Flowmap';
 import HistoryTab from './HistoryTab';
+
+// AI(생성·자동완성)에 이 작업이 무엇을 하는지 알려주는 문맥 —
+// 이름·위치·설명에 더해 실제 스텝 순서와 입력값까지 넘겨야 쓸만한 문장이 나온다
+const docsContext = (wf) => ({
+  scope: 'workflow',
+  name: wf.name,
+  location: `${wf.domain} / ${wf.task}`,
+  description: wf.description || '',
+  inputs: wf.baseInputs.map((input) => ({ key: input.key, label: input.label, type: input.type })),
+  steps: [...wf.steps]
+    .sort((a, b) => a.order - b.order)
+    .map((step) => {
+      const { typeLabel, category } = stepTypeMeta(step);
+      return {
+        order: step.order,
+        name: step.name,
+        kind: typeLabel,
+        api: category,
+        branch: step.branchCondition ? '조건부 실행' : undefined,
+        asksUser: step.midInputs?.length ? step.midInputs.map((i) => i.label || i.key) : undefined
+      };
+    })
+});
 
 export const WORKFLOW_TABS = [
   { id: 'run', label: '실행' },
@@ -29,6 +54,7 @@ export function WorkflowScreen({
   onTabChange,
   refreshKey,
   changed,
+  fileMode,
   onEdit,
   onDelete,
   onOpenExecution,
@@ -88,31 +114,43 @@ export function WorkflowScreen({
         ) : null}
       </header>
 
-      <nav className="wf-tabs">
-        {WORKFLOW_TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`wf-tab ${tab === t.id ? 'active' : ''}`}
-            onClick={() => onTabChange(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      {fileMode ? (
+        <FileMode workflow={wf} editable={editable} onSaved={onSaved} />
+      ) : (
+        <>
+          <nav className="wf-tabs">
+            {WORKFLOW_TABS.map((t) => (
+              <button
+                key={t.id}
+                className={`wf-tab ${tab === t.id ? 'active' : ''}`}
+                onClick={() => onTabChange(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
 
-      <div className="wf-tab-body">
-        {tab === 'history' ? (
-          <HistoryTab workflow={wf} refreshKey={refreshKey} />
-        ) : tab === 'flowmap' ? (
-          <Flowmap workflow={wf} workflows={workflows} />
-        ) : tab === 'env' ? (
-          <EnvTab workflow={wf} />
-        ) : tab === 'docs' ? (
-          <DocsTab workflow={wf} editable={editable} onSaved={onSaved} />
-        ) : (
-          <WorkflowRunner workflow={wf} source={source} onOpenExecution={onOpenExecution} />
-        )}
-      </div>
+          <div className="wf-tab-body">
+            {tab === 'history' ? (
+              <HistoryTab workflow={wf} refreshKey={refreshKey} />
+            ) : tab === 'flowmap' ? (
+              <Flowmap workflow={wf} workflows={workflows} />
+            ) : tab === 'env' ? (
+              <EnvTab workflow={wf} />
+            ) : tab === 'docs' ? (
+              <DocsPane
+                docs={wf.docs ?? ''}
+                editable={editable}
+                context={docsContext(wf)}
+                emptyLabel="이 작업이 무엇을 하는지 적어두면, 처음 보는 사람도 실행 전에 무슨 일이 일어나는지 알 수 있습니다."
+                onSave={(next) => api.saveWorkflow({ ...wf, docs: next }).then(onSaved)}
+              />
+            ) : (
+              <WorkflowRunner workflow={wf} source={source} onOpenExecution={onOpenExecution} />
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

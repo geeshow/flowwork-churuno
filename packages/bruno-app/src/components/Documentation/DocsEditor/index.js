@@ -142,6 +142,15 @@ const DocsEditor = ({
     <StyledWrapper className="flex flex-col gap-y-1 h-full w-full relative" data-testid={testId}>
       {isEditing && (
         <div className="docs-tab-strip">
+          {/* 서식 모드에서도 같은 자리에 있어야 찾을 수 있다 */}
+          <AIAssist
+            scriptType="docs"
+            currentScript={docs || ''}
+            requestContext={requestContext}
+            docsContext={docsContext}
+            variables={variables}
+            onApply={onEdit}
+          />
           {!isMarkdownMode && (
             <div className="docs-toolbar-slot">
               <RichTextEditor.MenuBar editor={editor} />
@@ -170,14 +179,6 @@ const DocsEditor = ({
             onScroll={onScroll}
             scriptType={autocomplete?.scriptType}
             getAutocompleteContext={autocomplete?.getContext}
-          />
-          <AIAssist
-            scriptType="docs"
-            currentScript={docs || ''}
-            requestContext={requestContext}
-            docsContext={docsContext}
-            variables={variables}
-            onApply={onEdit}
           />
         </div>
       )}

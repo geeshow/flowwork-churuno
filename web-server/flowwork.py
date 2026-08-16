@@ -360,6 +360,10 @@ class TaskBody(BaseModel):
     task: str
 
 
+class DocsBody(BaseModel):
+    docs: str = ""
+
+
 def catalog_entry_id(department: str, collection_file: str, item_path: list[str], name: str) -> str:
     key = "/".join([department, collection_file, *item_path, name])
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
@@ -606,6 +610,43 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         (path / gitops.FOLDER_MARKER).write_text("", encoding="utf-8")
         _autocommit(f"flowwork: 업무 '{body.domain}/{body.task}' 추가", branch)
         return {"status": "created", "domain": body.domain, "task": body.task}
+
+    # 업무 문서는 빈 업무 표식(.folder)에 담는다 — 업무마다 파일을 하나 더 두지 않아도
+    # 되고, 표식이 이미 "이 업무가 있다"는 사실을 기록하는 자리이기 때문이다.
+    # (표식은 원래 빈 파일이었으므로 읽을 때 빈 내용도 받아들인다.)
+    # 라우트는 rename(PUT /tasks/{domain}/{task:path})보다 먼저 등록해야 한다 —
+    # task가 탐욕적으로 매칭돼 '…/docs'를 업무 이름으로 삼는 것을 막는다.
+    def _read_task_docs(marker: Path) -> str:
+        if not marker.is_file():
+            return ""
+        text = marker.read_text(encoding="utf-8").strip()
+        if not text:
+            return ""
+        try:
+            return json.loads(text).get("docs", "")
+        except json.JSONDecodeError:
+            return ""
+
+    @router.get("/tasks/{domain}/{task:path}/docs")
+    def get_task_docs(domain: str, task: str, source: str = "prod", branch: Optional[str] = None) -> dict:
+        path = _task_dir(domain, task, source, branch)
+        if not path.is_dir():
+            raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
+        return {"docs": _read_task_docs(path / gitops.FOLDER_MARKER)}
+
+    @router.put("/tasks/{domain}/{task:path}/docs")
+    def set_task_docs(
+        domain: str, task: str, body: DocsBody, source: str = "edit", branch: Optional[str] = None
+    ) -> dict:
+        _check_editable(source)
+        path = _task_dir(domain, task, source, branch)
+        if not path.is_dir():
+            raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
+        (path / gitops.FOLDER_MARKER).write_text(
+            json.dumps({"docs": body.docs}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        _autocommit(f"flowwork: 업무 '{domain}/{task}' 문서 저장", branch)
+        return {"status": "saved"}
 
     @router.put("/tasks/{domain}/{task:path}")
     def rename_task(

@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 
 import api from './api';
 import EditPage from './Edit';
+import FolderScreen from './FolderScreen';
 import { ExecutionDetail } from './HistoryView';
+import TopBar from './TopBar';
 import WorkflowLayout from './WorkflowLayout';
 import WorkflowScreen from './WorkflowScreen';
-import WorkflowTabs, { useWorkflowTabs } from './WorkflowTabs';
+import WorkflowTabs, { folderKey, useWorkflowTabs, workflowKey } from './WorkflowTabs';
 import { executionHash } from './shareUrl';
 import StyledWrapper from './StyledWrapper';
 
@@ -27,8 +29,8 @@ import StyledWrapper from './StyledWrapper';
  *   #/flowwork/edit/wf/<id>     워크플로우 수정
  */
 const parseEditPage = (segments) => {
-  const [a, b, c] = segments;
-  if (a === 't' && b && c) return { kind: 'task', domain: b, task: c };
+  const [a, b, c, d] = segments;
+  if (a === 't' && b && c) return { kind: 'task', domain: b, task: c, tab: d };
   if (a === 'run' && b) return { kind: 'run', id: b, tab: c };
   if (a === 'new') return { kind: 'new', domain: b, task: c };
   if (a === 'wf' && b) return { kind: 'editWf', id: b };
@@ -38,24 +40,29 @@ const parseEditPage = (segments) => {
 const parseFlowworkHash = (hash) => {
   const segments = (hash || '').replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   if (segments[0] !== 'flowwork') return null;
-  const [, a, b, c] = segments;
+  const [, a, b, c, d] = segments;
   if (a === 'edit') {
     return { view: 'edit', page: parseEditPage(segments.slice(2)) };
   }
   if (a === 'executions' && b) return { view: 'execution', executionId: b };
   if (a === 'run' && b) return { view: 'run', id: b, tab: c };
-  if (a === 't' && b && c) return { view: 'task', domain: b, task: c };
+  if (a === 't' && b && c) return { view: 'task', domain: b, task: c, tab: d };
   return { view: 'home' };
 };
 
-// 작업 화면은 열려 있는 탭까지 주소에 담는다 — 링크로 그 탭을 바로 열 수 있다
+// 화면 안에서 열려 있는 탭까지 주소에 담는다 — 링크로 그 탭을 바로 열 수 있다
 const runHash = (id, tab) =>
   `/run/${encodeURIComponent(id)}${tab && tab !== 'run' ? `/${encodeURIComponent(tab)}` : ''}`;
+
+const taskHash = (domain, task, tab) =>
+  `/t/${encodeURIComponent(domain)}/${encodeURIComponent(task)}${
+    tab && tab !== 'overview' ? `/${encodeURIComponent(tab)}` : ''
+  }`;
 
 const editPageHash = (page) => {
   switch (page.kind) {
     case 'task':
-      return `/t/${encodeURIComponent(page.domain)}/${encodeURIComponent(page.task)}`;
+      return taskHash(page.domain, page.task, page.tab);
     case 'run':
       return runHash(page.id, page.tab);
     case 'new':
@@ -78,10 +85,20 @@ const hashForRoute = (route) => {
     case 'run':
       return `#/flowwork${runHash(route.id, route.tab)}`;
     case 'task':
-      return `#/flowwork/t/${encodeURIComponent(route.domain)}/${encodeURIComponent(route.task)}`;
+      return `#/flowwork${taskHash(route.domain, route.task, route.tab)}`;
     default:
       return '#/flowwork';
   }
+};
+
+// 머리띠 브레드크럼 — 지금 열려 있는 화면의 위치를 컬렉션부터 늘어놓는다
+const crumbsFor = (route, tabs) => {
+  if (route.view === 'task') return [route.domain, ...route.task.split('/')];
+  if (route.view === 'run') {
+    const tab = tabs.find((t) => t.kind === 'workflow' && t.id === route.id);
+    return tab ? [tab.domain, ...tab.task.split('/'), tab.name] : [];
+  }
+  return [];
 };
 
 /**
@@ -127,12 +144,20 @@ export default function Flowwork() {
   }, [route]);
 
   const openWorkflow = (id) => setRoute({ view: 'run', id });
+  const openTask = (domain, task) => setRoute({ view: 'task', domain, task });
   const openExecution = (executionId) => setRoute({ view: 'execution', executionId });
   const activeId = route.view === 'run' ? route.id : undefined;
+  const activeKey
+    = route.view === 'run'
+      ? workflowKey(route.id)
+      : route.view === 'task'
+        ? folderKey(route.domain, route.task)
+        : undefined;
+  const openTab = (tab) => (tab.kind === 'folder' ? openTask(tab.domain, tab.task) : openWorkflow(tab.id));
   const { tabs, close } = useWorkflowTabs({
     source: 'prod',
-    activeId,
-    onSelect: openWorkflow,
+    activeKey,
+    onSelect: openTab,
     onCloseLast: () => setRoute({ view: 'home' })
   });
 
@@ -155,6 +180,7 @@ export default function Flowwork() {
     workspace,
     activeId,
     activeTask: route.view === 'task' ? { domain: route.domain, task: route.task } : undefined,
+    onOpenTask: openTask,
     onOpenWorkflow: openWorkflow,
     onOpenHome: () => setRoute({ view: 'home' }),
     action: (
@@ -172,8 +198,17 @@ export default function Flowwork() {
     <StyledWrapper>
       <div className="flowwork-content">
         <WorkflowLayout {...layoutProps}>
-          <WorkflowTabs tabs={tabs} activeId={activeId} onSelect={openWorkflow} onClose={close} />
-          {route.view === 'run' ? (
+          <TopBar workspace={workspace} crumbs={crumbsFor(route, tabs)} />
+          <WorkflowTabs tabs={tabs} activeKey={activeKey} onSelect={openTab} onClose={close} />
+          {route.view === 'task' ? (
+            <FolderScreen
+              domain={route.domain}
+              task={route.task}
+              tab={route.tab ?? 'overview'}
+              onTabChange={(tab) => setRoute({ view: 'task', domain: route.domain, task: route.task, tab })}
+              onOpenWorkflow={openWorkflow}
+            />
+          ) : route.view === 'run' ? (
             <WorkflowScreen
               id={route.id}
               tab={route.tab ?? 'run'}

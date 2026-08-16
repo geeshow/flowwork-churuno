@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { IconLayoutGrid } from '@tabler/icons';
+import { IconChevronRight, IconLayoutGrid } from '@tabler/icons';
 
 import { updateIsDragging, updateLeftSidebarWidth } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_WIDTH_KEY } from 'utils/common/localStorage';
@@ -39,6 +39,10 @@ function usePersistedSet(storageKey) {
 
   return [set, setSet];
 }
+
+// 계층 안내선 — 깊이만큼 세로줄을 세워 어느 단계에 있는지 보이게 한다
+const DepthGuides = ({ depth }) =>
+  Array.from({ length: depth }, (_, level) => <span key={level} className="depth-guide" />);
 
 const toggleIn = (setSet) => (key) =>
   setSet((cur) => {
@@ -84,6 +88,7 @@ export function WorkflowLayout({
   action,
   activeId,
   activeTask,
+  onOpenTask,
   onOpenWorkflow,
   onOpenHome,
   taskChanged,
@@ -268,7 +273,11 @@ export function WorkflowLayout({
                             onClick={() => toggleIn(setOpenDomains)(domain)}
                             aria-expanded={open}
                           >
-                            <span className="domain-caret">{open ? '▾' : '▸'}</span>
+                            <IconChevronRight
+                              size={15}
+                              strokeWidth={2}
+                              className={`tree-chevron ${open ? 'open' : ''}`}
+                            />
                             <span className="domain-name">{domain}</span>
                             {domainBadge?.(domain)}
                             <span className="domain-count">{workflowCount}</span>
@@ -288,38 +297,53 @@ export function WorkflowLayout({
                                 return (
                                   <React.Fragment key={path}>
                                     <li className="task-row">
-                                      <button
-                                        className={`task-item ${on && !activeId ? 'active' : ''}`}
-                                        style={{ paddingLeft: 8 + depth * 14 }}
-                                        onClick={() => toggleIn(setOpenTasks)(`${domain}/${path}`)}
-                                        aria-expanded={folderOpen}
-                                      >
-                                        <span className="task-caret">{folderOpen ? '▾' : '▸'}</span>
-                                        {taskChanged?.(domain, path) ? (
-                                          <span className="change-mark" title="운영 미반영 변경 있음">
-                                            U
-                                          </span>
-                                        ) : null}
-                                        <span className="task-text">{name}</span>
-                                      </button>
+                                      <span className="task-item-wrap">
+                                        <DepthGuides depth={depth} />
+                                        {/* 열고 닫기는 왼쪽 아이콘, 이름을 누르면 폴더 화면이 열린다 */}
+                                        <button
+                                          className="tree-toggle"
+                                          title={folderOpen ? '접기' : '펼치기'}
+                                          aria-expanded={folderOpen}
+                                          onClick={() => toggleIn(setOpenTasks)(`${domain}/${path}`)}
+                                        >
+                                          <IconChevronRight
+                                            size={15}
+                                            strokeWidth={2}
+                                            className={`tree-chevron ${folderOpen ? 'open' : ''}`}
+                                          />
+                                        </button>
+                                        <button
+                                          className={`task-item ${on ? 'active' : ''}`}
+                                          onClick={() => onOpenTask(domain, path)}
+                                        >
+                                          {taskChanged?.(domain, path) ? (
+                                            <span className="change-mark" title="운영 미반영 변경 있음">
+                                              U
+                                            </span>
+                                          ) : null}
+                                          <span className="task-text">{name}</span>
+                                        </button>
+                                      </span>
                                       {taskMenu?.(domain, path)}
                                     </li>
                                     {folderOpen
                                       ? workflows.map((w) => (
                                           <li key={w.id} className="task-row">
-                                            <button
-                                              className={`task-item wf-item ${activeId === w.id ? 'active' : ''}`}
-                                              style={{ paddingLeft: 22 + depth * 14 }}
-                                              onClick={() => onOpenWorkflow(w.id)}
-                                              title={w.description ?? w.name}
-                                            >
-                                              {workflowChanged?.(w.id) ? (
-                                                <span className="change-mark" title="운영 미반영 변경">
-                                                  U
-                                                </span>
-                                              ) : null}
-                                              <span className="task-text">{w.name}</span>
-                                            </button>
+                                            <span className="task-item-wrap">
+                                              <DepthGuides depth={depth + 1} />
+                                              <button
+                                                className={`task-item wf-item ${activeId === w.id ? 'active' : ''}`}
+                                                onClick={() => onOpenWorkflow(w.id)}
+                                                title={w.description ?? w.name}
+                                              >
+                                                {workflowChanged?.(w.id) ? (
+                                                  <span className="change-mark" title="운영 미반영 변경">
+                                                    U
+                                                  </span>
+                                                ) : null}
+                                                <span className="task-text">{w.name}</span>
+                                              </button>
+                                            </span>
                                             {workflowMenu?.(w)}
                                           </li>
                                         ))

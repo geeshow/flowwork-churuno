@@ -61,6 +61,11 @@ const api = {
   deleteTask: (domain, task) =>
     request(`/api/flowwork/tasks/${taskPath(domain, task)}?source=edit`, { method: 'DELETE' }),
 
+  getTaskDocs: (domain, task, source) =>
+    get(`/api/flowwork/tasks/${taskPath(domain, task)}/docs${src(source)}`).then((r) => r.docs),
+  setTaskDocs: (domain, task, docs) =>
+    put(`/api/flowwork/tasks/${taskPath(domain, task)}/docs?source=edit`, { docs }),
+
   listWorkflows: (source) => get(`/api/flowwork/workflows${src(source)}`).then((r) => r.workflows),
   getWorkflow: (id, source) => get(`/api/flowwork/workflows/${encodeURIComponent(id)}${src(source)}`),
   // 등록/수정/삭제는 편집 worktree에서만 가능 (서버가 prod 쓰기를 403으로 거부)

@@ -40,7 +40,10 @@ const StyledWrapper = styled.div`
     font-size: ${(props) => props.theme.font.size.sm};
   }
 
-  button {
+  /* 이 화면의 맨몸 button 기본값. :where()로 감싸 우선순위를 0으로 두면
+     Bruno에서 가져다 쓰는 컴포넌트(ui/Button, ModeSwitch 등)의 자기 스타일이
+     그대로 살아난다 — 그러지 않으면 padding까지 지워져 글자만 남는다. */
+  :where(button) {
     font: inherit;
     color: inherit;
     background: none;
@@ -369,9 +372,9 @@ const StyledWrapper = styled.div`
     display: flex;
     align-items: center;
     gap: 7px;
-    width: 100%;
+    flex: 1;
     min-width: 0;
-    padding: 5px 8px;
+    padding: 5px 8px 5px 4px;
     border-radius: ${(props) => props.theme.border.radius.base};
     font-size: ${(props) => props.theme.font.size.sm};
     border: 1px solid transparent;
@@ -460,11 +463,39 @@ const StyledWrapper = styled.div`
     gap: 8px;
   }
 
-  .task-caret {
+  /* 컬렉션·폴더 모두 같은 아이콘으로 열고 닫는다 (Bruno 사이드바와 동일) */
+  .tree-chevron {
     flex-shrink: 0;
-    width: 10px;
     color: ${(props) => props.theme.colors.text.muted};
-    font-size: 9px;
+    transition: transform 0.15s ease;
+
+    &.open {
+      transform: rotate(90deg);
+    }
+  }
+  .tree-toggle {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 4px 1px;
+    border-radius: ${(props) => props.theme.border.radius.sm};
+
+    &:hover .tree-chevron {
+      color: ${(props) => props.theme.text};
+    }
+  }
+
+  .task-item-wrap {
+    display: flex;
+    align-items: stretch;
+    flex: 1;
+    min-width: 0;
+  }
+  /* 계층 안내선 — 깊이만큼 세로줄이 서서 어느 단계인지 보인다 */
+  .depth-guide {
+    flex-shrink: 0;
+    width: 13px;
+    border-left: 1px solid ${(props) => props.theme.border.border0};
   }
   .task-text {
     flex: 1;
@@ -486,6 +517,121 @@ const StyledWrapper = styled.div`
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  /* ---------------- 탭 줄 위 머리띠 ---------------- */
+  .wf-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: -4px -4px 6px;
+    padding: 0 4px 8px;
+  }
+  .wf-topbar-crumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: wrap;
+    font-size: ${(props) => props.theme.font.size.xs};
+  }
+  .wf-topbar-workspace {
+    padding: 1px 8px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: 999px;
+    color: ${(props) => props.theme.colors.text.muted};
+  }
+  .wf-topbar-current {
+    font-weight: 600;
+  }
+  .wf-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+  }
+  .wf-topbar-count {
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  /* ---------------- 폴더 화면 ---------------- */
+  .folder-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .folder-overview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    h3 {
+      margin: 0;
+    }
+  }
+  .folder-overview-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+  }
+  .folder-wf-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .folder-wf-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.base};
+    background: ${(props) => props.theme.background.surface0};
+    text-align: left;
+    font-size: ${(props) => props.theme.font.size.sm};
+
+    &:hover {
+      border-color: ${(props) => props.theme.input.focusBorder};
+    }
+  }
+  .folder-wf-name {
+    font-weight: 600;
+  }
+
+  /* ---------------- 파일 모드 ---------------- */
+  .wf-filemode {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 12px;
+  }
+  .wf-filemode-body {
+    height: 64vh;
+    min-height: 360px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.md};
+    overflow: hidden;
   }
 
   /* ---------------- 열린 작업 탭 줄 (Bruno 요청 탭) ---------------- */
@@ -754,16 +900,27 @@ const StyledWrapper = styled.div`
   .wf-docs-body {
     height: 62vh;
     min-height: 360px;
-    padding: 10px 12px;
-    border: 1px solid transparent;
-    border-radius: ${(props) => props.theme.border.radius.md};
 
-    /* 편집 중에는 입력하는 자리임이 보이도록 상자로 두른다 */
+    /* 편집 중에는 도구 줄과 입력 자리를 각각 상자로 나눠 어디에 쓰는지 드러낸다 */
     &.editing {
-      border-color: ${(props) => props.theme.border.border1};
-      background: ${(props) => props.theme.background.surface0};
+      .docs-tab-strip {
+        gap: 8px;
+        margin-bottom: 8px;
+        padding: 5px 8px;
+        border: 1px solid ${(props) => props.theme.border.border1};
+        border-radius: ${(props) => props.theme.border.radius.md};
+        background: ${(props) => props.theme.background.surface1};
+      }
 
-      &:focus-within {
+      .rich-text-editor-content,
+      .CodeMirror {
+        padding: 10px 12px;
+        border: 1px solid ${(props) => props.theme.border.border1};
+        border-radius: ${(props) => props.theme.border.radius.md};
+        background: ${(props) => props.theme.background.surface0};
+      }
+      &:focus-within .rich-text-editor-content,
+      &:focus-within .CodeMirror {
         border-color: ${(props) => props.theme.input.focusBorder};
       }
     }

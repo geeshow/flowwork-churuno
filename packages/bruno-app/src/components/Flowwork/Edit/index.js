@@ -4,14 +4,16 @@ import toast from 'react-hot-toast';
 
 import api from '../api';
 import ConfirmButton from '../ConfirmButton';
+import FolderScreen from '../FolderScreen';
 import HomeGuide from '../HomeGuide';
 import NamePrompt from '../NamePrompt';
 import TaskMenu from '../TaskMenu';
+import TopBar from '../TopBar';
 import { taskShareUrl, workflowShareUrl } from '../shareUrl';
 import WorkflowEditor from '../editor/WorkflowEditor';
 import WorkflowLayout from '../WorkflowLayout';
 import WorkflowScreen from '../WorkflowScreen';
-import WorkflowTabs, { useWorkflowTabs } from '../WorkflowTabs';
+import WorkflowTabs, { folderKey, useWorkflowTabs, workflowKey } from '../WorkflowTabs';
 
 const CHANGE_LABEL = { A: '추가', M: '수정', D: '삭제' };
 
@@ -33,13 +35,24 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
   // { kind: 'task' | 'workflow', ... } — 붙여넣기 쪽에서 무엇을 복사했는지 알아야 한다.
   const [clipboard, setClipboard] = useState(null);
   const [prompt, setPrompt] = useState(null);
+  const [fileMode, setFileMode] = useState(false);
   const bump = useCallback(() => setRefresh((n) => n + 1), []);
   const activeId = page.kind === 'run' ? page.id : undefined;
+  const activeKey
+    = page.kind === 'run'
+      ? workflowKey(page.id)
+      : page.kind === 'task'
+        ? folderKey(page.domain, page.task)
+        : undefined;
+  const openTab = useCallback(
+    (tab) => go(tab.kind === 'folder' ? { kind: 'task', domain: tab.domain, task: tab.task } : { kind: 'run', id: tab.id }),
+    [go]
+  );
   const { tabs, close } = useWorkflowTabs({
     source: 'edit',
-    activeId,
+    activeKey,
     refreshKey: refresh,
-    onSelect: (id) => go({ kind: 'run', id }),
+    onSelect: openTab,
     onCloseLast: () => go({ kind: 'home' })
   });
 
@@ -148,6 +161,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
         refreshKey={refresh}
         activeId={activeId}
         activeTask={page.kind === 'task' ? { domain: page.domain, task: page.task } : undefined}
+        onOpenTask={(d, t) => go({ kind: 'task', domain: d, task: t })}
         onOpenWorkflow={(id) => go({ kind: 'run', id })}
         onOpenHome={() => go({ kind: 'home' })}
         taskChanged={(domain, task) => changedTasks.has(`${domain}/${task}`)}
@@ -192,14 +206,33 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
           />
         )}
       >
+        <TopBar
+          workspace={st?.base_branch}
+          crumbs={crumbsFor(page, tabs)}
+          changeCount={files.length}
+          fileMode={fileMode}
+          onToggleFileMode={page.kind === 'run' ? () => setFileMode((on) => !on) : undefined}
+          onOpenRelease={() => go({ kind: 'home' })}
+        />
         <WorkflowTabs
           tabs={tabs}
-          activeId={activeId}
-          changed={(id) => statusById.has(id)}
-          onSelect={(id) => go({ kind: 'run', id })}
+          activeKey={activeKey}
+          changed={(tab) => (tab.kind === 'folder' ? changedTasks.has(`${tab.domain}/${tab.task}`) : statusById.has(tab.id))}
+          onSelect={openTab}
           onClose={close}
         />
-        {page.kind === 'run' ? (
+        {page.kind === 'task' ? (
+          <FolderScreen
+            domain={page.domain}
+            task={page.task}
+            source="edit"
+            tab={page.tab ?? 'overview'}
+            onTabChange={(tab) => go({ kind: 'task', domain: page.domain, task: page.task, tab })}
+            refreshKey={refresh}
+            onOpenWorkflow={(id) => go({ kind: 'run', id })}
+            onNewWorkflow={() => go({ kind: 'new', domain: page.domain, task: page.task })}
+          />
+        ) : page.kind === 'run' ? (
           <WorkflowScreen
             id={page.id}
             source="edit"
@@ -207,6 +240,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
             onTabChange={(tab) => go({ kind: 'run', id: page.id, tab })}
             refreshKey={refresh}
             changed={statusById.has(page.id)}
+            fileMode={fileMode}
             onEdit={(id) => go({ kind: 'editWf', id })}
             onDelete={(wf) => (
               <ConfirmButton
@@ -245,6 +279,16 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
       ) : null}
     </div>
   );
+}
+
+// 머리띠 브레드크럼 — 지금 열려 있는 화면의 위치를 컬렉션부터 늘어놓는다
+function crumbsFor(page, tabs) {
+  if (page.kind === 'task') return [page.domain, ...page.task.split('/')];
+  if (page.kind === 'run') {
+    const tab = tabs.find((t) => t.kind === 'workflow' && t.id === page.id);
+    return tab ? [tab.domain, ...tab.task.split('/'), tab.name] : [];
+  }
+  return ['변경 목록'];
 }
 
 // 업무 경로("개설/신규")에서 표시용 이름과 형제·자식 경로를 만든다
