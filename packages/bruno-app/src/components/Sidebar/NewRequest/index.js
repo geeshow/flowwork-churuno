@@ -15,6 +15,7 @@ import { getDefaultRequestPaneTab } from 'utils/collections';
 import { getRequestFromCurlCommand } from 'utils/curl';
 import { IconArrowBackUp, IconCaretDown, IconEdit } from '@tabler/icons';
 import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
+import { isWebMode } from 'utils/common/platform';
 import Dropdown from 'components/Dropdown';
 import PathDisplay from 'components/PathDisplay';
 import Portal from 'components/Portal';
@@ -93,12 +94,14 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
       return 'graphql-request';
     }
 
+    // 웹 모드는 gRPC·WebSocket 실행을 지원하지 않아 프리셋이 grpc/ws여도
+    // HTTP로 대체한다.
     if (collectionPresets.requestType === 'grpc') {
-      return 'grpc-request';
+      return isWebMode() ? 'http-request' : 'grpc-request';
     }
 
     if (collectionPresets.requestType === 'ws') {
-      return 'ws-request';
+      return isWebMode() ? 'http-request' : 'ws-request';
     }
 
     return 'http-request';
@@ -354,37 +357,39 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      id="grpc-request"
-                      name="requestType"
-                      value="grpc-request"
-                      checked={formik.values.requestType === 'grpc-request'}
-                      onChange={formik.handleChange}
-                      data-testid="grpc-request"
-                    />
-                    <label htmlFor="grpc-request" className="ml-1 cursor-pointer select-none">
-                      gRPC
-                    </label>
-                  </div>
+                {!isWebMode() && (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="grpc-request"
+                        name="requestType"
+                        value="grpc-request"
+                        checked={formik.values.requestType === 'grpc-request'}
+                        onChange={formik.handleChange}
+                        data-testid="grpc-request"
+                      />
+                      <label htmlFor="grpc-request" className="ml-1 cursor-pointer select-none">
+                        gRPC
+                      </label>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      id="ws-request"
-                      name="requestType"
-                      value="ws-request"
-                      checked={formik.values.requestType === 'ws-request'}
-                      onChange={formik.handleChange}
-                      data-testid="ws-request"
-                    />
-                    <label htmlFor="ws-request" className="ml-1 cursor-pointer select-none">
-                      WebSocket
-                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="ws-request"
+                        name="requestType"
+                        value="ws-request"
+                        checked={formik.values.requestType === 'ws-request'}
+                        onChange={formik.handleChange}
+                        data-testid="ws-request"
+                      />
+                      <label htmlFor="ws-request" className="ml-1 cursor-pointer select-none">
+                        WebSocket
+                      </label>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">

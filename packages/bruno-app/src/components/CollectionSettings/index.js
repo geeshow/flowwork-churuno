@@ -18,6 +18,7 @@ import Overview from './Overview/index';
 import SettingsAiAssist from 'components/SettingsAiAssist';
 import DocsAction from 'components/Documentation/DocsAction';
 import { useDocsEditingState } from 'components/Documentation/useDocsEditingState';
+import { isWebMode } from 'utils/common/platform';
 import { DEFAULT_PRESET_REQUEST_TYPE } from 'utils/common/constants';
 
 const AI_TABS = ['overview', 'script', 'tests'];
@@ -25,7 +26,11 @@ const AI_TABS = ['overview', 'script', 'tests'];
 const CollectionSettings = ({ collection }) => {
   const dispatch = useDispatch();
   const { isEditing } = useDocsEditingState();
-  const tab = collection.settingsSelectedTab;
+  // 웹 모드는 gRPC 실행을 지원하지 않아 Protobuf 탭을 숨긴다. 이전 세션에서
+  // protobuf가 선택된 채 저장돼 있으면 Overview로 대체한다.
+  const tab = isWebMode() && collection.settingsSelectedTab === 'protobuf'
+    ? 'overview'
+    : collection.settingsSelectedTab;
   const setTab = (tab) => {
     dispatch(
       updateSettingsSelectedTab({
@@ -149,10 +154,12 @@ const CollectionSettings = ({ collection }) => {
             Client Certificates
             {clientCertConfig.length > 0 && <StatusDot />}
           </div>
-          <div className={getTabClassname('protobuf')} role="tab" data-testid="collection-settings-tab-protobuf" onClick={() => setTab('protobuf')}>
-            Protobuf
-            {protobufConfig.protoFiles && protobufConfig.protoFiles.length > 0 && <StatusDot />}
-          </div>
+          {!isWebMode() && (
+            <div className={getTabClassname('protobuf')} role="tab" data-testid="collection-settings-tab-protobuf" onClick={() => setTab('protobuf')}>
+              Protobuf
+              {protobufConfig.protoFiles && protobufConfig.protoFiles.length > 0 && <StatusDot />}
+            </div>
+          )}
         </div>
         {AI_TABS.includes(tab) && (
           <div className="flex items-center gap-2 flex-shrink-0">
