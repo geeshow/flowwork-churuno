@@ -12,8 +12,10 @@ import CloneGitRepository from 'components/Sidebar/CloneGitRespository';
 import PostmanPackageReport from 'components/Sidebar/PostmanPackageReport';
 import usePostmanPackagePrompt from 'hooks/usePostmanPackagePrompt';
 import Button from 'ui/Button';
+import { isWebMode } from 'utils/common/platform';
 import CollectionsList from './CollectionsList';
 import WorkspaceDocs from '../WorkspaceDocs';
+import WorkspaceRelease from '../WorkspaceRelease';
 import StyledWrapper from './StyledWrapper';
 
 const WorkspaceOverview = ({ workspace }) => {
@@ -169,6 +171,15 @@ const WorkspaceOverview = ({ workspace }) => {
               </Button>
             </div>
           </div>
+
+          {/* 웹 모드의 워크스페이스 = git 브랜치 — 작업한 API를 API 단위로 main에 반영한다.
+              기본 워크스페이스(main 체크아웃)는 반영의 대상이므로 섹션을 두지 않는다. */}
+          {isWebMode() && workspace?.type === 'workspace' && (
+            <div className="release-section mb-4">
+              <div className="section-title">main 반영</div>
+              <WorkspaceRelease workspace={workspace} />
+            </div>
+          )}
 
           <div className="collections-section">
             <div className="section-title">Collections</div>

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import httpx
+import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -146,21 +147,65 @@ def parse_bru_request(text: str) -> dict[str, Any]:
         elif header == "docs":
             for k, v in _dict_lines(inner):
                 if k == "output":
-                    output = []
-                    for field in v.split(","):
-                        field = field.strip()
-                        if not field:
-                            continue
-                        if "=" in field:  # `이름=라벨` — 한글 설명 포함
-                            fname, label = field.split("=", 1)
-                            output.append({"name": fname.strip(), "label": label.strip()})
-                        else:
-                            output.append(field)
+                    output = _parse_output_fields(v)
 
     request: dict[str, Any] = {"method": method, "header": headers, "url": {"raw": url}}
     if body_raw:
         request["body"] = {"mode": "raw", "raw": body_raw}
     return {"name": name, "seq": seq, "request": request, "output": output}
+
+
+def _parse_output_fields(value: str) -> list[Any]:
+    """docs의 `output:` 값 → 필드 목록. `이름=라벨`이면 한글 설명 포함."""
+    output: list[Any] = []
+    for field in value.split(","):
+        field = field.strip()
+        if not field:
+            continue
+        if "=" in field:
+            fname, label = field.split("=", 1)
+            output.append({"name": fname.strip(), "label": label.strip()})
+        else:
+            output.append(field)
+    return output
+
+
+def parse_yml_request(text: str) -> Optional[dict[str, Any]]:
+    """반영된 .yml(OpenCollection) 요청 텍스트 → parse_bru_request와 같은 형태.
+
+    flowwork 프록시는 HTTP만 실행하므로 http 타입이 아니면 None.
+    """
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    info = data.get("info") or {}
+    if (info.get("type") or "http") != "http":
+        return None
+    http = data.get("http") or {}
+    headers = [
+        {"key": str(h.get("name", "")), "value": str(h.get("value", ""))}
+        for h in (http.get("headers") or [])
+        if isinstance(h, dict)
+    ]
+    request: dict[str, Any] = {
+        "method": str(http.get("method") or "GET").upper(),
+        "header": headers,
+        "url": {"raw": str(http.get("url") or "")},
+    }
+    body = http.get("body")
+    if isinstance(body, dict) and body.get("data"):
+        request["body"] = {"mode": "raw", "raw": str(body["data"])}
+    output: list[Any] = []
+    docs = data.get("docs")
+    if isinstance(docs, str):
+        for line in docs.splitlines():
+            key, sep, value = line.partition(":")
+            if sep and key.strip() == "output":
+                output = _parse_output_fields(value)
+    return {"name": str(info.get("name") or ""), "seq": info.get("seq") or 0, "request": request, "output": output}
 
 
 def parse_bru_environment(text: str) -> dict[str, str]:
@@ -343,14 +388,49 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
 
     # -- 카탈로그 ------------------------------------------------------------
     def build_catalog() -> list[dict[str, Any]]:
-        entries: list[dict[str, Any]] = []
         if not repo_dir.is_dir():
-            return entries
-        for department_dir in sorted(repo_dir.iterdir()):
-            if not department_dir.is_dir() or department_dir.name in _NON_DEPARTMENT_DIRS:
-                continue
-            if department_dir.name.startswith("."):
-                continue
+            return []
+        entries: dict[str, dict[str, Any]] = {}
+
+        def add_entry(department: str, item_path: list[str], parsed: dict[str, Any]) -> None:
+            name = parsed["name"]
+            template = parsed["request"]
+            raw = json.dumps(template, ensure_ascii=False)
+            seen: dict[str, None] = {}
+            for m in _TEMPLATE_VAR.finditer(raw):
+                seen.setdefault(m.group(1), None)
+            output_fields: list[str] = []
+            output_labels: dict[str, str] = {}
+            for f in parsed["output"]:
+                if isinstance(f, dict) and f.get("name"):
+                    output_fields.append(str(f["name"]))
+                    if f.get("label"):
+                        output_labels[str(f["name"])] = str(f["label"])
+                elif isinstance(f, str):
+                    output_fields.append(f)
+            entry_id = catalog_entry_id(department, department, item_path, name)
+            entries[entry_id] = {
+                "id": entry_id,
+                "department": department,
+                "collectionFile": department,
+                "collectionName": department,
+                "itemPath": item_path,
+                "name": name,
+                "method": template["method"],
+                "url": template["url"]["raw"],
+                "variables": list(seen.keys()),
+                "outputFields": output_fields,
+                "outputLabels": output_labels,
+                "requestTemplate": template,
+            }
+
+        top_dirs = [
+            d for d in sorted(repo_dir.iterdir())
+            if d.is_dir() and d.name not in _NON_DEPARTMENT_DIRS and not d.name.startswith(".")
+        ]
+
+        # 1) 레거시 부서 폴더 — `<부서>/…/<이름>.bru`
+        for department_dir in top_dirs:
             department = department_dir.name
             for bru_path in sorted(department_dir.rglob("*.bru")):
                 # folder.bru는 폴더 메타데이터라 API가 아니다
@@ -360,39 +440,29 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
                     parsed = parse_bru_request(bru_path.read_text(encoding="utf-8"))
                 except OSError:
                     continue
-                name = parsed["name"] or bru_path.stem
-                template = parsed["request"]
-                item_path = list(bru_path.parent.relative_to(department_dir).parts)
-                raw = json.dumps(template, ensure_ascii=False)
-                seen: dict[str, None] = {}
-                for m in _TEMPLATE_VAR.finditer(raw):
-                    seen.setdefault(m.group(1), None)
-                output_fields: list[str] = []
-                output_labels: dict[str, str] = {}
-                for f in parsed["output"]:
-                    if isinstance(f, dict) and f.get("name"):
-                        output_fields.append(str(f["name"]))
-                        if f.get("label"):
-                            output_labels[str(f["name"])] = str(f["label"])
-                    elif isinstance(f, str):
-                        output_fields.append(f)
-                entries.append(
-                    {
-                        "id": catalog_entry_id(department, department, item_path, name),
-                        "department": department,
-                        "collectionFile": department,
-                        "collectionName": department,
-                        "itemPath": item_path,
-                        "name": name,
-                        "method": template["method"],
-                        "url": template["url"]["raw"],
-                        "variables": list(seen.keys()),
-                        "outputFields": output_fields,
-                        "outputLabels": output_labels,
-                        "requestTemplate": template,
-                    }
-                )
-        return entries
+                parsed["name"] = parsed["name"] or bru_path.stem
+                add_entry(department, list(bru_path.parent.relative_to(department_dir).parts), parsed)
+
+        # 2) 워크스페이스에서 main에 반영된 .yml API — `<컬렉션>/<부서>/…/<이름>.yml`.
+        #    부서/경로/이름이 같으면 id가 같아 1)의 .bru 항목을 대체한다(형식 이전 경로).
+        #    부서 폴더 없이 컬렉션 루트에 놓인 .yml은 부서를 정할 수 없어 제외한다.
+        for collection_dir in top_dirs:
+            for yml_path in sorted(collection_dir.rglob("*.yml")):
+                rel = yml_path.relative_to(collection_dir).parts
+                if len(rel) < 2 or yml_path.name in ("folder.yml", "opencollection.yml"):
+                    continue
+                if rel[0] == "environments" or rel[0] in _NON_DEPARTMENT_DIRS:
+                    continue
+                try:
+                    parsed = parse_yml_request(yml_path.read_text(encoding="utf-8"))
+                except OSError:
+                    continue
+                if parsed is None:
+                    continue
+                parsed["name"] = parsed["name"] or yml_path.stem
+                add_entry(rel[0], list(rel[1:-1]), parsed)
+
+        return list(entries.values())
 
     @router.get("/catalog/search")
     def search_catalog(q: str = "", limit: int = 500) -> dict:

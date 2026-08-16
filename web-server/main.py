@@ -246,10 +246,30 @@ def safe_path(raw: str) -> Path:
 # ---------------------------------------------------------------------------
 
 import ai
+import api_release
 import flowwork
 
 app.include_router(flowwork.build_router(REPO_DIR, SERVER_DIR / "executions"))
 app.include_router(ai.build_router())
+
+
+def _flush_workspace_commit(workspace: dict):
+    """예약된 auto-commit을 기다리지 않고 지금 커밋 — diff가 최신 저장을 보도록."""
+    with _commit_lock:
+        timer = _commit_timers.pop(workspace["branch"], None)
+        if timer:
+            timer.cancel()
+    _commit_worktree(workspace)
+
+
+app.include_router(api_release.build_router(
+    REPO_DIR,
+    SERVER_DIR / "api-ignores",
+    # 기본 워크스페이스(main 체크아웃)는 반영 대상이 아니라 제외한다
+    lambda name: next((w for w in WORKSPACES[1:] if w["name"] == name), None),
+    _flush_workspace_commit,
+    GIT_PUSH,
+))
 
 
 # ---------------------------------------------------------------------------
