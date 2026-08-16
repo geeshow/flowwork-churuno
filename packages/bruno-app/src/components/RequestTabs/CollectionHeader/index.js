@@ -35,6 +35,7 @@ import ToolHint from 'components/ToolHint';
 import JsSandboxMode from 'components/SecuritySettings/JsSandboxMode';
 import ActionIcon from 'ui/ActionIcon';
 import { normalizePath } from 'utils/common/path';
+import { isWebMode } from 'utils/common/platform';
 import classNames from 'classnames';
 import StyledWrapper from './StyledWrapper';
 import { useTheme } from 'providers/Theme';
@@ -637,8 +638,9 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
                   <IconRun size={16} strokeWidth={1.5} />
                 </ActionIcon>
               </ToolHint>
-              {/* JS Sandbox Mode - always visible */}
-              <JsSandboxMode collection={collection} />
+              {/* JS Sandbox Mode — Electron 전용. 웹 모드는 요청 스크립트를
+                  실행하지 않아 safe/developer 선택이 무의미하다. */}
+              {!isWebMode() && <JsSandboxMode collection={collection} />}
               {/* Overflow menu */}
               <MenuDropdown items={overflowMenuItems} placement="bottom-end" data-testid="more-actions">
                 <ActionIcon label="More actions" size="sm" style={{ border: `1px solid ${theme.border.border1}`, borderRadius: theme.border.radius.base, width: 24, marginRight: 4, marginLeft: 4 }}>
