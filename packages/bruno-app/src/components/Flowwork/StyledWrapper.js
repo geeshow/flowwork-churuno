@@ -343,7 +343,18 @@ const StyledWrapper = styled.div`
 
   /* ---------------- 업무 화면 (워크플로우 카드) ---------------- */
   .task-detail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     margin-bottom: 14px;
+
+    > button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
   }
   .crumb {
     display: flex;
@@ -387,11 +398,16 @@ const StyledWrapper = styled.div`
   }
   .wf-card-actions {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
+    align-items: center;
+    gap: 12px;
     padding: 0 12px;
     border-left: 1px solid ${(props) => props.theme.border.border0};
+
+    button.link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
   }
 
   /* ---------------- 최근 이력 ---------------- */
@@ -1484,6 +1500,17 @@ const StyledWrapper = styled.div`
       color: ${(props) => props.theme.colors.text.yellow};
       border-color: ${(props) => props.theme.colors.text.yellow};
     }
+  }
+
+  /* 워크플로우가 운영과 다르다는 표시 — 종류(추가/수정/삭제)는 변경 목록에서 본다 */
+  .changed-badge {
+    flex-shrink: 0;
+    padding: 1px 7px;
+    border: 1px solid ${(props) => props.theme.colors.text.yellow};
+    border-radius: 999px;
+    color: ${(props) => props.theme.colors.text.yellow};
+    font-size: ${(props) => props.theme.font.size.xs};
+    font-weight: 500;
   }
 
   .change-badge {

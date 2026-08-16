@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { IconTrash, IconUpload } from '@tabler/icons';
+import { IconPencil, IconPlus, IconTrash, IconUpload } from '@tabler/icons';
 import toast from 'react-hot-toast';
 
 import api from '../api';
@@ -175,10 +175,15 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
   );
 }
 
-// 변경 종류(추가/수정/삭제) 배지
+// 변경 종류(추가/수정/삭제) 배지 — 변경 목록처럼 종류를 구분해야 하는 곳에서 쓴다
 function ChangeBadge({ change }) {
   if (!change) return null;
   return <span className={`change-badge change-${change.toLowerCase()}`}>{CHANGE_LABEL[change] ?? change}</span>;
+}
+
+// 워크플로우 카드·상세의 표시 — 여기서는 종류보다 "운영과 다르다"는 사실만 알면 된다
+function ChangedBadge() {
+  return <span className="changed-badge">변경됨</span>;
 }
 
 // 변경 파일 한 줄 표시 (워크플로우면 이름/위치, 그 외 파일은 경로)
@@ -317,7 +322,8 @@ function EditTaskDetail({ domain, task, statusById, refreshKey, onRun, onEdit, o
           <h2>{task}</h2>
         </div>
         <button className="primary small" onClick={onNew}>
-          + 새 워크플로우
+          <IconPlus size={14} strokeWidth={2} />
+          새 워크플로우
         </button>
       </div>
 
@@ -335,12 +341,13 @@ function EditTaskDetail({ domain, task, statusById, refreshKey, onRun, onEdit, o
                   <span className="wf-card-title">
                     <span className="task-bullet" style={{ background: color }} />
                     {w.name}
-                    <ChangeBadge change={stEntry?.change} />
+                    {stEntry ? <ChangedBadge /> : null}
                   </span>
                   {w.description ? <span className="muted">{w.description}</span> : null}
                 </button>
                 <div className="wf-card-actions">
                   <button className="link small" onClick={() => onEdit(w.id)}>
+                    <IconPencil size={14} strokeWidth={1.5} />
                     수정
                   </button>
                   <ConfirmButton
@@ -353,6 +360,7 @@ function EditTaskDetail({ domain, task, statusById, refreshKey, onRun, onEdit, o
                         .then(onDeleted)
                         .catch((e) => setError(e.message))}
                   >
+                    <IconTrash size={14} strokeWidth={1.5} />
                     삭제
                   </ConfirmButton>
                 </div>
@@ -396,7 +404,7 @@ function EditRunDetail({ id, statusById, refreshKey, onEdit, onBack, onOpenExecu
           ← {wf.domain} / {wf.task}
         </button>
         <div className="run-actions">
-          <ChangeBadge change={stEntry?.change} />
+          {stEntry ? <ChangedBadge /> : null}
           <button className="link" onClick={() => onEdit(id)}>
             수정 →
           </button>
