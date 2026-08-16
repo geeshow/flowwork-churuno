@@ -85,11 +85,13 @@ const JsSandboxMode = ({ collection }) => {
         <div className="dropdown-label">
           <div className="sandbox-option-title">
             <div className="sandbox-option-radio">
+              {/* 표시용 라디오 — 선택은 감싸는 버튼의 onClick이 처리한다 */}
               <input
                 type="radio"
                 name="sandbox-mode"
                 value={option.key}
                 checked={isActive}
+                readOnly
               />
             </div>
             <OptionIcon size={24} strokeWidth={1.5} />

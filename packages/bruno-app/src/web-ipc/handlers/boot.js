@@ -132,7 +132,12 @@ const registerRemoteCollections = (collections) => {
 // git으로 함께 동기화되고, GitHub에서도 그대로 읽힌다.
 const readWorkspaceDocs = async (workspacePath) => {
   try {
-    const { content } = await serverApi.fsRead(`${workspacePath}/workspace.yml`);
+    const pathname = `${workspacePath}/workspace.yml`;
+    // 파일이 없는 게 정상 케이스(문서 미작성 워크스페이스)라 바로 read하면
+    // 브라우저 콘솔에 404 fetch 에러가 찍힌다 — 존재 확인 후 읽는다.
+    const { exists } = await serverApi.fsExists(pathname);
+    if (!exists) return '';
+    const { content } = await serverApi.fsRead(pathname);
     const config = jsyaml.load(content);
     return typeof config?.docs === 'string' ? config.docs : '';
   } catch (_error) {
