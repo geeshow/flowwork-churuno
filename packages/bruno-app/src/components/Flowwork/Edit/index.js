@@ -229,6 +229,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
             tab={page.tab ?? 'overview'}
             onTabChange={(tab) => go({ kind: 'task', domain: page.domain, task: page.task, tab })}
             refreshKey={refresh}
+            generateDocs={page.generate}
             onOpenWorkflow={(id) => go({ kind: 'run', id })}
             onNewWorkflow={() => go({ kind: 'new', domain: page.domain, task: page.task })}
           />
@@ -241,6 +242,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
             refreshKey={refresh}
             changed={statusById.has(page.id)}
             fileMode={fileMode}
+            generateDocs={page.generate}
             onEdit={(id) => go({ kind: 'editWf', id })}
             onDelete={(wf) => (
               <ConfirmButton
@@ -376,6 +378,12 @@ function workflowMenuItems({ workflow, setClipboard, go, prompt, onError, onDone
       onClick: () => setClipboard({ kind: 'workflow', id, name })
     },
     {
+      id: 'docs',
+      label: 'Generate Docs',
+      title: '스텝과 입력값을 읽어 문서 초안을 만듭니다',
+      onClick: () => go({ kind: 'run', id, tab: 'docs', generate: Date.now() })
+    },
+    {
       id: 'share',
       label: 'Share',
       title: '이 작업 화면 링크를 복사합니다',
@@ -490,6 +498,12 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
           submitLabel: '변경',
           action: (name) => api.renameTask(domain, task, { domain, task: siblingTask(task, name) })
         })
+    },
+    {
+      id: 'docs',
+      label: 'Generate Docs',
+      title: '이 폴더에 담긴 작업을 읽어 문서 초안을 만듭니다',
+      onClick: () => go({ kind: 'task', domain, task, tab: 'docs', generate: Date.now() })
     },
     {
       id: 'share',

@@ -18,7 +18,17 @@ export const FOLDER_TABS = [
  *
  * 폴더 문서는 빈 업무 표식(.folder)에 담긴다 — 서버 쪽 설명 참고.
  */
-export function FolderScreen({ domain, task, source = 'prod', tab, onTabChange, refreshKey, onOpenWorkflow, onNewWorkflow }) {
+export function FolderScreen({
+  domain,
+  task,
+  source = 'prod',
+  tab,
+  onTabChange,
+  refreshKey,
+  generateDocs,
+  onOpenWorkflow,
+  onNewWorkflow
+}) {
   const [rows, setRows] = useState(null);
   const [colors, setColors] = useState({});
   const [docs, setDocs] = useState(null);
@@ -84,6 +94,7 @@ export function FolderScreen({ domain, task, source = 'prod', tab, onTabChange, 
             editable={editable}
             context={{ scope: 'folder', name: task, location: domain, workflows: items.map((w) => w.name) }}
             emptyLabel="이 폴더가 어떤 업무를 묶고 있는지 적어두세요."
+            autoGenerate={generateDocs}
             onSave={(next) => api.setTaskDocs(domain, task, next).then(() => setDocs(next))}
           />
         ) : (

@@ -55,6 +55,7 @@ export function WorkflowScreen({
   refreshKey,
   changed,
   fileMode,
+  generateDocs,
   onEdit,
   onDelete,
   onOpenExecution,
@@ -143,6 +144,7 @@ export function WorkflowScreen({
                 editable={editable}
                 context={docsContext(wf)}
                 emptyLabel="이 작업이 무엇을 하는지 적어두면, 처음 보는 사람도 실행 전에 무슨 일이 일어나는지 알 수 있습니다."
+                autoGenerate={generateDocs}
                 onSave={(next) => api.saveWorkflow({ ...wf, docs: next }).then(onSaved)}
               />
             ) : (

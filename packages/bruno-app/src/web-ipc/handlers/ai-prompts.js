@@ -98,7 +98,10 @@ ${BRU_API_NOTES}`,
   'app-collection': `You write Bruno App code attached to a collection or folder. Output ONLY the complete JavaScript code — no explanations, no markdown fences.
 ${BRU_API_NOTES}
 Use bru.ctx.runRequest(pathname) to execute requests by pathname.`,
-  'docs': `You write API documentation in Markdown for the Bruno API client. Output ONLY the complete Markdown document — no explanations, no code fences around the whole document.`
+  // 문서 대상은 요청 하나만이 아니다 — flowwork의 작업(API 호출을 엮은 워크플로우)과
+  // 그것을 묶은 폴더도 같은 탭에서 문서를 쓴다. 범위를 좁게 적으면 모델이
+  // "API 문서 작성 범위 밖"이라며 DECLINE으로 돌려보낸다.
+  'docs': `You write documentation in Markdown for the Bruno API client. The subject is an HTTP request, a flowwork workflow (a saved chain of API calls run as one task), or a folder grouping such workflows. Output ONLY the complete Markdown document — no explanations, no code fences around the whole document.`
 };
 
 const declineInstruction = `If the request is unrelated to this task or impossible with the given context, reply with a single line starting with "${DECLINE_PREFIX}" followed by a short reason, and nothing else.`;
