@@ -257,15 +257,18 @@ export function WorkflowLayout({
                     const color = colorForDomain(domain, colors);
                     const open = openDomains.has(domain);
                     return (
-                      <div key={domain} className={`domain-group ${open ? 'open' : ''}`}>
-                        <div className="domain-row">
+                      <div
+                        key={domain}
+                        className={`domain-group ${open ? 'open' : ''}`}
+                        style={{ borderColor: color }}
+                      >
+                        <div className="domain-row" style={{ borderColor: color }}>
                           <button
                             className="domain-head"
                             onClick={() => toggleIn(setOpenDomains)(domain)}
                             aria-expanded={open}
                           >
                             <span className="domain-caret">{open ? '▾' : '▸'}</span>
-                            <span className="domain-swatch" style={{ background: color }} />
                             <span className="domain-name">{domain}</span>
                             {domainBadge?.(domain)}
                             <span className="domain-count">{workflowCount}</span>
@@ -293,12 +296,10 @@ export function WorkflowLayout({
                                       >
                                         <span className="task-caret">{folderOpen ? '▾' : '▸'}</span>
                                         {taskChanged?.(domain, path) ? (
-                                          <span className="task-bullet changed" title="운영 미반영 변경 있음">
+                                          <span className="change-mark" title="운영 미반영 변경 있음">
                                             U
                                           </span>
-                                        ) : (
-                                          <span className="task-bullet" style={{ background: color }} />
-                                        )}
+                                        ) : null}
                                         <span className="task-text">{name}</span>
                                       </button>
                                       {taskMenu?.(domain, path)}
@@ -313,12 +314,10 @@ export function WorkflowLayout({
                                               title={w.description ?? w.name}
                                             >
                                               {workflowChanged?.(w.id) ? (
-                                                <span className="task-bullet changed" title="운영 미반영 변경">
+                                                <span className="change-mark" title="운영 미반영 변경">
                                                   U
                                                 </span>
-                                              ) : (
-                                                <span className="task-bullet hollow" style={{ borderColor: color }} />
-                                              )}
+                                              ) : null}
                                               <span className="task-text">{w.name}</span>
                                             </button>
                                             {workflowMenu?.(w)}

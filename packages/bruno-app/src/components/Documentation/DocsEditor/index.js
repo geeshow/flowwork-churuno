@@ -29,6 +29,7 @@ const DocsEditor = ({
   onRequestEdit,
   initialScroll,
   onScroll,
+  autocomplete,
   testId
 }) => {
   const { displayedTheme } = useTheme();
@@ -167,6 +168,8 @@ const DocsEditor = ({
             mode="gfm"
             initialScroll={initialScroll}
             onScroll={onScroll}
+            scriptType={autocomplete?.scriptType}
+            getAutocompleteContext={autocomplete?.getContext}
           />
           <AIAssist
             scriptType="docs"

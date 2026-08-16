@@ -64,9 +64,8 @@ export function WorkflowScreen({
 
   return (
     <section className="wf-screen">
-      <header className="wf-screen-head">
+      <header className="wf-screen-head" style={{ borderLeftColor: color }}>
         <div className="wf-screen-crumb">
-          <span className="task-bullet" style={{ background: color }} />
           {[wf.domain, ...wf.task.split('/')].map((crumb, depth) => (
             <React.Fragment key={`${depth}-${crumb}`}>
               <span className="muted">{crumb}</span>

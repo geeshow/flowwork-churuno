@@ -172,6 +172,8 @@ const fetchAndShow = async (cm, options) => {
       prefix,
       suffix,
       requestContext: ctx.requestContext || null,
+      // 요청이 아닌 것을 편집할 때(문서 등) 무엇을 쓰고 있는지 알려주는 문맥
+      docsContext: ctx.docsContext || null,
       variableNames: ctx.variableNames || null,
       siblingScripts: ctx.siblingScripts || []
     });

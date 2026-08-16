@@ -277,7 +277,8 @@ class CodeEditor extends React.Component {
             return Boolean(ai?.enabled) && ai?.autocomplete?.enabled !== false;
           },
           getTriggerMode: () => this.props.aiPreferences?.autocomplete?.triggerMode || 'debounced',
-          getContext: () => buildAutocompleteContext({
+          // 컬렉션 밖의 편집기(flowwork 작업 문서 등)는 자기 문맥을 직접 넘긴다
+          getContext: () => this.props.getAutocompleteContext?.() ?? buildAutocompleteContext({
             item: this.props.item,
             collection: this.props.collection,
             scriptType: this.props.scriptType

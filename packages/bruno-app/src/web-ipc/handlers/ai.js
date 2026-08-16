@@ -15,10 +15,13 @@ import { serverBaseUrl } from '../server-api';
 import { getPreferences } from './boot';
 import {
   SCRIPT_TYPES,
+  buildAutocompletePrompt,
+  buildAutocompleteSystemPrompt,
   buildScriptSystemPrompt,
   buildScriptUserPrompt,
   buildChatSystemPrompt,
   buildChatPrompt,
+  sanitizeCompletion,
   stripCodeFences,
   parseDecline,
   extractFencedCode
@@ -30,6 +33,8 @@ const MODEL_ID = 'claude-cli';
 const MODEL_LABEL = 'Claude CLI (local)';
 
 const activeStreams = new Map();
+// 자동완성은 키 입력마다 새 요청이 나가므로 requestId별로 취소할 수 있어야 한다
+const autocompleteRequests = new Map();
 
 const getToken = () => localStorage.getItem(TOKEN_KEY) || '';
 
@@ -332,8 +337,38 @@ const registerAiHandlers = () => {
   });
 
   // 키 입력마다 CLI를 띄우기엔 지연이 너무 커서 웹 브리지에서는 비활성
-  handle('renderer:ai-autocomplete', () => ({ disabled: true }));
-  handle('renderer:ai-autocomplete-cancel', () => undefined);
+  // 고스트 텍스트 자동완성 — 타이핑마다 부르므로 앞선 요청은 곧바로 끊는다.
+  // 결과가 비면 UI는 조용히 넘어가므로, 실패도 에러 대신 빈 응답으로 알린다.
+  handle('renderer:ai-autocomplete', async (params) => {
+    const { requestId, scriptType, prefix = '', suffix = '', requestContext, docsContext, variableNames } = params || {};
+    if (!getAiPrefs().enabled || getAiPrefs().autocomplete?.enabled === false) return { disabled: true };
+    if (!getToken()) return { disabled: true };
+    if (!prefix.trim()) return { suggestion: '' };
+
+    if (requestId) {
+      autocompleteRequests.get(requestId)?.abort();
+      autocompleteRequests.set(requestId, new AbortController());
+    }
+
+    try {
+      const text = await callGenerate({
+        system: buildAutocompleteSystemPrompt(scriptType),
+        prompt: buildAutocompletePrompt({ prefix, suffix, requestContext, docsContext, variableNames }),
+        signal: requestId ? autocompleteRequests.get(requestId).signal : undefined
+      });
+      return { suggestion: sanitizeCompletion(text, { prefix }) };
+    } catch (err) {
+      if (isAbortError(err)) return { cancelled: true };
+      return { error: err.message || 'Failed to autocomplete' };
+    } finally {
+      if (requestId) autocompleteRequests.delete(requestId);
+    }
+  });
+
+  handle('renderer:ai-autocomplete-cancel', ({ requestId } = {}) => {
+    autocompleteRequests.get(requestId)?.abort();
+    autocompleteRequests.delete(requestId);
+  });
 };
 
 export default registerAiHandlers;

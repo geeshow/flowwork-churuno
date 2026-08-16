@@ -262,7 +262,18 @@ const StyledWrapper = styled.div`
   .domain-tree {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 8px;
+  }
+
+  /* 컬렉션(도메인)은 자기 색 테두리로 묶어 한 덩어리로 보여준다 */
+  .domain-group {
+    border: 1px solid;
+    border-radius: ${(props) => props.theme.border.radius.md};
+    overflow: hidden;
+
+    &.open .domain-row {
+      border-bottom: 1px solid;
+    }
   }
 
   /* 도메인 줄 — 업무 줄과 마찬가지로 hover할 때만 "..."이 나타난다 */
@@ -283,7 +294,6 @@ const StyledWrapper = styled.div`
     flex: 1;
     min-width: 0;
     padding: 6px 8px;
-    border-radius: ${(props) => props.theme.border.radius.base};
     font-size: ${(props) => props.theme.font.size.sm};
     &:hover {
       background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
@@ -293,12 +303,6 @@ const StyledWrapper = styled.div`
     color: ${(props) => props.theme.colors.text.muted};
     font-size: 10px;
     width: 10px;
-  }
-  .domain-swatch {
-    width: 10px;
-    height: 10px;
-    border-radius: 3px;
-    flex-shrink: 0;
   }
   .domain-name {
     font-weight: 600;
@@ -312,12 +316,23 @@ const StyledWrapper = styled.div`
 
   .task-menu {
     list-style: none;
-    margin: 2px 0 6px;
-    padding: 0 0 0 20px;
+    margin: 0;
+    padding: 4px 4px 6px;
   }
   .task-empty {
-    padding: 4px 0 8px 26px;
+    padding: 6px 0 8px 14px;
     font-size: ${(props) => props.theme.font.size.xs};
+  }
+
+  /* 운영 미반영 표시 — 불릿 자리를 대신한다 */
+  .change-mark {
+    flex-shrink: 0;
+    width: 9px;
+    color: ${(props) => props.theme.colors.text.yellow};
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
   }
   /* Bruno 사이드바처럼 hover·활성일 때만 "..."이 나타난다 */
   .task-row {
@@ -451,33 +466,6 @@ const StyledWrapper = styled.div`
     color: ${(props) => props.theme.colors.text.muted};
     font-size: 9px;
   }
-
-  .task-bullet {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    &.lg {
-      width: 10px;
-      height: 10px;
-    }
-    /* 작업(워크플로우)은 속이 빈 점 — 폴더와 한눈에 구분된다 */
-    &.hollow {
-      border: 1.5px solid;
-      background: transparent;
-    }
-    /* 운영 미반영 변경이 있는 업무는 불릿 자리에 U를 세운다 */
-    &.changed {
-      width: 8px;
-      height: auto;
-      border-radius: 0;
-      color: ${(props) => props.theme.colors.text.yellow};
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1;
-      text-align: center;
-    }
-  }
   .task-text {
     flex: 1;
     text-align: left;
@@ -500,17 +488,105 @@ const StyledWrapper = styled.div`
     flex-wrap: wrap;
   }
 
+  /* ---------------- 열린 작업 탭 줄 (Bruno 요청 탭) ---------------- */
+  .wf-tabbar {
+    position: relative;
+    margin: -4px -4px 12px;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: ${(props) => props.theme.requestTabs.bottomBorder};
+    }
+
+    ul {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      margin: 0;
+      padding: 0 3px;
+      overflow-x: auto;
+      list-style: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+      scrollbar-width: none;
+    }
+
+    li {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      max-width: 200px;
+      padding: 0 4px 0 8px;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: ${(props) => props.theme.border.radius.base}
+        ${(props) => props.theme.border.radius.base} 0 0;
+      background: ${(props) => props.theme.requestTabs.bg};
+      color: ${(props) => props.theme.requestTabs.color};
+      font-size: ${(props) => props.theme.font.size.sm};
+
+      &.active {
+        position: relative;
+        z-index: 1;
+        background: ${(props) => props.theme.background.surface0};
+        border-color: ${(props) => props.theme.requestTabs.bottomBorder};
+        font-weight: 600;
+      }
+    }
+  }
+  .wf-tabbar-name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    padding: 7px 2px;
+    color: inherit;
+  }
+  .wf-tabbar-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wf-tabbar-changed {
+    flex-shrink: 0;
+    color: ${(props) => props.theme.colors.text.yellow};
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .wf-tabbar-close {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 3px;
+    border-radius: ${(props) => props.theme.border.radius.sm};
+    color: ${(props) => props.theme.requestTabs.icon.color};
+
+    &:hover {
+      color: ${(props) => props.theme.requestTabs.icon.hoverColor};
+      background: ${(props) => props.theme.requestTabs.icon.hoverBg};
+    }
+  }
+
   /* ---------------- 작업 화면 (Bruno 요청 화면과 같은 구성) ---------------- */
   .wf-screen {
     display: flex;
     flex-direction: column;
     min-height: 100%;
   }
+  /* 컬렉션 색은 머리말 왼쪽 띠로 — 사이드바의 컬렉션 상자와 같은 색이다 */
   .wf-screen-head {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding-bottom: 12px;
+    padding: 2px 0 12px 10px;
+    border-left: 3px solid transparent;
   }
   .wf-screen-crumb {
     display: flex;
@@ -669,6 +745,7 @@ const StyledWrapper = styled.div`
   }
   .wf-docs-bar {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
     gap: 8px;
   }
@@ -677,6 +754,19 @@ const StyledWrapper = styled.div`
   .wf-docs-body {
     height: 62vh;
     min-height: 360px;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: ${(props) => props.theme.border.radius.md};
+
+    /* 편집 중에는 입력하는 자리임이 보이도록 상자로 두른다 */
+    &.editing {
+      border-color: ${(props) => props.theme.border.border1};
+      background: ${(props) => props.theme.background.surface0};
+
+      &:focus-within {
+        border-color: ${(props) => props.theme.input.focusBorder};
+      }
+    }
   }
   .wf-env {
     display: flex;
@@ -1077,6 +1167,8 @@ const StyledWrapper = styled.div`
     gap: 10px;
     flex-wrap: wrap;
     margin-bottom: 12px;
+    padding-left: 10px;
+    border-left: 3px solid transparent;
   }
   .exec-inputs {
     margin-bottom: 14px;

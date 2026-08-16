@@ -7,10 +7,11 @@ import ConfirmButton from '../ConfirmButton';
 import HomeGuide from '../HomeGuide';
 import NamePrompt from '../NamePrompt';
 import TaskMenu from '../TaskMenu';
-import { taskShareUrl } from '../shareUrl';
+import { taskShareUrl, workflowShareUrl } from '../shareUrl';
 import WorkflowEditor from '../editor/WorkflowEditor';
 import WorkflowLayout from '../WorkflowLayout';
 import WorkflowScreen from '../WorkflowScreen';
+import WorkflowTabs, { useWorkflowTabs } from '../WorkflowTabs';
 
 const CHANGE_LABEL = { A: '추가', M: '수정', D: '삭제' };
 
@@ -28,10 +29,19 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [refresh, setRefresh] = useState(0);
-  // 업무 Copy/Paste용 앱 내 클립보드 (브라우저 클립보드는 텍스트만 담는다)
+  // Copy/Paste용 앱 내 클립보드 (브라우저 클립보드는 텍스트만 담는다).
+  // { kind: 'task' | 'workflow', ... } — 붙여넣기 쪽에서 무엇을 복사했는지 알아야 한다.
   const [clipboard, setClipboard] = useState(null);
   const [prompt, setPrompt] = useState(null);
   const bump = useCallback(() => setRefresh((n) => n + 1), []);
+  const activeId = page.kind === 'run' ? page.id : undefined;
+  const { tabs, close } = useWorkflowTabs({
+    source: 'edit',
+    activeId,
+    refreshKey: refresh,
+    onSelect: (id) => go({ kind: 'run', id }),
+    onCloseLast: () => go({ kind: 'home' })
+  });
 
   useEffect(() => {
     let alive = true;
@@ -136,7 +146,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
         workspace={st?.base_branch}
         source="edit"
         refreshKey={refresh}
-        activeId={page.kind === 'run' ? page.id : undefined}
+        activeId={activeId}
         activeTask={page.kind === 'task' ? { domain: page.domain, task: page.task } : undefined}
         onOpenWorkflow={(id) => go({ kind: 'run', id })}
         onOpenHome={() => go({ kind: 'home' })}
@@ -169,7 +179,26 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
             })}
           />
         )}
+        workflowMenu={(workflow) => (
+          <TaskMenu
+            items={workflowMenuItems({
+              workflow,
+              setClipboard,
+              go,
+              prompt: setPrompt,
+              onError: setError,
+              onDone: bump
+            })}
+          />
+        )}
       >
+        <WorkflowTabs
+          tabs={tabs}
+          activeId={activeId}
+          changed={(id) => statusById.has(id)}
+          onSelect={(id) => go({ kind: 'run', id })}
+          onClose={close}
+        />
         {page.kind === 'run' ? (
           <WorkflowScreen
             id={page.id}
@@ -235,6 +264,100 @@ const nameAsker = ({ prompt, onError, onDone }) => ({ title, label, initial, sub
     onSubmit: (name) => action(name).then(onDone).catch((e) => onError(e.message))
   });
 
+// 클립보드에 담긴 것을 이 폴더 안으로 붙여넣는다 (업무 통째로 / 작업 하나).
+// 붙여넣기 자리가 도메인 바로 밑이면 task는 새 업무 이름이 된다.
+const pasteInto = (clipboard, { domain, task }) => {
+  const label = clipboard.kind === 'workflow' ? clipboard.name : taskLeaf(clipboard.task);
+  const action = (name) =>
+    clipboard.kind === 'workflow'
+      ? copyWorkflow(clipboard.id, { domain, task, name })
+      : api.copyTask(clipboard.domain, clipboard.task, { domain, task: task ? `${task}/${name}` : name });
+  return {
+    id: 'paste',
+    label: `Paste (${label})`,
+    ask: {
+      label: clipboard.kind === 'workflow' ? '작업 이름' : '업무 이름',
+      initial: label,
+      submitLabel: '붙여넣기',
+      action
+    }
+  };
+};
+
+// 작업 복제 — 서버에는 복사 API가 없고, 새 id로 저장하면 그것이 곧 사본이다.
+// version은 낙관적 잠금 값이라 새 파일에 실어 보내면 "삭제됨"으로 거절당한다.
+async function copyWorkflow(id, { domain, task, name }) {
+  const source = await api.getWorkflow(id, 'edit');
+  const { version: _ignored, ...copy } = source;
+  return api.saveWorkflow({ ...copy, id: crypto.randomUUID(), domain, task, name });
+}
+
+// 작업(워크플로우) "..." 메뉴 — 폴더 메뉴와 같은 구성에서 작업에 없는 것만 뺐다
+function workflowMenuItems({ workflow, setClipboard, go, prompt, onError, onDone }) {
+  const askName = nameAsker({ prompt, onError, onDone });
+  const { id, name, domain, task } = workflow;
+
+  return [
+    {
+      id: 'rename',
+      label: 'Rename',
+      onClick: () =>
+        askName({
+          title: `'${name}' 이름 변경`,
+          label: '작업 이름',
+          initial: name,
+          submitLabel: '변경',
+          action: async (next) => {
+            const wf = await api.getWorkflow(id, 'edit');
+            return api.saveWorkflow({ ...wf, name: next });
+          }
+        })
+    },
+    {
+      id: 'clone',
+      label: 'Clone',
+      title: '같은 폴더에 사본을 만듭니다',
+      onClick: () =>
+        askName({
+          title: `'${name}' 복제`,
+          label: '새 작업 이름',
+          initial: `${name} copy`,
+          submitLabel: '복제',
+          action: (next) => copyWorkflow(id, { domain, task, name: next })
+        })
+    },
+    {
+      id: 'copy',
+      label: 'Copy',
+      onClick: () => setClipboard({ kind: 'workflow', id, name })
+    },
+    {
+      id: 'share',
+      label: 'Share',
+      title: '이 작업 화면 링크를 복사합니다',
+      onClick: () =>
+        navigator.clipboard
+          .writeText(workflowShareUrl(id))
+          .then(() => toast.success('링크를 복사했습니다'))
+          .catch(() => onError('링크를 복사하지 못했습니다'))
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      danger: true,
+      title: '운영 반영 전까지는 변경 목록에서 원복할 수 있습니다',
+      onClick: () =>
+        api
+          .deleteWorkflow(id)
+          .then(() => {
+            onDone();
+            go({ kind: 'home' });
+          })
+          .catch((e) => onError(e.message))
+    }
+  ];
+}
+
 // 도메인 "..." 메뉴 — 도메인 바로 아래(최상위) 업무를 만든다.
 // 하위 업무는 업무 메뉴의 New Folder로 만든다.
 function domainMenuItems({ domain, clipboard, prompt, onError, onDone }) {
@@ -252,23 +375,20 @@ function domainMenuItems({ domain, clipboard, prompt, onError, onDone }) {
           action: (name) => api.createTask(domain, name)
         })
     },
-    ...(clipboard
-      ? [
-          {
-            id: 'paste',
-            label: `Paste (${taskLeaf(clipboard.task)})`,
-            onClick: () =>
-              askName({
-                title: `'${domain}'에 '${taskLeaf(clipboard.task)}' 붙여넣기`,
-                label: '업무 이름',
-                initial: taskLeaf(clipboard.task),
-                submitLabel: '붙여넣기',
-                action: (name) => api.copyTask(clipboard.domain, clipboard.task, { domain, task: name })
-              })
-          }
-        ]
+    ...(clipboard && clipboard.kind === 'task'
+      ? [pasteItem(clipboard, { domain, task: '' }, domain, askName)]
       : [])
   ];
+}
+
+// 붙여넣기 항목 — 담긴 것과 붙일 자리는 pasteInto가 정하고, 여기선 대화상자만 붙인다
+function pasteItem(clipboard, target, targetLabel, askName) {
+  const { id, label, ask } = pasteInto(clipboard, target);
+  return {
+    id,
+    label,
+    onClick: () => askName({ title: `'${targetLabel}'에 붙여넣기`, ...ask })
+  };
 }
 
 // 업무(폴더) "..." 메뉴 구성 — Bruno 사이드바 항목 메뉴와 같은 순서.
@@ -311,26 +431,10 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
     {
       id: 'copy',
       label: 'Copy',
-      onClick: () => setClipboard({ domain, task })
+      onClick: () => setClipboard({ kind: 'task', domain, task })
     },
     // Copy 해 둔 것이 있을 때만 붙인다 (Bruno도 같은 방식)
-    ...(clipboard
-      ? [
-          {
-            id: 'paste',
-            label: `Paste (${taskLeaf(clipboard.task)})`,
-            onClick: () =>
-              askName({
-                title: `'${leaf}' 안에 '${taskLeaf(clipboard.task)}' 붙여넣기`,
-                label: '업무 이름',
-                initial: taskLeaf(clipboard.task),
-                submitLabel: '붙여넣기',
-                action: (name) =>
-                  api.copyTask(clipboard.domain, clipboard.task, { domain, task: `${task}/${name}` })
-              })
-          }
-        ]
-      : []),
+    ...(clipboard ? [pasteItem(clipboard, { domain, task }, leaf, askName)] : []),
     {
       id: 'rename',
       label: 'Rename',

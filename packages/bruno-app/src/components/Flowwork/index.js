@@ -5,6 +5,7 @@ import EditPage from './Edit';
 import { ExecutionDetail } from './HistoryView';
 import WorkflowLayout from './WorkflowLayout';
 import WorkflowScreen from './WorkflowScreen';
+import WorkflowTabs, { useWorkflowTabs } from './WorkflowTabs';
 import { executionHash } from './shareUrl';
 import StyledWrapper from './StyledWrapper';
 
@@ -127,6 +128,13 @@ export default function Flowwork() {
 
   const openWorkflow = (id) => setRoute({ view: 'run', id });
   const openExecution = (executionId) => setRoute({ view: 'execution', executionId });
+  const activeId = route.view === 'run' ? route.id : undefined;
+  const { tabs, close } = useWorkflowTabs({
+    source: 'prod',
+    activeId,
+    onSelect: openWorkflow,
+    onCloseLast: () => setRoute({ view: 'home' })
+  });
 
   if (route.view === 'edit') {
     return (
@@ -145,7 +153,7 @@ export default function Flowwork() {
 
   const layoutProps = {
     workspace,
-    activeId: route.view === 'run' ? route.id : undefined,
+    activeId,
     activeTask: route.view === 'task' ? { domain: route.domain, task: route.task } : undefined,
     onOpenWorkflow: openWorkflow,
     onOpenHome: () => setRoute({ view: 'home' }),
@@ -164,6 +172,7 @@ export default function Flowwork() {
     <StyledWrapper>
       <div className="flowwork-content">
         <WorkflowLayout {...layoutProps}>
+          <WorkflowTabs tabs={tabs} activeId={activeId} onSelect={openWorkflow} onClose={close} />
           {route.view === 'run' ? (
             <WorkflowScreen
               id={route.id}

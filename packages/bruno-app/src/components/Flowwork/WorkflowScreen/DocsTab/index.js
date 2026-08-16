@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { IconPencil } from '@tabler/icons';
 import DocsEditor from 'components/Documentation/DocsEditor';
 
 import api from '../../api';
@@ -29,21 +30,35 @@ export function DocsTab({ workflow, editable, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // AI Assist(마크다운 모드)에 이 작업이 무슨 스텝으로 이뤄져 있는지 알려준다
+  // AI(생성·자동완성)에 이 작업이 무엇을 하는지 알려주는 문맥 —
+  // 이름·위치·설명에 더해 실제 스텝 순서와 입력값까지 넘겨야 쓸만한 문장이 나온다
   const docsContext = useMemo(
     () => ({
-      scope: 'folder',
+      scope: 'workflow',
       name: workflow.name,
-      collectionName: `${workflow.domain} / ${workflow.task}`,
-      folders: [],
-      requests: [...workflow.steps]
+      location: `${workflow.domain} / ${workflow.task}`,
+      description: workflow.description || '',
+      inputs: workflow.baseInputs.map((input) => ({ key: input.key, label: input.label, type: input.type })),
+      steps: [...workflow.steps]
         .sort((a, b) => a.order - b.order)
         .map((step) => {
           const { typeLabel, category } = stepTypeMeta(step);
-          return { name: step.name, method: typeLabel, url: category, type: 'http-request' };
+          return {
+            order: step.order,
+            name: step.name,
+            kind: typeLabel,
+            api: category,
+            branch: step.branchCondition ? '조건부 실행' : undefined,
+            asksUser: step.midInputs?.length ? step.midInputs.map((i) => i.label || i.key) : undefined
+          };
         })
     }),
     [workflow]
+  );
+
+  const autocomplete = useMemo(
+    () => ({ scriptType: 'docs', getContext: () => ({ docsContext }) }),
+    [docsContext]
   );
 
   const save = () => {
@@ -66,6 +81,7 @@ export function DocsTab({ workflow, editable, onSaved }) {
         <div className="wf-docs-bar">
           {editing ? (
             <>
+              <span className="muted hint">Tab으로 AI 제안 수락 · ⌘\로 직접 요청</span>
               <button
                 className="small"
                 onClick={() => {
@@ -81,19 +97,21 @@ export function DocsTab({ workflow, editable, onSaved }) {
             </>
           ) : (
             <button className="small" onClick={() => setEditing(true)}>
+              <IconPencil size={14} strokeWidth={1.5} />
               편집
             </button>
           )}
         </div>
       ) : null}
 
-      <div className="wf-docs-body">
+      <div className={`wf-docs-body ${editing ? 'editing' : ''}`}>
         <DocsEditor
           docs={editing ? draft : workflow.docs}
           onEdit={setDraft}
           onSave={save}
           isEditing={editing}
           docsContext={docsContext}
+          autocomplete={autocomplete}
           emptyPreviewContent={editable ? PLACEHOLDER : '아직 작성된 문서가 없습니다.'}
           onRequestEdit={() => editable && setEditing(true)}
           testId="flowwork-docs-editor"

@@ -109,9 +109,8 @@ export function ExecutionDetail({ executionId, onOpenWorkflow }) {
           </button>
         </div>
       ) : null}
-      <div className="exec-detail-head">
+      <div className="exec-detail-head" style={{ borderLeftColor: color }}>
         <div className="crumb">
-          <span className="task-bullet lg" style={{ background: color }} />
           {topWf ? (
             <>
               <span className="muted">{topWf.domain}</span>

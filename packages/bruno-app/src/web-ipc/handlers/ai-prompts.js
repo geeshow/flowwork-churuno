@@ -163,6 +163,51 @@ export const buildChatPrompt = ({ messages, allContent, contentType, requestCont
   return sections.join('\n\n');
 };
 
+// ---------------------------------------------------------------------------
+// 자동완성(고스트 텍스트)
+// ---------------------------------------------------------------------------
+// 커서 앞뒤를 그대로 주고 "이어질 것"만 받는다. 설명이 섞이면 편집기에 그대로
+// 박히므로 출력 형식을 강하게 못박고, 받은 뒤에도 한 번 더 걸러낸다.
+const AUTOCOMPLETE_SYSTEM_PROMPTS = {
+  docs: `You complete Markdown documentation inside an editor. The user is documenting an automated workflow that chains API calls.
+Continue the text at <CURSOR> in the same language, voice, and Markdown structure as the surrounding document.`,
+  default: `You complete JavaScript inside the Bruno API client's script editor.
+Continue the code at <CURSOR> in the same style as the surrounding code.
+${BRU_API_NOTES}`
+};
+
+const AUTOCOMPLETE_RULES = `Rules:
+- Output ONLY the text that replaces <CURSOR>. No explanations, no markdown fences, no repetition of the text before the cursor.
+- Complete at most a few lines — finish the current thought, not the whole document.
+- Return an empty response if nothing useful can be added.`;
+
+export const buildAutocompleteSystemPrompt = (scriptType) =>
+  `${AUTOCOMPLETE_SYSTEM_PROMPTS[scriptType] || AUTOCOMPLETE_SYSTEM_PROMPTS.default}\n${AUTOCOMPLETE_RULES}`;
+
+export const buildAutocompletePrompt = ({ prefix, suffix, requestContext, docsContext, variableNames }) => {
+  const sections = [];
+  const ctx = formatRequestContext(requestContext);
+  if (ctx) sections.push(`HTTP Request Context:\n${ctx}`);
+  if (docsContext) sections.push(`What is being documented:\n${truncate(JSON.stringify(docsContext, null, 1), 2000)}`);
+  if (Array.isArray(variableNames) && variableNames.length > 0) {
+    sections.push(`Known variable names: ${variableNames.slice(0, 60).join(', ')}`);
+  }
+  // 커서에서 먼 앞부분은 잘라낸다 — 완성에 쓰이는 것은 가까운 문맥이다
+  sections.push(`Document so far (the cursor is at <CURSOR>):\n${prefix.slice(-2000)}<CURSOR>${suffix.slice(0, 500)}`);
+  return sections.join('\n\n');
+};
+
+// 모델이 규칙을 어기고 붙이는 것들(코드펜스·머리말·커서 표식)을 걷어낸다
+export const sanitizeCompletion = (text, { prefix = '', maxLines = 6 } = {}) => {
+  if (!text) return '';
+  let out = stripCodeFences(text).replace(/<CURSOR>/g, '');
+  // 앞 문맥을 통째로 되풀이해 오면 이어지는 부분만 남긴다
+  const tail = prefix.slice(-200);
+  if (tail && out.startsWith(tail)) out = out.slice(tail.length);
+  const lines = out.split('\n').slice(0, maxLines);
+  return lines.join('\n').replace(/\s+$/, '');
+};
+
 export const stripCodeFences = (text) => {
   if (!text) return '';
   let out = text.trim();
