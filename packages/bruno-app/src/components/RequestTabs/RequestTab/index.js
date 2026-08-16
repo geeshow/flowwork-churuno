@@ -28,6 +28,7 @@ import { getInvalidVariableNames, invalidVariableNamesError } from 'utils/common
 import { isEnvironmentValidationError } from 'utils/environments';
 import ExampleTab from '../ExampleTab';
 import toast from 'react-hot-toast';
+import useRenameCollectionItem from 'hooks/useRenameCollectionItem';
 
 const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUid, hasOverflow, setHasOverflow, dropdownContainerRef }) => {
   const dispatch = useDispatch();
@@ -41,6 +42,8 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
   const [showConfirmEnvironmentClose, setShowConfirmEnvironmentClose] = useState(false);
   const [showConfirmGlobalEnvironmentClose, setShowConfirmGlobalEnvironmentClose] = useState(false);
   const [newRequestTarget, setNewRequestTarget] = useState(null);
+  const [isRenamingInline, setIsRenamingInline] = useState(false);
+  const inlineRenameActiveRef = useRef(false);
 
   const menuDropdownRef = useRef();
 
@@ -182,6 +185,40 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
     event.stopPropagation();
     event.preventDefault();
     setShowConfirmFolderClose(true);
+  };
+
+  // 탭 이름을 더블클릭하면 그 자리에서 이름을 고친다 (사이드바와 같은 규칙).
+  // 탭 전체의 더블클릭(미리보기 탭 고정)과 겹치지 않도록 이름 위에서 이벤트를 멈춘다.
+  const renameCollectionItem = useRenameCollectionItem(collection.uid, item);
+
+  const handleTabNameDoubleClick = (event) => {
+    event.stopPropagation();
+    inlineRenameActiveRef.current = true;
+    setIsRenamingInline(true);
+  };
+
+  // Enter와 blur 양쪽에서 불리므로, 한 번만 처리되도록 ref로 막는다
+  const submitInlineRename = async (newName) => {
+    if (!inlineRenameActiveRef.current) return;
+    inlineRenameActiveRef.current = false;
+    setIsRenamingInline(false);
+    try {
+      await renameCollectionItem(newName);
+    } catch (error) {
+      toast.error(error.message || 'An error occurred while renaming');
+    }
+  };
+
+  const handleInlineRenameKeyDown = (event) => {
+    event.stopPropagation();
+    // 한글 등 IME 조합 중의 Enter는 조합을 확정하는 키다 — 여기서 저장하면 마지막 글자가 잘린다
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === 'Enter') {
+      submitInlineRename(event.target.value);
+    } else if (event.key === 'Escape') {
+      inlineRenameActiveRef.current = false;
+      setIsRenamingInline(false);
+    }
   };
 
   const specialTabs = [
@@ -621,9 +658,27 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
         <span className="tab-method uppercase" style={{ color: getMethodColor(method) }}>
           {method}
         </span>
-        <span ref={tabNameRef} className="ml-1 tab-name" title={item.name}>
-          {item.name}
-        </span>
+        {isRenamingInline ? (
+          <input
+            type="text"
+            className="ml-1 tab-name-input"
+            defaultValue={item.name}
+            autoFocus
+            autoComplete="off"
+            spellCheck="false"
+            data-testid="tab-name-input"
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={handleInlineRenameKeyDown}
+            onBlur={(event) => submitInlineRename(event.target.value)}
+            onFocus={(event) => event.target.select()}
+          />
+        ) : (
+          <span ref={tabNameRef} className="ml-1 tab-name" title={item.name} onDoubleClick={handleTabNameDoubleClick}>
+            {item.name}
+          </span>
+        )}
         <RequestTabMenu
           menuDropdownRef={menuDropdownRef}
           tabLabelRef={tabLabelRef}

@@ -64,6 +64,7 @@ import ActionIcon from 'ui/ActionIcon';
 import MenuDropdown from 'ui/MenuDropdown';
 import { useSidebarAccordion } from 'components/Sidebar/SidebarAccordionContext';
 import useKeybinding from 'hooks/useKeybinding';
+import useRenameCollectionItem from 'hooks/useRenameCollectionItem';
 
 const CollectionItem = ({ item, collectionUid, collectionPathname, searchText }) => {
   const { dropdownContainerRef } = useSidebarAccordion();
@@ -103,6 +104,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
   const [itemInfoModalOpen, setItemInfoModalOpen] = useState(false);
   const [examplesExpanded, setExamplesExpanded] = useState(false);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
+  const [isRenamingInline, setIsRenamingInline] = useState(false);
   const hasSearchText = searchText && searchText?.trim()?.length;
   const itemIsCollapsed = hasSearchText ? false : item.collapsed;
   const isFolder = isItemAFolder(item);
@@ -139,8 +141,13 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
 
   const [dropType, setDropType] = useState(null); // 'above', 'inside' or 'below'
 
+  const inlineRenameActiveRef = useRef(false);
+  const renameCollectionItem = useRenameCollectionItem(collectionUid, item);
+
   const [{ isDragging }, drag, dragPreview] = useDrag({
     type: 'collection-item',
+    // 이름을 고치는 동안 드래그가 걸리면 입력 안에서 텍스트를 고를 수 없다
+    canDrag: () => !isRenamingInline,
     item: { ...item, sourceCollectionUid: collectionUid },
     collect: (monitor) => ({
       isDragging: monitor.isDragging()
@@ -491,6 +498,38 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
     dispatch(makeTabPermanent({ uid: tabUidForItem || item.uid }));
   };
 
+  // 이름을 더블클릭하면 그 자리에서 이름을 고친다. 행 전체의 더블클릭(탭 고정)과
+  // 겹치지 않도록 이름 위에서는 이벤트를 여기서 멈춘다.
+  const handleNameDoubleClick = (event) => {
+    event.stopPropagation();
+    inlineRenameActiveRef.current = true;
+    setIsRenamingInline(true);
+  };
+
+  // Enter와 blur 양쪽에서 불리므로, 한 번만 처리되도록 ref로 막는다
+  const submitInlineRename = async (newName) => {
+    if (!inlineRenameActiveRef.current) return;
+    inlineRenameActiveRef.current = false;
+    setIsRenamingInline(false);
+    try {
+      await renameCollectionItem(newName);
+    } catch (error) {
+      toast.error(error.message || 'An error occurred while renaming');
+    }
+  };
+
+  const handleInlineRenameKeyDown = (event) => {
+    event.stopPropagation(); // 사이드바 단축키가 입력을 가로채지 않도록
+    // 한글 등 IME 조합 중의 Enter는 조합을 확정하는 키다 — 여기서 저장하면 마지막 글자가 잘린다
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === 'Enter') {
+      submitInlineRename(event.target.value);
+    } else if (event.key === 'Escape') {
+      inlineRenameActiveRef.current = false;
+      setIsRenamingInline(false);
+    }
+  };
+
   // Sort items by their "seq" property.
   const sortItemsBySequence = (items = []) => {
     return items.sort((a, b) => a.seq - b.seq);
@@ -711,9 +750,26 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
 
             <div className="ml-1 flex w-full h-full items-center overflow-hidden">
               <CollectionItemIcon item={item} />
-              <span className="item-name" title={item.name}>
-                {item.name}
-              </span>
+              {isRenamingInline ? (
+                <input
+                  type="text"
+                  className="item-name-input"
+                  defaultValue={item.name}
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck="false"
+                  data-testid="collection-item-name-input"
+                  onClick={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  onKeyDown={handleInlineRenameKeyDown}
+                  onBlur={(event) => submitInlineRename(event.target.value)}
+                  onFocus={(event) => event.target.select()}
+                />
+              ) : (
+                <span className="item-name" title={item.name} onDoubleClick={handleNameDoubleClick}>
+                  {item.name}
+                </span>
+              )}
               {hasExamples && (
                 <sup className="ml-1 example-count-badge" title={`${item.examples.length} example${item.examples.length > 1 ? 's' : ''}`} data-testid="example-count-badge">
                   {item.examples.length}

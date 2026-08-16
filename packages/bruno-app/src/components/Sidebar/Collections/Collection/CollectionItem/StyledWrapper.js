@@ -99,6 +99,17 @@ const Wrapper = styled.div`
       overflow: hidden;
     }
 
+    .item-name-input {
+      width: 100%;
+      min-width: 0;
+      padding: 0 2px;
+      background: ${(props) => props.theme.input.bg};
+      border: 1px solid ${(props) => props.theme.input.focusBorder};
+      border-radius: ${(props) => props.theme.border.radius.base};
+      color: ${(props) => props.theme.text};
+      outline: none;
+    }
+
     .example-count-badge {
       font-size: 10px;
       font-weight: 500;

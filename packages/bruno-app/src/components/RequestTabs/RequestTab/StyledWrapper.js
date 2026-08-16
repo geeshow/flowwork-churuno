@@ -30,6 +30,18 @@ const StyledWrapper = styled.div`
     padding-right: 2px;
   }
 
+  .tab-name-input {
+    width: 10ch;
+    min-width: 0;
+    padding: 0 2px;
+    font-size: 0.8125rem;
+    background: ${(props) => props.theme.input.bg};
+    border: 1px solid ${(props) => props.theme.input.focusBorder};
+    border-radius: ${(props) => props.theme.border.radius.base};
+    color: ${(props) => props.theme.text};
+    outline: none;
+  }
+
   .example-icon {
     color: ${(props) => props.theme.requestTabs.example.iconColor};
   }

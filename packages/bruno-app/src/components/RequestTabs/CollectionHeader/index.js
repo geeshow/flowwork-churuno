@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  IconRefresh,
   IconCategory,
   IconBox,
   IconChevronDown,
@@ -496,6 +497,20 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
           ) : (
             <div className="flex flex-row justify-center items-center gap-x-1">
               <DisplayIcon size={18} strokeWidth={1.5} className="cursor-pointer display-icon" onClick={handleDisplayIconClick} />
+              {/* 컬렉션을 보고 있을 때만 — 워크스페이스 홈으로 한 번에 돌아가는 경로 */}
+              {!isScratchCollection && currentWorkspace && (
+                <span className="workspace-crumb">
+                  <button
+                    className="crumb-link"
+                    data-testid="workspace-breadcrumb"
+                    title={`${currentWorkspace.name} 워크스페이스 홈으로`}
+                    onClick={() => handleSwitchToWorkspace(currentWorkspace.uid)}
+                  >
+                    {currentWorkspace.name || 'Untitled Workspace'}
+                  </button>
+                  <span className="crumb-separator">/</span>
+                </span>
+              )}
               <Dropdown
                 placement="bottom-start"
                 onCreate={onSwitcherCreate}
@@ -641,6 +656,20 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
               {/* JS Sandbox Mode — Electron 전용. 웹 모드는 요청 스크립트를
                   실행하지 않아 safe/developer 선택이 무의미하다. */}
               {!isWebMode() && <JsSandboxMode collection={collection} />}
+              {/* main 반영 — 워크스페이스 홈의 반영 목록으로. 기본 워크스페이스(main)는
+                  반영의 대상이라 보낼 곳이 없다. */}
+              {isWebMode() && currentWorkspace?.type === 'workspace' && (
+                <ToolHint text="main 반영" toolhintId="MainReleaseToolhintId" place="bottom">
+                  <ActionIcon
+                    onClick={() => handleSwitchToWorkspace(currentWorkspace.uid)}
+                    aria-label="main 반영"
+                    size="sm"
+                    data-testid="main-release-shortcut"
+                  >
+                    <IconRefresh size={16} strokeWidth={1.5} />
+                  </ActionIcon>
+                </ToolHint>
+              )}
               {/* Overflow menu */}
               <MenuDropdown items={overflowMenuItems} placement="bottom-end" data-testid="more-actions">
                 <ActionIcon label="More actions" size="sm" style={{ border: `1px solid ${theme.border.border1}`, borderRadius: theme.border.radius.base, width: 24, marginRight: 4, marginLeft: 4 }}>

@@ -7,6 +7,34 @@ const StyledWrapper = styled.div`
     gap: 4px;
   }
 
+  .workspace-crumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+
+    .crumb-link {
+      max-width: 124px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: ${(props) => props.theme.colors.text.muted};
+      cursor: pointer;
+
+      &:hover {
+        color: ${(props) => props.theme.text};
+        text-decoration: underline;
+      }
+    }
+
+    .crumb-separator {
+      color: ${(props) => props.theme.colors.text.muted};
+    }
+  }
+
   .header-actions {
     min-width: 0;
     overflow-x: auto;

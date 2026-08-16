@@ -2,17 +2,16 @@ import React, { useRef, useEffect } from 'react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import Modal from 'components/Modal';
-import { useDispatch } from 'react-redux';
 import { isItemAFolder } from 'utils/tabs';
-import { renameItem, saveRequest, closeTabs } from 'providers/ReduxStore/slices/collections/actions';
+import useRenameCollectionItem from 'hooks/useRenameCollectionItem';
 import toast from 'react-hot-toast';
 import Portal from 'components/Portal';
 import Button from 'ui/Button';
 
 const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
-  const dispatch = useDispatch();
   const isFolder = isItemAFolder(item);
   const inputRef = useRef();
+  const renameCollectionItem = useRenameCollectionItem(collectionUid, item);
 
   const formik = useFormik({
     enableReinitialize: true,
@@ -26,19 +25,8 @@ const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
         .required('name is required')
     }),
     onSubmit: async (values) => {
-      // if there is unsaved changes in the request,
-      // save them before renaming the request
-      if (item.name === values.name) {
-        return;
-      }
-      if (!isFolder && item.draft) {
-        await dispatch(saveRequest(item.uid, collectionUid, true));
-      }
       try {
-        await dispatch(renameItem({ itemUid: item.uid, collectionUid, newName: values.name }));
-        if (isFolder) {
-          dispatch(closeTabs({ tabUids: [item.uid] }));
-        }
+        await renameCollectionItem(values.name);
         onClose();
       } catch (error) {
         toast.error(error.message || 'An error occurred while renaming');
