@@ -209,7 +209,7 @@ function EditHome({ st, files, loaded, onAction }) {
 
   return (
     <section className="edit-home">
-      <div className="panel">
+      <div className="panel work-panel">
         <div className="panel-head">
           <h3>
             변경 목록 <span className="hint">(운영 {st?.prod_branch ?? 'main'} 대비 · {files.length}건)</span>

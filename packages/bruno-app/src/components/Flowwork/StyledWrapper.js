@@ -507,6 +507,14 @@ const StyledWrapper = styled.div`
     padding: 14px 16px;
     margin-bottom: 14px;
   }
+  /* 손댈 것이 있는 영역 — 아래 안내(.guide-panel)와 확실히 갈라 놓는다 */
+  .panel.work-panel {
+    border-color: ${(props) => props.theme.border.border2};
+    border-left: 3px solid ${(props) => props.theme.colors.text.green};
+    background: ${(props) => props.theme.background.surface1};
+    box-shadow: ${(props) => props.theme.shadow.sm};
+    margin-bottom: 20px;
+  }
   .panel-head {
     display: flex;
     align-items: center;
@@ -1208,18 +1216,43 @@ const StyledWrapper = styled.div`
     white-space: nowrap;
   }
 
-  /* ---- 홈 안내 (Bruno API 연계 · 브랜치 전략) ---- */
+  /* ---- 홈 안내 (Bruno API 연계 · 브랜치 전략) ----
+     읽을거리라서, 손댈 것이 있는 변경 목록(.work-panel)과 섞이지 않도록
+     카드 느낌을 걷어내고 한 단계 가라앉힌다. */
   .home-guide {
     display: flex;
     flex-direction: column;
     gap: 14px;
     max-width: 880px;
   }
+  .guide-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: ${(props) => props.theme.font.size.xs};
+    color: ${(props) => props.theme.colors.text.muted};
+
+    &::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: ${(props) => props.theme.border.border1};
+    }
+  }
   .guide-hero h2 {
     margin: 0 0 4px;
   }
-  .guide-panel h3 {
-    margin-top: 0;
+  .panel.guide-panel {
+    border-color: transparent;
+    background: transparent;
+    padding: 0 2px;
+    color: ${(props) => props.theme.colors.text.muted};
+
+    h3 {
+      margin-top: 0;
+      color: ${(props) => props.theme.text};
+    }
   }
 
   .guide-pipeline {

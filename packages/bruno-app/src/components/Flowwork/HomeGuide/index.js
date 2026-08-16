@@ -93,6 +93,8 @@ function ProcessGraph() {
 export function HomeGuide() {
   return (
     <>
+      {/* 위쪽 변경 목록은 손댈 것, 여기부터는 읽을 것 — 경계를 분명히 한다 */}
+      <div className="guide-heading">도움말</div>
       <div className="panel guide-panel">
         <h3>Bruno API와 어떻게 연결되나요?</h3>
         <p className="muted">

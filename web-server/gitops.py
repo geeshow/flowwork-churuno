@@ -189,6 +189,10 @@ def pending_for_prod() -> dict[str, Any]:
     changed = _diff_names(prod_branch(), EDIT_BASE_BRANCH, cwd=REPO_DIR)
     files = []
     for path, change in sorted(changed.items()):
+        # 컬렉션 쪽 변경(bruno 워크스페이스가 main에 반영한 .yml 등)은 이 흐름의
+        # 대상이 아니다 — 목록에 두면 운영 반영을 눌러도 거부당한다
+        if not _is_editable_path(path):
+            continue
         content = _read_blob(EDIT_BASE_BRANCH, path, cwd=REPO_DIR)
         if content is None:  # 편집 브랜치에서 삭제된 파일은 main 기준으로 요약
             content = _read_blob(prod_branch(), path, cwd=REPO_DIR)
@@ -198,13 +202,18 @@ def pending_for_prod() -> dict[str, Any]:
     return {"prod_branch": prod_branch(), "base_branch": EDIT_BASE_BRANCH, "files": files}
 
 
-def _check_editable_path(path: str) -> str:
+def _is_editable_path(path: str) -> bool:
+    """이 흐름이 다루는 워크플로우 데이터인지 (컬렉션 파일 등은 대상 밖)."""
     parts = Path(path).parts
     if ".." in parts:
-        raise GitError(f"허용되지 않는 경로입니다: {path!r}")
-    if path in EDITABLE_FILES or (parts and parts[0] in EDITABLE_TOP_PATHS):
-        return path
-    raise GitError(f"워크플로우 데이터 밖의 경로는 처리할 수 없습니다: {path!r}")
+        return False
+    return path in EDITABLE_FILES or bool(parts) and parts[0] in EDITABLE_TOP_PATHS
+
+
+def _check_editable_path(path: str) -> str:
+    if not _is_editable_path(path):
+        raise GitError(f"워크플로우 데이터 밖의 경로는 처리할 수 없습니다: {path!r}")
+    return path
 
 
 # ---------------------------------------------------------------------------
