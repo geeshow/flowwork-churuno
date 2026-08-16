@@ -27,7 +27,7 @@ const ApiDiff = ({ workspaceName, path, mainBranch }) => {
   useEffect(() => {
     let alive = true;
     serverApi
-      .workspaceApiDiff(workspaceName, path)
+      .workspaceChangeDiff(workspaceName, path)
       .then((result) => alive && setDiff(result.diff))
       .catch((e) => alive && setError(e.message));
     return () => {

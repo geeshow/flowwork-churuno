@@ -123,6 +123,12 @@ const StyledWrapper = styled.div`
     &.method-patch {
       color: ${(props) => props.theme.request.methods.patch};
     }
+
+    /* 요청이 아닌 항목(폴더·컬렉션·환경)의 종류 라벨 */
+    &.kind-label {
+      color: ${(props) => props.theme.colors.text.muted};
+      text-transform: none;
+    }
   }
 
   /* 긴 이름·경로가 줄을 접지 않고 말줄임되도록 (min-width: 0 이 없으면 flex가 안 줄어든다) */

@@ -52,12 +52,12 @@ const serverApi = {
   createWorkspace: (name) => post('/api/workspaces', { name }),
   cloneWorkspace: (source, name) => post('/api/workspaces/clone', { source, name }),
   deleteWorkspace: (name) => request(`/api/workspaces/${encodeURIComponent(name)}`, { method: 'DELETE' }),
-  workspacePendingApis: (name) => get(`/api/workspaces/${encodeURIComponent(name)}/pending-apis`),
-  workspaceReleaseApis: (name, paths) => post(`/api/workspaces/${encodeURIComponent(name)}/release-apis`, { paths }),
-  workspaceRevertApis: (name, paths) => post(`/api/workspaces/${encodeURIComponent(name)}/revert-apis`, { paths }),
-  workspaceApiDiff: (name, path) => get(`/api/workspaces/${encodeURIComponent(name)}/api-diff`, { path }),
-  workspaceIgnoreApis: (name, paths, ignored) =>
-    post(`/api/workspaces/${encodeURIComponent(name)}/ignore-apis`, { paths, ignored }),
+  workspacePendingChanges: (name) => get(`/api/workspaces/${encodeURIComponent(name)}/pending-changes`),
+  workspaceReleaseChanges: (name, paths) => post(`/api/workspaces/${encodeURIComponent(name)}/release-changes`, { paths }),
+  workspaceRevertChanges: (name, paths) => post(`/api/workspaces/${encodeURIComponent(name)}/revert-changes`, { paths }),
+  workspaceChangeDiff: (name, path) => get(`/api/workspaces/${encodeURIComponent(name)}/change-diff`, { path }),
+  workspaceIgnoreChanges: (name, paths, ignored) =>
+    post(`/api/workspaces/${encodeURIComponent(name)}/ignore-changes`, { paths, ignored }),
   listCollections: (root) => get('/api/collections', root ? { root } : undefined),
   fsTree: (path) => get('/api/fs/tree', { path }),
   fsRead: (path) => get('/api/fs/read', { path }),

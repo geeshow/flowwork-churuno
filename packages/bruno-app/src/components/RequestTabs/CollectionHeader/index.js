@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  IconRefresh,
+  IconUpload,
   IconCategory,
   IconBox,
   IconChevronDown,
@@ -666,7 +666,7 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
                     size="sm"
                     data-testid="main-release-shortcut"
                   >
-                    <IconRefresh size={16} strokeWidth={1.5} />
+                    <IconUpload size={16} strokeWidth={1.5} />
                   </ActionIcon>
                 </ToolHint>
               )}
