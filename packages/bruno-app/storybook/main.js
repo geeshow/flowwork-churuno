@@ -18,15 +18,16 @@ const config = {
     // Add path aliases to match jsconfig.json
     config.resolve.alias = {
       ...config.resolve.alias,
-      assets: path.resolve(__dirname, '../src/assets'),
-      ui: path.resolve(__dirname, '../src/ui'),
-      components: path.resolve(__dirname, '../src/components'),
-      hooks: path.resolve(__dirname, '../src/hooks'),
-      themes: path.resolve(__dirname, '../src/themes'),
-      api: path.resolve(__dirname, '../src/api'),
-      pageComponents: path.resolve(__dirname, '../src/pageComponents'),
-      providers: path.resolve(__dirname, '../src/providers'),
-      utils: path.resolve(__dirname, '../src/utils')
+      'assets': path.resolve(__dirname, '../src/assets'),
+      'ui': path.resolve(__dirname, '../src/ui'),
+      'components': path.resolve(__dirname, '../src/components'),
+      'hooks': path.resolve(__dirname, '../src/hooks'),
+      'themes': path.resolve(__dirname, '../src/themes'),
+      'api': path.resolve(__dirname, '../src/api'),
+      'pageComponents': path.resolve(__dirname, '../src/pageComponents'),
+      'providers': path.resolve(__dirname, '../src/providers'),
+      'utils': path.resolve(__dirname, '../src/utils'),
+      '@tippyjs/react$': path.resolve(__dirname, '../src/vendor/tippyjs-react/index.js')
     };
 
     // Storybook's default CSS rule only runs css-loader + style-loader, so the

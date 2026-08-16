@@ -39,7 +39,10 @@ export default defineConfig({
       'node:path': 'path',
       // bruno-lang requires ohm-js via CJS; the ESM build the bundler would
       // otherwise pick has no default-interop `grammar` property.
-      'ohm-js$': 'ohm-js/index.js'
+      'ohm-js$': 'ohm-js/index.js',
+      // @tippyjs/react reads `children.ref`, which React 19 deprecated in
+      // favor of `children.props.ref` — route to the vendored, fixed copy.
+      '@tippyjs/react$': './src/vendor/tippyjs-react/index.js'
     },
     exclude: [
       '**/test-utils/**',
