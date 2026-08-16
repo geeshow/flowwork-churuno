@@ -96,25 +96,20 @@ const Docs = ({ collection }) => {
 export default Docs;
 
 const documentationPlaceholder = `
-Welcome to your collection documentation! This space is designed to help you document your API collection effectively.
+아직 작성된 문서가 없습니다. 이 공간에 이 컬렉션의 목적과 사용법을 정리해 두면, 함께 작업하는 누구나 API를 빠르게 이해할 수 있습니다.
 
-## Overview
-Use this section to provide a high-level overview of your collection. You can describe:
-- The purpose of these API endpoints
-- Key features and functionalities
-- Target audience or users
+## 개요
+- 이 컬렉션이 다루는 서비스·도메인
+- 주요 API 호출 흐름 (어떤 순서로, 어떤 상황에서 호출하는지)
+- 담당자와 관련 문서 링크
 
-## Best Practices
-- Keep documentation up to date
-- Include request/response examples
-- Document error scenarios
-- Add relevant links and references
+## 작성 가이드
+- 요청/응답 예시를 함께 남겨 주세요
+- 오류 상황과 대처 방법을 기록해 주세요
+- 문서는 저장 즉시 기록되어 팀과 공유됩니다
 
-## Markdown Support
-This documentation supports Markdown formatting! You can use:
-- **Bold** and *italic* text
-- \`code blocks\` and syntax highlighting
-- Tables and lists
-- [Links](https://usebruno.com)
-- And more!
+## 마크다운 지원
+- **굵게** / *기울임*
+- \`코드 블록\`과 문법 강조
+- 표, 목록, [링크](https://usebruno.com)
 `;

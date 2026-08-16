@@ -58,6 +58,7 @@ const Documentation = ({ item, collection }) => {
         collectionPath={collection?.pathname}
         requestContext={requestContext}
         variables={aiVariables}
+        emptyPreviewContent={documentationPlaceholder}
         onRequestEdit={() => setEditing(true)}
         initialScroll={scroll}
         onScroll={setScroll}
@@ -68,3 +69,14 @@ const Documentation = ({ item, collection }) => {
 };
 
 export default Documentation;
+
+const documentationPlaceholder = `
+아직 작성된 문서가 없습니다. 이 요청의 목적과 사용법을 정리해 두면, 함께 작업하는 누구나 API를 빠르게 이해할 수 있습니다.
+
+## 이런 내용을 담아 주세요
+- 이 요청이 하는 일과 호출하는 상황
+- 주요 파라미터·헤더 설명
+- 요청/응답 예시와 오류 상황별 대처 방법
+
+더블클릭하면 바로 작성을 시작할 수 있습니다. 문서는 저장 즉시 기록되어 팀과 공유됩니다.
+`;
