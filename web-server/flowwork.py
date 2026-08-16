@@ -24,7 +24,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Optional
 
@@ -47,6 +49,10 @@ _ALLOWED_HOST_PREFIXES = [
 
 # 카탈로그 대상에서 제외되는 최상위 디렉토리 (환경/워크플로우/저장소 메타)
 _NON_DEPARTMENT_DIRS = {"environments", "workflows", "node_modules", ".git", ".bruno-history", ".transient"}
+
+# 빈 업무(폴더)를 남기기 위한 표식 — git이 빈 디렉토리를 기록하지 않는다.
+# 확장자를 붙이지 않아 워크플로우를 찾는 `*.json` 조회에 걸리지 않는다.
+FOLDER_MARKER = ".folder"
 
 _HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 # 경로 traversal 방지: 단어문자(한글 포함) + 하이픈만
@@ -345,6 +351,11 @@ class PathsBody(BaseModel):
     paths: list[str]
 
 
+class TaskBody(BaseModel):
+    domain: str
+    task: str
+
+
 def catalog_entry_id(department: str, collection_file: str, item_path: list[str], name: str) -> str:
     key = "/".join([department, collection_file, *item_path, name])
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
@@ -540,6 +551,113 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         if not workflows_dir.exists():
             return None
         return next(workflows_dir.glob(f"*/*/{_safe(workflow_id)}.json"), None)
+
+    # -- 업무(폴더) ----------------------------------------------------------
+    #    워크플로우가 없는 빈 업무도 남기려면 표식이 필요하다. git은 빈 디렉토리를
+    #    기록하지 않기 때문이다. 확장자를 붙이지 않아 `*.json` 조회에 걸리지 않는다.
+    def _task_dir(domain: str, task: str, source: str, branch: Optional[str]) -> Path:
+        return _workflows_dir(source, branch) / _safe(domain) / _safe(task)
+
+    def list_task_dirs(source: str, branch: Optional[str]) -> list[tuple[str, str]]:
+        workflows_dir = _workflows_dir(source, branch)
+        if not workflows_dir.is_dir():
+            return []
+        tasks = []
+        for domain_dir in sorted(workflows_dir.iterdir()):
+            if not domain_dir.is_dir():
+                continue
+            for task_dir in sorted(domain_dir.iterdir()):
+                if task_dir.is_dir():
+                    tasks.append((domain_dir.name, task_dir.name))
+        return tasks
+
+    @router.get("/tasks")
+    def list_tasks(source: str = "prod", branch: Optional[str] = None) -> dict:
+        """업무(폴더) 목록 — 워크플로우가 없는 빈 업무도 포함한다."""
+        return {"tasks": [{"domain": d, "task": t} for d, t in list_task_dirs(source, branch)]}
+
+    @router.post("/tasks")
+    def create_task(body: TaskBody, source: str = "edit", branch: Optional[str] = None) -> dict:
+        _check_editable(source)
+        path = _task_dir(body.domain, body.task, source, branch)
+        if path.exists():
+            raise HTTPException(status_code=409, detail=f"'{body.domain}'에 이미 '{body.task}' 업무가 있습니다.")
+        path.mkdir(parents=True)
+        (path / FOLDER_MARKER).write_text("", encoding="utf-8")
+        _autocommit(f"flowwork: 업무 '{body.domain}/{body.task}' 추가", branch)
+        return {"status": "created", "domain": body.domain, "task": body.task}
+
+    @router.put("/tasks/{domain}/{task}")
+    def rename_task(
+        domain: str, task: str, body: TaskBody, source: str = "edit", branch: Optional[str] = None
+    ) -> dict:
+        """업무 이름·도메인 변경 — 폴더를 옮기고 안의 워크플로우 위치 정보도 맞춘다."""
+        _check_editable(source)
+        old = _task_dir(domain, task, source, branch)
+        if not old.is_dir():
+            raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
+        new = _task_dir(body.domain, body.task, source, branch)
+        if new.resolve() == old.resolve():
+            return {"status": "unchanged", "domain": body.domain, "task": body.task}
+        if new.exists():
+            raise HTTPException(status_code=409, detail=f"'{body.domain}'에 이미 '{body.task}' 업무가 있습니다.")
+        new.parent.mkdir(parents=True, exist_ok=True)
+        old.rename(new)
+        for path in sorted(new.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            data["domain"], data["task"] = body.domain, body.task
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _autocommit(f"flowwork: 업무 '{domain}/{task}' → '{body.domain}/{body.task}'", branch)
+        return {"status": "renamed", "domain": body.domain, "task": body.task}
+
+    @router.post("/tasks/{domain}/{task}/copy")
+    def copy_task(
+        domain: str, task: str, body: TaskBody, source: str = "edit", branch: Optional[str] = None
+    ) -> dict:
+        """업무를 통째로 복제한다 — 안의 워크플로우는 새 id로 복사된다."""
+        _check_editable(source)
+        old = _task_dir(domain, task, source, branch)
+        if not old.is_dir():
+            raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
+        new = _task_dir(body.domain, body.task, source, branch)
+        if new.exists():
+            raise HTTPException(status_code=409, detail=f"'{body.domain}'에 이미 '{body.task}' 업무가 있습니다.")
+        new.mkdir(parents=True)
+        (new / FOLDER_MARKER).write_text("", encoding="utf-8")
+        copied = 0
+        for path in sorted(old.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            data["id"] = uuid.uuid4().hex[:12]  # 같은 id가 둘이면 조회가 엉킨다
+            data["domain"], data["task"] = body.domain, body.task
+            (new / f"{data['id']}.json").write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            copied += 1
+        _autocommit(f"flowwork: 업무 '{domain}/{task}' 복제 → '{body.domain}/{body.task}'", branch)
+        return {"status": "copied", "domain": body.domain, "task": body.task, "workflows": copied}
+
+    @router.delete("/tasks/{domain}/{task}")
+    def delete_task(domain: str, task: str, source: str = "edit", branch: Optional[str] = None) -> dict:
+        """빈 업무만 지운다 — 워크플로우가 남아 있으면 그쪽부터 지우게 안내한다."""
+        _check_editable(source)
+        path = _task_dir(domain, task, source, branch)
+        if not path.is_dir():
+            raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
+        remaining = list(path.glob("*.json"))
+        if remaining:
+            raise HTTPException(
+                status_code=409,
+                detail=f"워크플로우 {len(remaining)}건이 남아 있습니다. 먼저 삭제한 뒤 다시 시도하세요.",
+            )
+        shutil.rmtree(path)
+        _autocommit(f"flowwork: 업무 '{domain}/{task}' 삭제", branch)
+        return {"status": "deleted"}
 
     @router.get("/workflows")
     def list_workflows(source: str = "prod", branch: Optional[str] = None) -> dict:

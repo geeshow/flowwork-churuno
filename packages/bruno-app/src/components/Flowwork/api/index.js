@@ -46,6 +46,21 @@ const put = (path, body) => request(path, { method: 'PUT', body: JSON.stringify(
 const src = (source) => (source === 'edit' ? '?source=edit' : '');
 
 const api = {
+  listTasks: (source) => get(`/api/flowwork/tasks${src(source)}`).then((r) => r.tasks),
+
+  createTask: (domain, task) => post('/api/flowwork/tasks?source=edit', { domain, task }),
+
+  renameTask: (domain, task, next) =>
+    put(`/api/flowwork/tasks/${encodeURIComponent(domain)}/${encodeURIComponent(task)}?source=edit`, next),
+
+  copyTask: (domain, task, next) =>
+    post(`/api/flowwork/tasks/${encodeURIComponent(domain)}/${encodeURIComponent(task)}/copy?source=edit`, next),
+
+  deleteTask: (domain, task) =>
+    request(`/api/flowwork/tasks/${encodeURIComponent(domain)}/${encodeURIComponent(task)}?source=edit`, {
+      method: 'DELETE'
+    }),
+
   listWorkflows: (source) => get(`/api/flowwork/workflows${src(source)}`).then((r) => r.workflows),
   getWorkflow: (id, source) => get(`/api/flowwork/workflows/${encodeURIComponent(id)}${src(source)}`),
   // 등록/수정/삭제는 편집 worktree에서만 가능 (서버가 prod 쓰기를 403으로 거부)

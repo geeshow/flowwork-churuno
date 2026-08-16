@@ -41,10 +41,12 @@ export function WorkflowLayout({
   onOpenHome,
   taskBadge,
   domainBadge,
+  taskMenu,
   children
 }) {
   const dispatch = useDispatch();
   const [rows, setRows] = useState(null);
+  const [taskDirs, setTaskDirs] = useState([]);
   const [colors, setColors] = useState({});
   const [error, setError] = useState(null);
   // 타이틀바의 사이드바 토글·폭 조절을 Bruno 화면과 동일한 상태로 따른다
@@ -104,11 +106,12 @@ export function WorkflowLayout({
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.listWorkflows(source), api.getDomainColors(source)])
-      .then(([r, c]) => {
+    Promise.all([api.listWorkflows(source), api.getDomainColors(source), api.listTasks(source)])
+      .then(([r, c, t]) => {
         if (!alive) return;
         setRows(r);
         setColors(c);
+        setTaskDirs(t);
         setError(null);
       })
       .catch((e) => alive && setError(e.message));
@@ -128,22 +131,23 @@ export function WorkflowLayout({
     setOpenDomains((cur) => (cur.has(hlDomain) ? cur : new Set(cur).add(hlDomain)));
   }, [hlDomain]);
 
-  // 도메인 → 업무(정렬) 트리
+  // 도메인 → 업무(정렬) 트리. 워크플로우가 없는 빈 업무도 서버의 폴더 목록으로 채운다.
   const tree = useMemo(() => {
     const byDomain = new Map();
-    for (const d of GROUP_ORDER) byDomain.set(d, []);
-    for (const w of rows ?? []) {
-      const d = w.domain.normalize('NFC');
-      const list = byDomain.get(d) ?? [];
-      list.push(w);
-      byDomain.set(d, list);
-    }
-    return orderGroups([...byDomain.keys()]).map((domain) => {
-      const items = byDomain.get(domain);
-      const tasks = [...new Set(items.map((w) => w.task.normalize('NFC')))].sort((a, b) => a.localeCompare(b, 'ko'));
-      return { domain, tasks };
-    });
-  }, [rows]);
+    for (const d of GROUP_ORDER) byDomain.set(d, new Set());
+    const add = (domain, task) => {
+      const d = domain.normalize('NFC');
+      const tasks = byDomain.get(d) ?? new Set();
+      tasks.add(task.normalize('NFC'));
+      byDomain.set(d, tasks);
+    };
+    for (const w of rows ?? []) add(w.domain, w.task);
+    for (const t of taskDirs) add(t.domain, t.task);
+    return orderGroups([...byDomain.keys()]).map((domain) => ({
+      domain,
+      tasks: [...byDomain.get(domain)].sort((a, b) => a.localeCompare(b, 'ko'))
+    }));
+  }, [rows, taskDirs]);
 
   return (
     <div className="workspace">
@@ -198,7 +202,7 @@ export function WorkflowLayout({
                               {tasks.map((task) => {
                                 const on = hlDomain === domain && hlTask === task;
                                 return (
-                                  <li key={task}>
+                                  <li key={task} className="task-row">
                                     <button
                                       className={`task-item ${on ? 'active' : ''}`}
                                       onClick={() => onOpenTask(domain, task)}
@@ -207,6 +211,7 @@ export function WorkflowLayout({
                                       <span className="task-text">{task}</span>
                                       {taskBadge?.(domain, task)}
                                     </button>
+                                    {taskMenu?.(domain, task)}
                                   </li>
                                 );
                               })}

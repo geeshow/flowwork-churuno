@@ -287,11 +287,43 @@ const StyledWrapper = styled.div`
     padding: 4px 0 8px 26px;
     font-size: ${(props) => props.theme.font.size.xs};
   }
+  /* Bruno 사이드바처럼 hover·활성일 때만 "..."이 나타난다 */
+  .task-row {
+    display: flex;
+    align-items: center;
+    border-radius: ${(props) => props.theme.border.radius.base};
+
+    &:hover {
+      background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
+    }
+    &:hover .task-menu-trigger,
+    .task-menu-trigger.open {
+      opacity: 1;
+    }
+  }
+
+  .task-menu-trigger {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 2px 4px;
+    margin-right: 4px;
+    border-radius: ${(props) => props.theme.border.radius.sm};
+    color: ${(props) => props.theme.colors.text.muted};
+    opacity: 0;
+
+    &:hover {
+      color: ${(props) => props.theme.text};
+      background: ${(props) => props.theme.background.surface1};
+    }
+  }
+
   .task-item {
     display: flex;
     align-items: center;
     gap: 7px;
     width: 100%;
+    min-width: 0;
     padding: 5px 8px;
     border-radius: ${(props) => props.theme.border.radius.base};
     font-size: ${(props) => props.theme.font.size.sm};
@@ -304,6 +336,76 @@ const StyledWrapper = styled.div`
       background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
     }
   }
+  /* 사이드바가 스크롤되므로 메뉴는 화면 좌표로 띄운다 */
+  .task-menu-popup {
+    position: fixed;
+    z-index: 30;
+    min-width: 168px;
+    padding: 4px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.md};
+    background: ${(props) => props.theme.background.surface0};
+    box-shadow: ${(props) => props.theme.shadow.md};
+  }
+
+  .task-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: ${(props) => props.theme.border.radius.base};
+    font-size: ${(props) => props.theme.font.size.sm};
+    text-align: left;
+
+    &:hover:not(:disabled) {
+      background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
+    }
+    &.danger {
+      color: ${(props) => props.theme.colors.text.danger};
+    }
+    &:disabled {
+      color: ${(props) => props.theme.colors.text.muted};
+      cursor: not-allowed;
+    }
+  }
+
+  /* 이름 입력 대화상자 (window.prompt 대체) */
+  .name-prompt-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .name-prompt {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 320px;
+    padding: 16px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.md};
+    background: ${(props) => props.theme.background.surface0};
+    box-shadow: ${(props) => props.theme.shadow.lg};
+
+    h4 {
+      margin: 0;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+  }
+  .name-prompt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
   .task-bullet {
     width: 7px;
     height: 7px;
@@ -550,6 +652,14 @@ const StyledWrapper = styled.div`
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  /* 바꿀 수 없는 값(예: 폴더 안에서 만들 때의 위치) — 입력칸과 높이를 맞춘다 */
+  .field-fixed {
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    font-size: ${(props) => props.theme.font.size.sm};
+    color: ${(props) => props.theme.colors.text.muted};
   }
   .field {
     display: flex;

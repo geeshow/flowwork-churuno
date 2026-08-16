@@ -4,3 +4,7 @@ export const executionHash = (executionId) => `#/flowwork/executions/${encodeURI
 
 export const executionShareUrl = (executionId) =>
   `${window.location.origin}${window.location.pathname}${executionHash(executionId)}`;
+
+// 업무 화면 공유 링크 — 사용 모드(운영) 기준 주소
+export const taskShareUrl = (domain, task) =>
+  `${window.location.origin}${window.location.pathname}#/flowwork/t/${encodeURIComponent(domain)}/${encodeURIComponent(task)}`;

@@ -6,6 +6,9 @@ import api from '../api';
 import ConfirmButton from '../ConfirmButton';
 import { colorForDomain } from '../domainPalette';
 import HomeGuide from '../HomeGuide';
+import NamePrompt from '../NamePrompt';
+import TaskMenu from '../TaskMenu';
+import { taskShareUrl } from '../shareUrl';
 import WorkflowEditor from '../editor/WorkflowEditor';
 import WorkflowLayout from '../WorkflowLayout';
 import WorkflowRunner from '../WorkflowRunner';
@@ -26,6 +29,9 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [refresh, setRefresh] = useState(0);
+  // 업무 Copy/Paste용 앱 내 클립보드 (브라우저 클립보드는 텍스트만 담는다)
+  const [clipboard, setClipboard] = useState(null);
+  const [prompt, setPrompt] = useState(null);
   const bump = useCallback(() => setRefresh((n) => n + 1), []);
 
   useEffect(() => {
@@ -134,11 +140,6 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
         activeTask={page.kind === 'task' ? { domain: page.domain, task: page.task } : undefined}
         onOpenTask={(d, t) => go({ kind: 'task', domain: d, task: t })}
         onOpenHome={() => go({ kind: 'home' })}
-        action={(
-          <button className="small" onClick={() => go({ kind: 'new' })}>
-            + 새로
-          </button>
-        )}
         taskBadge={(domain, task) => {
           const count = taskChanges.get(`${domain}/${task}`);
           if (!count) return null;
@@ -146,6 +147,20 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
         }}
         domainBadge={(domain) =>
           changedDomains.has(domain) ? <span className="domain-dot-changed" title="하위 변경 있음" /> : null}
+        taskMenu={(domain, task) => (
+          <TaskMenu
+            items={taskMenuItems({
+              domain,
+              task,
+              clipboard,
+              setClipboard,
+              go,
+              prompt: setPrompt,
+              onError: setError,
+              onDone: bump
+            })}
+          />
+        )}
       >
         {page.kind === 'task' ? (
           <EditTaskDetail
@@ -171,8 +186,110 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
           <EditHome st={st} files={files} loaded={pending != null} onAction={run} />
         )}
       </WorkflowLayout>
+      {prompt ? (
+        <NamePrompt
+          {...prompt}
+          onSubmit={(name) => {
+            setPrompt(null);
+            prompt.onSubmit(name);
+          }}
+          onCancel={() => setPrompt(null)}
+        />
+      ) : null}
     </div>
   );
+}
+
+// 업무(폴더) "..." 메뉴 구성 — Bruno 사이드바 항목 메뉴와 같은 순서.
+// 이름을 받아야 하는 동작은 prompt()로 대화상자를 띄운 뒤 이어서 실행한다.
+function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onError, onDone }) {
+  const run = (promise) => promise.then(onDone).catch((e) => onError(e.message));
+
+  const askName = ({ title, label, initial, submitLabel, action }) =>
+    prompt({ title, label, initial, submitLabel, onSubmit: (name) => run(action(name)) });
+
+  return [
+    {
+      id: 'newWorkflow',
+      label: 'New Workflow',
+      onClick: () => go({ kind: 'new', domain, task })
+    },
+    {
+      id: 'newFolder',
+      label: 'New Folder',
+      onClick: () =>
+        askName({
+          title: `'${domain}'에 새 업무`,
+          label: '업무 이름',
+          submitLabel: '만들기',
+          action: (name) => api.createTask(domain, name)
+        })
+    },
+    {
+      id: 'clone',
+      label: 'Clone',
+      title: '업무와 그 안의 워크플로우를 통째로 복제합니다',
+      onClick: () =>
+        askName({
+          title: `'${task}' 복제`,
+          label: '새 업무 이름',
+          initial: `${task} copy`,
+          submitLabel: '복제',
+          action: (name) => api.copyTask(domain, task, { domain, task: name })
+        })
+    },
+    {
+      id: 'copy',
+      label: 'Copy',
+      onClick: () => setClipboard({ domain, task })
+    },
+    // Copy 해 둔 것이 있을 때만 붙인다 (Bruno도 같은 방식)
+    ...(clipboard
+      ? [
+          {
+            id: 'paste',
+            label: `Paste (${clipboard.task})`,
+            onClick: () =>
+              askName({
+                title: `'${domain}'에 '${clipboard.task}' 붙여넣기`,
+                label: '업무 이름',
+                initial: clipboard.task,
+                submitLabel: '붙여넣기',
+                action: (name) => api.copyTask(clipboard.domain, clipboard.task, { domain, task: name })
+              })
+          }
+        ]
+      : []),
+    {
+      id: 'rename',
+      label: 'Rename',
+      onClick: () =>
+        askName({
+          title: `'${task}' 이름 변경`,
+          label: '업무 이름',
+          initial: task,
+          submitLabel: '변경',
+          action: (name) => api.renameTask(domain, task, { domain, task: name })
+        })
+    },
+    {
+      id: 'share',
+      label: 'Share',
+      title: '이 업무 화면 링크를 복사합니다',
+      onClick: () =>
+        navigator.clipboard
+          .writeText(taskShareUrl(domain, task))
+          .then(() => toast.success('링크를 복사했습니다'))
+          .catch(() => onError('링크를 복사하지 못했습니다'))
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      danger: true,
+      title: '워크플로우가 없는 빈 업무만 삭제할 수 있습니다',
+      onClick: () => run(api.deleteTask(domain, task))
+    }
+  ];
 }
 
 // 변경 종류(추가/수정/삭제) 배지 — 변경 목록처럼 종류를 구분해야 하는 곳에서 쓴다

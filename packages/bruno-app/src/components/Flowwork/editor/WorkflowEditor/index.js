@@ -36,6 +36,8 @@ const newStep = () => ({
  * 낙관적 잠금 충돌 시 덮어쓰기/다시 불러오기를 선택한다.
  */
 export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, onCancel }) {
+  // 새 워크플로우는 업무(폴더) 안에서만 만들 수 있어, 그때의 위치는 바꾸지 않는다
+  const locationLocked = mode === 'new' && !!initialDomain && !!initialTask;
   const [wf, setWf] = useState(mode === 'new' ? emptyWorkflow(initialDomain, initialTask) : null);
   const [entries, setEntries] = useState([]);
   const [env, setEnv] = useState({});
@@ -219,37 +221,49 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
       <section className="panel">
         <h3>기본 정보</h3>
         <div className="meta-grid">
-          <label className="field">
-            <span className="field-label">도메인</span>
-            <input
-              list="flowwork-domain-options"
-              value={wf.domain}
-              placeholder="예: 계좌 (선택 또는 입력)"
-              onChange={(e) => {
-                setPickedColor(''); // 도메인이 바뀌면 그 도메인의 색을 따르도록 오버라이드 해제
-                patch({ domain: e.target.value });
-              }}
-            />
-            <datalist id="flowwork-domain-options">
-              {domainOptions.map((d) => (
-                <option key={d} value={d} />
-              ))}
-            </datalist>
-          </label>
-          <label className="field">
-            <span className="field-label">업무</span>
-            <input
-              list="flowwork-task-options"
-              value={wf.task}
-              placeholder="예: 계좌개설 (선택 또는 입력)"
-              onChange={(e) => patch({ task: e.target.value })}
-            />
-            <datalist id="flowwork-task-options">
-              {taskOptions.map((t) => (
-                <option key={t} value={t} />
-              ))}
-            </datalist>
-          </label>
+          {locationLocked ? (
+            /* 폴더 안에서 만들기 시작했으면 위치는 고정한다 — 옮기려면 저장 후 수정에서 바꾼다 */
+            <div className="field">
+              <span className="field-label">위치</span>
+              <div className="field-fixed">
+                {wf.domain} / {wf.task}
+              </div>
+            </div>
+          ) : (
+            <>
+              <label className="field">
+                <span className="field-label">도메인</span>
+                <input
+                  list="flowwork-domain-options"
+                  value={wf.domain}
+                  placeholder="예: 계좌 (선택 또는 입력)"
+                  onChange={(e) => {
+                    setPickedColor(''); // 도메인이 바뀌면 그 도메인의 색을 따르도록 오버라이드 해제
+                    patch({ domain: e.target.value });
+                  }}
+                />
+                <datalist id="flowwork-domain-options">
+                  {domainOptions.map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="field">
+                <span className="field-label">업무</span>
+                <input
+                  list="flowwork-task-options"
+                  value={wf.task}
+                  placeholder="예: 계좌개설 (선택 또는 입력)"
+                  onChange={(e) => patch({ task: e.target.value })}
+                />
+                <datalist id="flowwork-task-options">
+                  {taskOptions.map((t) => (
+                    <option key={t} value={t} />
+                  ))}
+                </datalist>
+              </label>
+            </>
+          )}
           <div className="field wide">
             <span className="field-label">
               도메인 색상 <span className="hint">(작업 테두리·불릿에 사용 · 도메인 단위로 저장)</span>
