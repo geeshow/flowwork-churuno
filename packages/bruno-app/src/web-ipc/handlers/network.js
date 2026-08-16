@@ -96,6 +96,28 @@ const prepareHttpRequest = async (item, collection) => {
   return { request, wireUrl, har, requestSent };
 };
 
+// Preferences의 수동 프록시 설정 → 서버 실행 페이로드. 요청은 서버(httpx)가
+// 대신 보내므로 프록시도 서버에서 적용된다. PAC은 httpx가 해석할 수 없어 미지원.
+const buildProxyPayload = (preferences) => {
+  const proxy = preferences?.proxy;
+  if (!proxy || proxy.disabled || proxy.source !== 'manual') {
+    return null;
+  }
+  const config = proxy.config || {};
+  if (!config.hostname) {
+    return null;
+  }
+  const authEnabled = !config.auth?.disabled;
+  return {
+    protocol: config.protocol || 'http',
+    hostname: config.hostname,
+    port: config.port || null,
+    username: authEnabled ? config.auth?.username || null : null,
+    password: authEnabled ? config.auth?.password || null : null,
+    bypass: config.bypassProxy || null
+  };
+};
+
 const executeHttpRequest = async ({ request, wireUrl, har }, item, collection, signal) => {
   const preferences = getPreferences();
   const timeoutMs = preferences?.request?.timeout || 0;
@@ -108,6 +130,7 @@ const executeHttpRequest = async ({ request, wireUrl, har }, item, collection, s
       timeoutMs: timeoutMs > 0 ? timeoutMs : null,
       followRedirects: true,
       verifyTls: preferences?.request?.sslVerification !== false,
+      proxy: buildProxyPayload(preferences),
       collectionPath: collection.pathname,
       requestName: item.name
     },

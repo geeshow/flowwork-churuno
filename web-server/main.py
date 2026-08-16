@@ -245,9 +245,11 @@ def safe_path(raw: str) -> Path:
 # main 반영은 develop 머지 → 운영 릴리스 단계(/api/flowwork/edit/*)를 거친다.
 # ---------------------------------------------------------------------------
 
+import ai
 import flowwork
 
 app.include_router(flowwork.build_router(REPO_DIR, SERVER_DIR / "executions"))
+app.include_router(ai.build_router())
 
 
 # ---------------------------------------------------------------------------
@@ -541,6 +543,17 @@ class HarPostData(BaseModel):
     params: Optional[list[HarPostParam]] = None
 
 
+class ProxyConfig(BaseModel):
+    protocol: str = "http"
+    hostname: str
+    port: Optional[int] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    # 쉼표/세미콜론/공백 구분 무프록시 목록 (proxy-from-env 규칙: 정확 일치,
+    # '.'/'*' 접두는 접미사 일치, 단독 '*'는 전체 바이패스, 'host:port' 지원)
+    bypass: Optional[str] = None
+
+
 class ExecuteBody(BaseModel):
     method: str
     url: str
@@ -550,6 +563,7 @@ class ExecuteBody(BaseModel):
     followRedirects: bool = True
     maxRedirects: int = 5
     verifyTls: bool = True
+    proxy: Optional[ProxyConfig] = None
     # execution-history context — which collection/request this run belongs to
     collectionPath: Optional[str] = None
     requestName: Optional[str] = None
@@ -599,6 +613,64 @@ def record_timeline(body: ExecuteBody, result: dict):
         print(f"[history] failed to write {history_file}: {error}")
         return
     schedule_commit(history_file)
+
+
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def should_use_proxy(url: str, bypass: Optional[str]) -> bool:
+    """Electron 쪽 shouldUseProxy(proxy-from-env 복사본)와 동일한 바이패스 규칙."""
+    if bypass == "*":
+        return False
+    if not bypass or not bypass.strip():
+        return True
+
+    parsed = httpx.URL(url)
+    hostname = parsed.host
+    if not hostname or not parsed.scheme:
+        return False
+    port = parsed.port or _DEFAULT_PORTS.get(parsed.scheme, 0)
+
+    for entry in re.split(r"[,;\s]", bypass):
+        if not entry:
+            continue
+        match = re.match(r"^(.+):(\d+)$", entry)
+        entry_host = match.group(1) if match else entry
+        entry_port = int(match.group(2)) if match else 0
+        if entry_port and entry_port != port:
+            continue
+        if not entry_host.startswith((".", "*")):
+            if hostname == entry_host:
+                return False
+            continue
+        if entry_host.startswith("*"):
+            entry_host = entry_host[1:]
+        if hostname.endswith(entry_host):
+            return False
+    return True
+
+
+def build_proxy_url(proxy: ProxyConfig) -> str:
+    from urllib.parse import quote
+
+    credentials = ""
+    if proxy.username:
+        credentials = f"{quote(proxy.username, safe='')}:{quote(proxy.password or '', safe='')}@"
+    port = f":{proxy.port}" if proxy.port else ""
+    return f"{proxy.protocol}://{credentials}{proxy.hostname}{port}"
+
+
+def resolve_proxy_for(body: ExecuteBody, log) -> Optional[str]:
+    """요청 URL에 적용할 프록시 URL (없으면 None). 타임라인에 결정 근거를 남긴다."""
+    if body.proxy is None:
+        return None
+    if not should_use_proxy(body.url, body.proxy.bypass):
+        log("info", f"Proxy bypassed for {httpx.URL(body.url).host}")
+        return None
+    proxy_url = build_proxy_url(body.proxy)
+    redacted = f"{body.proxy.protocol}://{body.proxy.hostname}" + (f":{body.proxy.port}" if body.proxy.port else "")
+    log("info", f"Using proxy {redacted}")
+    return proxy_url
 
 
 def build_request_kwargs(body: ExecuteBody, headers: list[tuple[str, str]]) -> dict:
@@ -663,6 +735,12 @@ async def http_execute(body: ExecuteBody):
     for name, value in headers:
         log("requestHeader", f"{name}: {value}")
 
+    try:
+        proxy_url = resolve_proxy_for(body, log)
+    except Exception as error:
+        log("error", f"Invalid proxy configuration: {error}")
+        return finish({"error": f"Invalid proxy configuration: {error}", "timeline": timeline})
+
     started = time.perf_counter()
     try:
         async with httpx.AsyncClient(
@@ -670,6 +748,7 @@ async def http_execute(body: ExecuteBody):
             max_redirects=body.maxRedirects,
             verify=body.verifyTls,
             timeout=httpx.Timeout(timeout_seconds),
+            proxy=proxy_url,
         ) as client:
             response = await client.request(
                 body.method.upper(), body.url, headers=headers, **request_kwargs

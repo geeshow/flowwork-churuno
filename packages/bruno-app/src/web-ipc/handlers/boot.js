@@ -25,7 +25,8 @@ const defaultPreferences = {
   },
   font: { codeFont: 'default', codeFontSize: 13 },
   proxy: {
-    source: 'inherit',
+    disabled: true,
+    source: 'manual',
     pac: { source: '' },
     config: {
       protocol: 'http',
@@ -87,7 +88,13 @@ const writeJson = (key, value) => {
 
 const getPreferences = () => {
   if (!webState.preferences) {
-    webState.preferences = merge({}, defaultPreferences, readJson(PREFERENCES_KEY) || {});
+    const preferences = merge({}, defaultPreferences, readJson(PREFERENCES_KEY) || {});
+    // 예전 기본값('inherit')이 저장돼 있으면 Proxy 설정 폼의 Yup 스키마
+    // (manual|pac만 허용)를 통과하지 못해 자동 저장이 조용히 무시된다.
+    if (!['manual', 'pac'].includes(preferences.proxy?.source)) {
+      preferences.proxy = { ...preferences.proxy, source: 'manual', disabled: true };
+    }
+    webState.preferences = preferences;
   }
   return webState.preferences;
 };
@@ -352,9 +359,6 @@ const registerBootHandlers = () => {
 
   handle('renderer:window-is-fullscreen', () => false);
   handle('renderer:window-is-maximized', () => false);
-
-  handle('renderer:start-system-monitoring', () => undefined);
-  handle('renderer:stop-system-monitoring', () => undefined);
 
   handle('renderer:browse-directory', () => webState.activeWorkspacePath || webState.serverRoot);
   handle('renderer:exists-sync', async (pathname) => {
