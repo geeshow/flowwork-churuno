@@ -111,6 +111,16 @@ const StyledWrapper = styled.div`
     }
   }
 
+  /* 2단계 확인 버튼(ConfirmButton)이 확인 대기 상태일 때 — 위험 동작 강조 */
+  button.confirm-armed {
+    color: ${(props) => props.theme.colors.text.danger};
+    font-weight: 600;
+    &.primary {
+      background: ${(props) => props.theme.colors.text.danger};
+      color: white;
+    }
+  }
+
   .icon-btn {
     padding: 2px 6px;
     border-radius: ${(props) => props.theme.border.radius.sm};
@@ -1274,15 +1284,42 @@ const StyledWrapper = styled.div`
     fill: ${(props) => props.theme.colors.text.muted};
     font-size: 11px;
   }
+  .git-step-label {
+    fill: ${(props) => props.theme.colors.text.muted};
+    font-size: 10px;
+  }
   .git-lane {
     fill: none;
     stroke-width: 2;
   }
+  /* 레인 사이를 잇는 흐름선 (카탈로그 연결 · 운영 반영) */
+  .git-flow {
+    fill: none;
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+    &.flow-main {
+      stroke: ${(props) => props.theme.colors.text.green};
+    }
+  }
+  .git-node {
+    rect {
+      fill: ${(props) => props.theme.background.surface0};
+      stroke: ${(props) => props.theme.colors.text.green};
+      stroke-width: 1.5;
+    }
+    text {
+      fill: currentColor;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .git-node-sub {
+      fill: ${(props) => props.theme.colors.text.muted};
+      font-size: 10px;
+      font-weight: 400;
+    }
+  }
   .lane-main {
     stroke: ${(props) => props.theme.colors.text.green};
-  }
-  .lane-develop {
-    stroke: ${(props) => props.theme.textLink};
   }
   .lane-feature {
     stroke: ${(props) => props.theme.colors.text.yellow};
@@ -1294,9 +1331,6 @@ const StyledWrapper = styled.div`
   }
   .git-badge-main circle {
     fill: ${(props) => props.theme.colors.text.green};
-  }
-  .git-badge-develop circle {
-    fill: ${(props) => props.theme.textLink};
   }
   .git-badge-feature circle {
     fill: ${(props) => props.theme.colors.text.yellow};
@@ -1330,9 +1364,6 @@ const StyledWrapper = styled.div`
   }
   .flow-num-main {
     background: ${(props) => props.theme.colors.text.green};
-  }
-  .flow-num-develop {
-    background: ${(props) => props.theme.textLink};
   }
   .flow-num-feature {
     background: ${(props) => props.theme.colors.text.yellow};
@@ -1386,18 +1417,6 @@ const StyledWrapper = styled.div`
     }
   }
 
-  .edit-newbranch,
-  .edit-commit-form {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .merge-warn {
-    color: ${(props) => props.theme.colors.text.yellow};
-    font-size: ${(props) => props.theme.font.size.sm};
-  }
-
   .notice-banner {
     margin: 8px 12px;
     padding: 8px 12px;
@@ -1411,7 +1430,7 @@ const StyledWrapper = styled.div`
     font-size: ${(props) => props.theme.font.size.xs};
   }
 
-  /* 파일 상태 배지: develop 대비 수정됨 → 스테이지 → 커밋됨 → 푸시됨 */
+  /* 변경 배지: 운영 반영 전 변경이 있는 업무 표시 */
   .state-badge {
     padding: 1px 8px;
     border-radius: 999px;
@@ -1422,20 +1441,9 @@ const StyledWrapper = styled.div`
       padding: 0 6px;
       margin-left: 6px;
     }
-    &.st-unstaged {
+    &.st-changed {
       color: ${(props) => props.theme.colors.text.yellow};
       border-color: ${(props) => props.theme.colors.text.yellow};
-    }
-    &.st-staged {
-      color: ${(props) => props.theme.textLink};
-      border-color: ${(props) => props.theme.textLink};
-    }
-    &.st-committed {
-      color: ${(props) => props.theme.colors.text.green};
-      border-color: ${(props) => props.theme.colors.text.green};
-    }
-    &.st-pushed {
-      color: ${(props) => props.theme.colors.text.muted};
     }
   }
 
@@ -1505,225 +1513,6 @@ const StyledWrapper = styled.div`
     display: inline-flex;
     align-items: center;
     gap: 10px;
-  }
-
-  /* ---- 머지 충돌 해결 ---- */
-  .merge-view {
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    overflow-y: auto;
-  }
-  .merge-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    h2 {
-      margin: 0;
-    }
-  }
-  .merge-head-actions {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .conflict-card {
-    &.resolved {
-      opacity: 0.75;
-      border-color: ${(props) => props.theme.colors.text.green};
-    }
-  }
-  .conflict-card-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    h3 {
-      margin: 0 0 2px;
-    }
-  }
-  .conflict-resolved-mark {
-    color: ${(props) => props.theme.colors.text.green};
-    white-space: nowrap;
-  }
-  .conflict-tabs {
-    display: flex;
-    gap: 4px;
-    margin: 10px 0;
-    button {
-      padding: 4px 12px;
-      border: 1px solid ${(props) => props.theme.border.border1};
-      border-radius: ${(props) => props.theme.border.radius.base};
-      font-size: ${(props) => props.theme.font.size.xs};
-      color: ${(props) => props.theme.colors.text.muted};
-      &.active {
-        color: ${(props) => props.theme.text};
-        border-color: ${(props) => props.theme.input.focusBorder};
-        background: ${(props) => props.theme.background.surface1};
-      }
-    }
-  }
-  .conflict-resolver {
-    margin-top: 10px;
-  }
-  .conflict-resolver-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-    h4 {
-      margin: 0;
-    }
-  }
-  .conflict-pick {
-    display: inline-flex;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .conflict-editor {
-    width: 100%;
-    min-height: 200px;
-    margin-top: 8px;
-    font-family: ${(props) => props.theme.font.codeFontFamily || 'monospace'};
-    font-size: ${(props) => props.theme.font.size.xs};
-    color: ${(props) => props.theme.text};
-    background: ${(props) => props.theme.input.bg};
-    border: 1px solid ${(props) => props.theme.input.border};
-    border-radius: ${(props) => props.theme.border.radius.base};
-    padding: 8px;
-  }
-  .conflict-resolver-actions {
-    margin-top: 8px;
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  /* 워크플로우 좌우 시각 비교 */
-  .wf-compare {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .wf-compare-col {
-    border: 1px solid ${(props) => props.theme.border.border1};
-    border-radius: ${(props) => props.theme.border.radius.base};
-    padding: 8px 10px;
-    min-width: 0;
-  }
-  .wf-compare-col-head {
-    font-weight: 600;
-    font-size: ${(props) => props.theme.font.size.xs};
-    color: ${(props) => props.theme.colors.text.muted};
-    margin-bottom: 6px;
-  }
-  .wf-compare-meta {
-    font-size: ${(props) => props.theme.font.size.sm};
-    padding: 2px 4px;
-    border-radius: ${(props) => props.theme.border.radius.sm};
-    .muted {
-      margin-right: 6px;
-    }
-    &.changed {
-      background: ${(props) => props.theme.background.surface1};
-      outline: 1px solid ${(props) => props.theme.colors.text.yellow};
-    }
-  }
-  .wf-compare-steps {
-    margin-top: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .wf-compare-step {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 6px;
-    border: 1px solid ${(props) => props.theme.border.border1};
-    border-radius: ${(props) => props.theme.border.radius.sm};
-    font-size: ${(props) => props.theme.font.size.sm};
-    &.only {
-      border-color: ${(props) => props.theme.colors.text.green};
-    }
-    &.changed {
-      border-color: ${(props) => props.theme.colors.text.yellow};
-    }
-    .step-order {
-      color: ${(props) => props.theme.colors.text.muted};
-      font-size: ${(props) => props.theme.font.size.xs};
-      flex-shrink: 0;
-    }
-    .step-name {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .step-kind,
-    .step-mark {
-      font-size: ${(props) => props.theme.font.size.xs};
-      color: ${(props) => props.theme.colors.text.muted};
-      flex-shrink: 0;
-    }
-    .step-mark {
-      color: ${(props) => props.theme.colors.text.yellow};
-    }
-  }
-
-  /* JSON 라인 diff (좌/우 비교) */
-  .diff-table-wrap {
-    overflow-x: auto;
-    border: 1px solid ${(props) => props.theme.border.border1};
-    border-radius: ${(props) => props.theme.border.radius.base};
-  }
-  .diff-table {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    font-family: ${(props) => props.theme.font.codeFontFamily || 'monospace'};
-    font-size: ${(props) => props.theme.font.size.xs};
-  }
-  .diff-col-head {
-    padding: 4px 8px;
-    font-weight: 600;
-    color: ${(props) => props.theme.colors.text.muted};
-    border-bottom: 1px solid ${(props) => props.theme.border.border1};
-    background: ${(props) => props.theme.background.surface0};
-  }
-  .diff-row {
-    display: contents;
-  }
-  .diff-cell {
-    display: flex;
-    gap: 8px;
-    padding: 1px 8px;
-    min-width: 0;
-    code {
-      white-space: pre;
-    }
-    .diff-no {
-      color: ${(props) => props.theme.colors.text.muted};
-      width: 3ch;
-      text-align: right;
-      flex-shrink: 0;
-      user-select: none;
-    }
-    &.left {
-      border-right: 1px solid ${(props) => props.theme.border.border1};
-    }
-    &.del,
-    &.left.mod {
-      background: color-mix(in srgb, ${(props) => props.theme.colors.text.danger} 12%, transparent);
-    }
-    &.add,
-    &.right.mod {
-      background: color-mix(in srgb, ${(props) => props.theme.colors.text.green} 12%, transparent);
-    }
   }
 
   .method {

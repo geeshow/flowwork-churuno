@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import api, { VersionConflictError } from '../../api';
+import ConfirmButton from '../../ConfirmButton';
 import { colorForDomain, isValidHex, PRESET_COLORS } from '../../domainPalette';
 import InputDefEditor from '../InputDefEditor';
 import StepEditor from '../StepEditor';
@@ -195,26 +196,22 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
           )}
           <div className="save-conflict-actions">
             {!conflict.deleted ? (
-              <button
+              <ConfirmButton
                 className="link"
-                onClick={() => {
-                  if (confirm('내 수정을 버리고 서버 최신 내용을 불러올까요?')) void reloadFromServer();
-                }}
+                confirmLabel="내 수정을 버리고 불러오기 — 확정"
+                onConfirm={() => void reloadFromServer()}
               >
                 서버 최신 내용 불러오기
-              </button>
+              </ConfirmButton>
             ) : null}
-            <button
+            <ConfirmButton
               className="primary"
               disabled={saving}
-              onClick={() => {
-                if (confirm(conflict.deleted ? '내 내용으로 다시 저장할까요?' : '서버의 다른 사용자 수정을 덮어쓸까요?')) {
-                  void handleSave(true);
-                }
-              }}
+              confirmLabel={conflict.deleted ? '다시 저장 — 확정' : '다른 사용자 수정 덮어쓰기 — 확정'}
+              onConfirm={() => void handleSave(true)}
             >
               {conflict.deleted ? '내 내용으로 다시 저장' : '내 수정으로 덮어쓰기 저장'}
-            </button>
+            </ConfirmButton>
           </div>
         </section>
       ) : null}

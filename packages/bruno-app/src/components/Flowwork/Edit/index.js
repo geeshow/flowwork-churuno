@@ -1,41 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
-import api, { setEditBranch } from '../api';
+import api from '../api';
+import ConfirmButton from '../ConfirmButton';
 import { colorForDomain } from '../domainPalette';
+import HomeGuide from '../HomeGuide';
 import WorkflowEditor from '../editor/WorkflowEditor';
 import WorkflowLayout from '../WorkflowLayout';
 import WorkflowRunner from '../WorkflowRunner';
-import EditBar from './EditBar';
-import MergeView from './MergeView';
-
-export const FILE_STATE_META = {
-  unstaged: { label: '수정됨', cls: 'st-unstaged' },
-  staged: { label: '스테이지', cls: 'st-staged' },
-  committed: { label: '커밋됨', cls: 'st-committed' },
-  pushed: { label: '푸시됨', cls: 'st-pushed' }
-};
-
-// 상태 우선순위 (업무 단위 집계 시 가장 앞선 것 표시)
-const STATE_PRIORITY = ['unstaged', 'staged', 'committed', 'pushed'];
 
 const CHANGE_LABEL = { A: '추가', M: '수정', D: '삭제' };
 
 /**
- * 편집 모드 — flowwork 원본의 워크플로우 편집 반영 단계.
+ * 편집 모드 — "변경"과 "운영 반영" 두 개념만 노출한다.
  *
- * - 브랜치마다 전용 worktree를 두어 여러 브랜치를 동시에 편집한다 (branch=null은 develop)
- * - develop 뷰는 읽기 전용, 등록/수정은 feature 브랜치(수정 모드)에서만
- * - 저장은 그 브랜치 worktree에 쓰인다 — 커밋 전 변경은 브랜치별로 독립 보존
- * - 파일 상태: develop 대비 수정됨(unstaged) → 스테이지 → 커밋됨 → 푸시됨
- * - develop 머지(충돌 시 해결 화면, 완료 시 브랜치 정리) → develop → main 운영 반영
+ * - 공용 편집 공간에서 수정/추가/삭제하면 저장 즉시 자동 기록된다
+ *   (내부의 브랜치/커밋/푸시는 서버가 처리 — 사용자에게 묻지 않는다)
+ * - 홈의 변경 목록(운영 대비)에서 작업 단위로 확인하고,
+ *   원하는 작업만 골라 운영 반영하거나 운영 버전으로 되돌린다
  */
-export function EditPage({ branch, page, go, onExit, onOpenExecution }) {
-  // 이 렌더 트리의 모든 edit 소스 API 호출에 브랜치를 실어 보낸다
-  setEditBranch(branch);
-
+export function EditPage({ page, go, onExit, onOpenExecution }) {
   const [st, setSt] = useState(null);
-  const [files, setFiles] = useState([]);
+  const [pending, setPending] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [refresh, setRefresh] = useState(0);
@@ -43,22 +29,20 @@ export function EditPage({ branch, page, go, onExit, onOpenExecution }) {
 
   useEffect(() => {
     let alive = true;
-    setEditBranch(branch); // effect 시점에도 확정 (다른 화면에서 돌아온 경우)
-    Promise.all([api.editState(), api.editStatus()])
-      .then(([s, f]) => {
+    Promise.all([api.editState(), api.editPending()])
+      .then(([s, p]) => {
         if (!alive) return;
         setSt(s);
-        setFiles(f.files);
+        setPending(p.files);
         setError(null);
       })
       .catch((e) => alive && setError(e.message));
     return () => {
       alive = false;
     };
-  }, [refresh, branch]);
+  }, [refresh]);
 
-  const isFeature = branch != null;
-  const canEdit = isFeature && !!st && !error;
+  const files = pending ?? [];
 
   const statusById = useMemo(() => {
     const map = new Map();
@@ -66,18 +50,13 @@ export function EditPage({ branch, page, go, onExit, onOpenExecution }) {
     return map;
   }, [files]);
 
-  // 업무(도메인/업무)별 집계 상태 — 사이드바 업무 배지 (가장 앞선 상태 + 건수)
-  const taskStates = useMemo(() => {
+  // 업무(도메인/업무)별 변경 건수 — 사이드바 업무 배지
+  const taskChanges = useMemo(() => {
     const map = new Map();
     for (const f of files) {
       if (f.kind !== 'workflow' || !f.domain || !f.task) continue;
       const key = `${f.domain.normalize('NFC')}/${f.task.normalize('NFC')}`;
-      const cur = map.get(key);
-      if (!cur) map.set(key, { state: f.state, count: 1 });
-      else {
-        cur.count += 1;
-        if (STATE_PRIORITY.indexOf(f.state) < STATE_PRIORITY.indexOf(cur.state)) cur.state = f.state;
-      }
+      map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
   }, [files]);
@@ -89,64 +68,39 @@ export function EditPage({ branch, page, go, onExit, onOpenExecution }) {
     return set;
   }, [files]);
 
+  // done: 완료 안내 문구 — 문자열 또는 (op 결과) => 문자열
   async function run(op, done) {
     setError(null);
     setNotice(null);
     try {
-      await op();
-      if (done) setNotice(done);
+      const result = await op();
+      if (done) setNotice(typeof done === 'function' ? done(result) : done);
       bump();
     } catch (e) {
       setError(e.message);
     }
   }
 
-  const editBar = (inMergeView) => (
-    <EditBar
-      st={st}
-      files={files}
-      urlBranch={branch}
-      onSwitchBranch={(b) => go(b, { kind: 'home' })}
-      onOpenMerge={() => go(null, { kind: 'merge' })}
-      onAction={run}
-      inMergeView={inMergeView}
-      onExit={onExit}
-    />
-  );
-
-  if (page.kind === 'merge') {
-    return (
-      <div className="edit-shell">
-        {editBar(true)}
-        {error ? <div className="error-banner">{error}</div> : null}
-        <MergeView
-          onDone={() => {
-            bump();
-            go(null, { kind: 'home' });
-          }}
-        />
+  const editBar = (
+    <div className="edit-bar">
+      <div className="edit-bar-left">
+        <span className="branch-chip feature">편집 모드</span>
+        <span className="muted">저장하면 바로 기록되고, 운영 반영 전까지 이 화면에만 보입니다.</span>
       </div>
-    );
-  }
+      <div className="edit-bar-right">
+        <span className="muted">운영 미반영 {files.length}건</span>
+        <button className="small" onClick={onExit} title="편집을 끝내고 사용 모드로">
+          편집 종료
+        </button>
+      </div>
+    </div>
+  );
 
   // 편집기(등록/수정)는 레이아웃 없이 전체 폭 사용
   if (page.kind === 'new' || page.kind === 'editWf') {
-    if (!isFeature) {
-      return (
-        <div className="edit-shell">
-          {editBar(false)}
-          <div className="detail-empty">
-            <p className="muted">
-              워크플로우 등록/수정은 수정 모드(feature 브랜치)에서만 할 수 있습니다. 상단에서 feature 브랜치를
-              만들거나 선택하세요.
-            </p>
-          </div>
-        </div>
-      );
-    }
     return (
       <div className="edit-shell">
-        {editBar(false)}
+        {editBar}
         {error ? <div className="error-banner">{error}</div> : null}
         <div className="flowwork-content">
           <WorkflowEditor
@@ -156,10 +110,10 @@ export function EditPage({ branch, page, go, onExit, onOpenExecution }) {
             initialTask={page.kind === 'new' ? page.task : undefined}
             onSaved={(wf) => {
               bump();
-              toast.success('워크플로우가 저장되었습니다 (커밋 전 임시 저장)');
-              go(branch, { kind: 'run', id: wf.id });
+              toast.success('저장되었습니다 — 운영 반영 전까지 편집 공간에만 보입니다');
+              go({ kind: 'run', id: wf.id });
             }}
-            onCancel={() => go(branch, { kind: 'home' })}
+            onCancel={() => go({ kind: 'home' })}
           />
         </div>
       </div>
@@ -168,34 +122,26 @@ export function EditPage({ branch, page, go, onExit, onOpenExecution }) {
 
   return (
     <div className="edit-shell">
-      {editBar(false)}
+      {editBar}
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="notice-banner">{notice}</div> : null}
       <WorkflowLayout
         title="편집"
         source="edit"
-        refreshKey={`${refresh}:${branch ?? ''}`}
+        refreshKey={refresh}
         activeId={page.kind === 'run' ? page.id : undefined}
         activeTask={page.kind === 'task' ? { domain: page.domain, task: page.task } : undefined}
-        onOpenTask={(d, t) => go(branch, { kind: 'task', domain: d, task: t })}
-        onOpenHome={() => go(branch, { kind: 'home' })}
-        action={
-          canEdit ? (
-            <button className="small" onClick={() => go(branch, { kind: 'new' })}>
-              + 새로
-            </button>
-          ) : undefined
-        }
+        onOpenTask={(d, t) => go({ kind: 'task', domain: d, task: t })}
+        onOpenHome={() => go({ kind: 'home' })}
+        action={(
+          <button className="small" onClick={() => go({ kind: 'new' })}>
+            + 새로
+          </button>
+        )}
         taskBadge={(domain, task) => {
-          const ts = taskStates.get(`${domain}/${task}`);
-          if (!ts) return null;
-          const meta = FILE_STATE_META[ts.state];
-          return (
-            <span className={`state-badge sm ${meta.cls}`}>
-              {meta.label}
-              {ts.count > 1 ? ` ${ts.count}` : ''}
-            </span>
-          );
+          const count = taskChanges.get(`${domain}/${task}`);
+          if (!count) return null;
+          return <span className="state-badge sm st-changed">변경{count > 1 ? ` ${count}` : ''}</span>;
         }}
         domainBadge={(domain) =>
           changedDomains.has(domain) ? <span className="domain-dot-changed" title="하위 변경 있음" /> : null}
@@ -204,30 +150,34 @@ export function EditPage({ branch, page, go, onExit, onOpenExecution }) {
           <EditTaskDetail
             domain={page.domain}
             task={page.task}
-            canEdit={canEdit}
             statusById={statusById}
-            refreshKey={`${refresh}:${branch ?? ''}`}
-            onRun={(id) => go(branch, { kind: 'run', id })}
-            onEdit={(id) => go(branch, { kind: 'editWf', id })}
-            onNew={() => go(branch, { kind: 'new', domain: page.domain, task: page.task })}
+            refreshKey={refresh}
+            onRun={(id) => go({ kind: 'run', id })}
+            onEdit={(id) => go({ kind: 'editWf', id })}
+            onNew={() => go({ kind: 'new', domain: page.domain, task: page.task })}
             onDeleted={bump}
           />
         ) : page.kind === 'run' ? (
           <EditRunDetail
             id={page.id}
-            canEdit={canEdit}
             statusById={statusById}
-            refreshKey={`${refresh}:${branch ?? ''}`}
-            onEdit={(id) => go(branch, { kind: 'editWf', id })}
-            onBack={(d, t) => go(branch, { kind: 'task', domain: d, task: t })}
+            refreshKey={refresh}
+            onEdit={(id) => go({ kind: 'editWf', id })}
+            onBack={(d, t) => go({ kind: 'task', domain: d, task: t })}
             onOpenExecution={onOpenExecution}
           />
         ) : (
-          <EditHome st={st} files={files} isFeature={isFeature} onAction={run} refreshKey={refresh} />
+          <EditHome st={st} files={files} loaded={pending != null} onAction={run} />
         )}
       </WorkflowLayout>
     </div>
   );
+}
+
+// 변경 종류(추가/수정/삭제) 배지
+function ChangeBadge({ change }) {
+  if (!change) return null;
+  return <span className={`change-badge change-${change.toLowerCase()}`}>{CHANGE_LABEL[change] ?? change}</span>;
 }
 
 // 변경 파일 한 줄 표시 (워크플로우면 이름/위치, 그 외 파일은 경로)
@@ -247,138 +197,86 @@ function FileLabel({ file }) {
 }
 
 // ---------------------------------------------------------------------------
-// 홈: 변경 파일 패널 + 운영(main) 미반영 목록 + 운영 반영
+// 홈: 변경 목록(운영 대비) — 작업 단위 운영 반영 / 작업 삭제
 // ---------------------------------------------------------------------------
-function EditHome({ st, files, isFeature, onAction, refreshKey }) {
-  const [pending, setPending] = useState(null);
-  const [pendingErr, setPendingErr] = useState(null);
-  const [releasing, setReleasing] = useState(false);
+function EditHome({ st, files, loaded, onAction }) {
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    api
-      .editPending()
-      .then((r) => alive && setPending(r.files))
-      .catch((e) => alive && setPendingErr(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [refreshKey]);
+  const act = (op, done) => {
+    setBusy(true);
+    void onAction(op, done).finally(() => setBusy(false));
+  };
 
   return (
     <section className="edit-home">
-      {isFeature ? (
-        <div className="panel">
-          <h3>
-            변경 사항 <span className="hint">({st?.base_branch} 대비 · {files.length}건)</span>
-          </h3>
-          {files.length === 0 ? (
-            <p className="muted">변경이 없습니다. 왼쪽 메뉴에서 워크플로우를 수정하거나 새로 만드세요.</p>
-          ) : (
-            <div className="edit-file-list">
-              {files.map((f) => (
-                <div key={f.path} className="edit-file-row">
-                  <span className={`change-badge change-${f.change.toLowerCase()}`}>
-                    {CHANGE_LABEL[f.change] ?? f.change}
-                  </span>
-                  <span className="edit-file-name">
-                    <FileLabel file={f} />
-                  </span>
-                  <span className={`state-badge ${FILE_STATE_META[f.state].cls}`}>{FILE_STATE_META[f.state].label}</span>
-                  <span className="edit-file-actions">
-                    {f.state === 'unstaged' ? (
-                      <>
-                        <button className="link" onClick={() => void onAction(() => api.editStage([f.path]))}>
-                          스테이지
-                        </button>
-                        <button
-                          className="link danger"
-                          onClick={() => {
-                            if (confirm(`'${f.name ?? f.path}' 변경을 되돌릴까요? 임시 저장이 사라집니다.`)) {
-                              void onAction(() => api.editDiscard([f.path]));
-                            }
-                          }}
-                        >
-                          되돌리기
-                        </button>
-                      </>
-                    ) : f.state === 'staged' ? (
-                      <button className="link" onClick={() => void onAction(() => api.editUnstage([f.path]))}>
-                        스테이지 해제
-                      </button>
-                    ) : null}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="panel">
-          <h3>수정 모드</h3>
-          <p className="muted">
-            현재 {st?.base_branch} 브랜치(읽기 전용)를 보고 있습니다. 워크플로우를 등록/수정하려면 상단에서 feature
-            브랜치를 만들어 수정 모드로 들어가세요. 브랜치마다 전용 작업 공간(worktree)이 있어 여러 명이 서로 다른
-            브랜치를 동시에 편집할 수 있습니다.
-          </p>
-        </div>
-      )}
-
       <div className="panel">
         <div className="panel-head">
           <h3>
-            운영 미반영{' '}
-            <span className="hint">
-              ({st?.prod_branch ?? 'main'} 대비 {st?.base_branch ?? 'develop'}의 변경)
-            </span>
+            변경 목록 <span className="hint">(운영 {st?.prod_branch ?? 'main'} 대비 · {files.length}건)</span>
           </h3>
-          {pending && pending.length > 0 && !isFeature && !st?.in_merge ? (
-            <button
+          {files.length > 1 ? (
+            <ConfirmButton
               className="primary small"
-              disabled={releasing}
-              onClick={() => {
-                if (!confirm(`${st?.base_branch}의 변경 ${pending.length}건을 운영(${st?.prod_branch})에 반영할까요?`)) {
-                  return;
-                }
-                setReleasing(true);
-                void onAction(() => api.editRelease(), `운영에 반영했습니다 (${st?.prod_branch} 병합 + push)`).finally(
-                  () => setReleasing(false)
-                );
-              }}
+              disabled={busy}
+              confirmLabel={`${files.length}건 모두 운영 반영 — 확정`}
+              onConfirm={() =>
+                act(() => api.editRelease(files.map((f) => f.path)), '모든 변경을 운영에 반영했습니다')}
             >
-              {releasing ? '반영 중…' : `운영 반영 (${st?.base_branch} → ${st?.prod_branch})`}
-            </button>
+              전체 운영 반영
+            </ConfirmButton>
           ) : null}
         </div>
-        {pendingErr ? <div className="error-banner">{pendingErr}</div> : null}
-        {!pending ? (
+        {!loaded ? (
           <p className="muted">불러오는 중…</p>
-        ) : pending.length === 0 ? (
-          <p className="muted">모든 변경이 운영({st?.prod_branch})에 반영되어 있습니다.</p>
+        ) : files.length === 0 ? (
+          <p className="muted">
+            운영에 반영할 변경이 없습니다. 왼쪽 메뉴에서 워크플로우를 수정하거나 새로 만드세요 — 저장하면 여기에
+            나타납니다.
+          </p>
         ) : (
           <div className="edit-file-list">
-            {pending.map((f) => (
+            {files.map((f) => (
               <div key={f.path} className="edit-file-row">
-                <span className={`change-badge change-${f.change.toLowerCase()}`}>
-                  {CHANGE_LABEL[f.change] ?? f.change}
-                </span>
+                <ChangeBadge change={f.change} />
                 <span className="edit-file-name">
                   <FileLabel file={f} />
                 </span>
-                <span className="muted small-text">{f.path}</span>
+                <span className="edit-file-actions">
+                  <ConfirmButton
+                    className="link"
+                    disabled={busy}
+                    confirmLabel="운영 반영 — 확정"
+                    onConfirm={() =>
+                      act(() => api.editRelease([f.path]), `'${f.name ?? f.path}'을(를) 운영에 반영했습니다`)}
+                  >
+                    운영 반영
+                  </ConfirmButton>
+                  <ConfirmButton
+                    className="link danger"
+                    disabled={busy}
+                    confirmLabel="작업 내용 삭제 — 확정"
+                    title="편집한 작업 내용이 삭제되고 운영 버전으로 복원됩니다 (복구 불가)"
+                    onConfirm={() =>
+                      act(() => api.editRevert([f.path]), `'${f.name ?? f.path}' 작업 내용을 삭제하고 운영 버전으로 복원했습니다`)}
+                  >
+                    작업 삭제
+                  </ConfirmButton>
+                </span>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <HomeGuide />
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// 업무 상세 (편집): 워크플로우 카드 + 상태 배지 + 실행/수정/삭제
+// 업무 상세 (편집): 워크플로우 카드 + 변경 배지 + 실행/수정/삭제
 // ---------------------------------------------------------------------------
-function EditTaskDetail({ domain, task, canEdit, statusById, refreshKey, onRun, onEdit, onNew, onDeleted }) {
+function EditTaskDetail({ domain, task, statusById, refreshKey, onRun, onEdit, onNew, onDeleted }) {
   const [rows, setRows] = useState(null);
   const [colors, setColors] = useState({});
   const [error, setError] = useState(null);
@@ -414,19 +312,14 @@ function EditTaskDetail({ domain, task, canEdit, statusById, refreshKey, onRun, 
           <span className="muted">/</span>
           <h2>{task}</h2>
         </div>
-        {canEdit ? (
-          <button className="primary small" onClick={onNew}>
-            + 새 워크플로우
-          </button>
-        ) : null}
+        <button className="primary small" onClick={onNew}>
+          + 새 워크플로우
+        </button>
       </div>
 
       {items.length === 0 ? (
         <div className="detail-empty">
-          <p className="muted">
-            이 업무에는 워크플로우가 없습니다.
-            {canEdit ? ' "새 워크플로우"로 추가하세요.' : ' 수정 모드에서 추가할 수 있습니다.'}
-          </p>
+          <p className="muted">이 업무에는 워크플로우가 없습니다. "새 워크플로우"로 추가하세요.</p>
         </div>
       ) : (
         <div className="wf-card-grid">
@@ -438,34 +331,27 @@ function EditTaskDetail({ domain, task, canEdit, statusById, refreshKey, onRun, 
                   <span className="wf-card-title">
                     <span className="task-bullet" style={{ background: color }} />
                     {w.name}
-                    {stEntry ? (
-                      <span className={`state-badge ${FILE_STATE_META[stEntry.state].cls}`}>
-                        {FILE_STATE_META[stEntry.state].label}
-                      </span>
-                    ) : null}
+                    <ChangeBadge change={stEntry?.change} />
                   </span>
                   {w.description ? <span className="muted">{w.description}</span> : null}
                 </button>
-                {canEdit ? (
-                  <div className="wf-card-actions">
-                    <button className="link small" onClick={() => onEdit(w.id)}>
-                      수정
-                    </button>
-                    <button
-                      className="link small danger"
-                      onClick={() => {
-                        if (confirm(`'${w.name}' 워크플로우를 삭제할까요? (커밋 전까지는 되돌릴 수 있습니다)`)) {
-                          api
-                            .deleteWorkflow(w.id)
-                            .then(onDeleted)
-                            .catch((e) => setError(e.message));
-                        }
-                      }}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                ) : null}
+                <div className="wf-card-actions">
+                  <button className="link small" onClick={() => onEdit(w.id)}>
+                    수정
+                  </button>
+                  <ConfirmButton
+                    className="link small danger"
+                    confirmLabel="삭제 확정"
+                    title="운영 반영 전까지는 변경 목록에서 원복할 수 있습니다"
+                    onConfirm={() =>
+                      api
+                        .deleteWorkflow(w.id)
+                        .then(onDeleted)
+                        .catch((e) => setError(e.message))}
+                  >
+                    삭제
+                  </ConfirmButton>
+                </div>
               </div>
             );
           })}
@@ -476,9 +362,9 @@ function EditTaskDetail({ domain, task, canEdit, statusById, refreshKey, onRun, 
 }
 
 // ---------------------------------------------------------------------------
-// 실행 상세 (편집): 브랜치 worktree 기준 실행 — 커밋 전 임시 저장 내용으로 동작 확인
+// 실행 상세 (편집): 편집 공간 기준 실행 — 운영 반영 전 내용으로 동작 확인
 // ---------------------------------------------------------------------------
-function EditRunDetail({ id, canEdit, statusById, refreshKey, onEdit, onBack, onOpenExecution }) {
+function EditRunDetail({ id, statusById, refreshKey, onEdit, onBack, onOpenExecution }) {
   const [wf, setWf] = useState(null);
   const [error, setError] = useState(null);
 
@@ -506,16 +392,10 @@ function EditRunDetail({ id, canEdit, statusById, refreshKey, onEdit, onBack, on
           ← {wf.domain} / {wf.task}
         </button>
         <div className="run-actions">
-          {stEntry ? (
-            <span className={`state-badge ${FILE_STATE_META[stEntry.state].cls}`}>
-              {FILE_STATE_META[stEntry.state].label}
-            </span>
-          ) : null}
-          {canEdit ? (
-            <button className="link" onClick={() => onEdit(id)}>
-              수정 →
-            </button>
-          ) : null}
+          <ChangeBadge change={stEntry?.change} />
+          <button className="link" onClick={() => onEdit(id)}>
+            수정 →
+          </button>
         </div>
       </div>
       <WorkflowRunner workflow={wf} source="edit" onOpenExecution={onOpenExecution} />

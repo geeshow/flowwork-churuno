@@ -72,24 +72,23 @@ git worktree**(`web-server/worktrees/<이름>`)를 만들고, 각각을 Bruno �
 | `BRUNO_WEB_WORKTREES_DIR` | `web-server/worktrees` | 브랜치별 worktree 위치 |
 | `BRUNO_WEB_GIT_PUSH` | `1` | 자동 커밋 후 push 여부 |
 
-## flowwork 워크플로우 편집 반영 단계 (브랜치 → develop → main)
+## flowwork 워크플로우 편집 — "변경"과 "운영 반영" 두 단계
 
-워크플로우(`{repo}/workflows/**`)와 도메인 색상(`{repo}/domains.json`)은 flowwork
-원본의 편집 흐름을 따릅니다. API 콜렉션(workspace 브랜치)의 "저장 = 즉시 커밋"과
-달리, **운영(main 체크아웃)은 읽기 전용**이고 쓰기는 편집 worktree로만 갑니다:
+워크플로우(`{repo}/workflows/**`)와 도메인 색상(`{repo}/domains.json`)은
+**운영(main 체크아웃)은 읽기 전용**이고, 편집은 공용 편집 브랜치(develop)의
+worktree(`web-server/edit-worktrees/develop`)에서 이뤄집니다. 사용자에게 git
+단계(스테이지/커밋/푸시/머지)는 노출하지 않습니다:
 
-1. 편집 모드 진입 — develop 뷰는 읽기 전용, `feature/*` 브랜치를 만들면
-   `web-server/edit-worktrees/<브랜치>`에 전용 worktree가 생깁니다
-   (브랜치별로 독립 보존 → 여러 명이 동시에 편집 가능)
-2. 저장 = 그 브랜치 worktree 파일 쓰기 (커밋 전 임시 저장, 자동 커밋 없음)
-3. stage → commit → push (파일 상태: 수정됨 → 스테이지 → 커밋됨 → 푸시됨)
-4. develop 머지 — develop worktree에서 `--no-ff` 머지, 충돌 시 파일별
-   ours/theirs 해결 화면, 완료 시 feature 브랜치/worktree 자동 정리
-5. 운영 반영 — develop → main 병합 + push (`/api/flowwork/edit/release`)
+1. **변경** — 편집 모드에서 저장/삭제하면 즉시 자동 기록됩니다
+   (autocommit + 원격 push best-effort). 변경 목록은 main과 편집 브랜치의
+   tip 간 파일 diff입니다.
+2. **운영 반영** — 변경 목록에서 원하는 작업(파일)만 골라 main에 반영합니다
+   (파일 단위 체리픽 + push). tip 간 비교라 반영된 작업은 목록에서 자연히
+   사라집니다. **되돌리기**는 해당 작업을 운영 버전으로 복원합니다.
 
 서버 구현은 `web-server/gitops.py`(`/api/flowwork/edit/*` 라우트는
 `flowwork.py`), 프론트는 `packages/bruno-app/src/components/Flowwork/Edit/`
-(`#/flowwork/edit[/b/<브랜치>]` 해시 라우트)입니다.
+(`#/flowwork/edit` 해시 라우트)입니다.
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|

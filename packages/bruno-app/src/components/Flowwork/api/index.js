@@ -2,9 +2,10 @@
  * flowwork 백엔드(/api/flowwork/*, web-server/flowwork.py) HTTP 클라이언트.
  * 워크플로우가 참조하는 API 카탈로그는 bruno repo main 브랜치의 .bru 기준이다.
  *
- * 데이터 소스: prod(운영 main 트리, 읽기 전용) | edit(브랜치별 편집 worktree).
+ * 데이터 소스: prod(운영 main 트리, 읽기 전용) | edit(공용 편집 worktree).
  * 등록/수정/삭제는 항상 edit 소스로 보내고(서버가 prod 쓰기를 403으로 거부),
- * 편집 화면이 setEditBranch로 지정한 브랜치가 edit 요청에 함께 실린다.
+ * 편집 저장은 서버가 즉시 자동 기록(커밋+push)한다. 운영 반영/작업 삭제는
+ * 작업(파일) 단위로 edit* 메서드를 쓴다.
  */
 import { serverBaseUrl } from '../../../web-ipc/server-api';
 
@@ -41,23 +42,8 @@ const get = (path) => request(path);
 const post = (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) });
 const put = (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) });
 
-// 현재 편집 중인 브랜치 (편집 화면이 URL 브랜치로 설정; null = develop).
-// 브랜치마다 전용 worktree가 있어 edit 소스 요청에 branch를 함께 보낸다.
-let editBranch = null;
-
-export function setEditBranch(branch) {
-  editBranch = branch;
-}
-
-// source가 edit일 때만 ?source=edit&branch=… 쿼리를 만든다 (prod는 빈 문자열)
-const src = (source) => {
-  if (source !== 'edit') return '';
-  const qs = new URLSearchParams({ source: 'edit' });
-  if (editBranch) qs.set('branch', editBranch);
-  return `?${qs.toString()}`;
-};
-
-const withBranch = (body) => ({ ...body, branch: editBranch });
+// source가 edit일 때만 ?source=edit 쿼리를 만든다 (prod는 빈 문자열)
+const src = (source) => (source === 'edit' ? '?source=edit' : '');
 
 const api = {
   listWorkflows: (source) => get(`/api/flowwork/workflows${src(source)}`).then((r) => r.workflows),
@@ -81,25 +67,14 @@ const api = {
   recordExecutionInputs: (id, values, workflowId) =>
     post(`/api/flowwork/executions/${encodeURIComponent(id)}/inputs`, { values, workflow_id: workflowId }),
 
-  // ---- 편집(git) — 브랜치별 worktree의 상태/커밋/머지/충돌 ----
-  editState: () => get(`/api/flowwork/edit/state${editBranch ? `?branch=${encodeURIComponent(editBranch)}` : ''}`),
-  editStatus: () => get(`/api/flowwork/edit/status${editBranch ? `?branch=${encodeURIComponent(editBranch)}` : ''}`),
-  editCreateBranch: (name) => post('/api/flowwork/edit/branches', { name }),
-  editStage: (paths) => post('/api/flowwork/edit/stage', withBranch({ paths: paths ?? null })),
-  editUnstage: (paths) => post('/api/flowwork/edit/unstage', withBranch({ paths: paths ?? null })),
-  editDiscard: (paths) => post('/api/flowwork/edit/discard', withBranch({ paths })),
-  editCommit: (message, stageAll = true) =>
-    post('/api/flowwork/edit/commit', withBranch({ message, stage_all: stageAll })),
-  editPush: () => post('/api/flowwork/edit/push', withBranch({})),
-  // 현재 브랜치(worktree)를 develop에 머지 — 완료 시 브랜치/worktree 정리
-  editMerge: () => post('/api/flowwork/edit/merge', { branch: editBranch }),
-  editConflicts: () => get('/api/flowwork/edit/conflicts'),
-  editResolveConflict: (path, content) => post('/api/flowwork/edit/conflicts/resolve', { path, content }),
-  editMergeContinue: () => post('/api/flowwork/edit/merge/continue', {}),
-  editMergeAbort: () => post('/api/flowwork/edit/merge/abort', {}),
+  // ---- 편집(git) — 변경 목록 · 작업 단위 운영 반영/작업 삭제 ----
+  editState: () => get('/api/flowwork/edit/state'),
+  // 운영(main)에 아직 반영되지 않은 변경 목록
   editPending: () => get('/api/flowwork/edit/pending'),
-  // develop → main(운영) 병합 + push
-  editRelease: () => post('/api/flowwork/edit/release', {}),
+  // 선택한 작업(파일)들만 운영에 반영 + push
+  editRelease: (paths) => post('/api/flowwork/edit/release', { paths }),
+  // 작업 삭제: 선택한 작업(파일)들의 편집 내용을 지우고 운영 버전으로 복원
+  editRevert: (paths) => post('/api/flowwork/edit/revert', { paths }),
 
   // 실행 이력에 남기지 않는 보조 호출 (API_COMBO 옵션 조회 / DEPENDENT_LOOKUP)
   invoke: (req) =>

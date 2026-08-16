@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import api from './api';
 import { colorForDomain } from './domainPalette';
 import EditPage from './Edit';
-import HomeGuide from './HomeGuide';
 import { ExecutionDetail, TaskRecentHistory } from './HistoryView';
 import WorkflowLayout from './WorkflowLayout';
 import WorkflowRunner from './WorkflowRunner';
@@ -20,17 +19,15 @@ import StyledWrapper from './StyledWrapper';
  *   #/flowwork/run/<id>            실행 화면
  *   #/flowwork/executions/<id>     실행 이력 상세 (공유 링크)
  *
- * 편집 모드 (브랜치별 worktree — /b/<branch>가 없으면 develop 읽기 전용):
- *   #/flowwork/edit[/b/<branch>]           편집 홈 (변경 파일 · 운영 미반영)
- *   #/flowwork/edit[/b/<branch>]/t/<d>/<t> 업무 화면
- *   #/flowwork/edit[/b/<branch>]/run/<id>  실행 화면 (worktree 기준)
- *   #/flowwork/edit[/b/<branch>]/new[/<d>/<t>] 새 워크플로우
- *   #/flowwork/edit[/b/<branch>]/wf/<id>   워크플로우 수정
- *   #/flowwork/edit/merge                  develop 머지 충돌 해결
+ * 편집 모드 (공용 편집 공간 — 저장 즉시 기록, 운영 반영은 작업 단위):
+ *   #/flowwork/edit             편집 홈 (변경 목록 · 운영 반영/작업 삭제)
+ *   #/flowwork/edit/t/<d>/<t>   업무 화면
+ *   #/flowwork/edit/run/<id>    실행 화면 (편집 공간 기준)
+ *   #/flowwork/edit/new[/<d>/<t>] 새 워크플로우
+ *   #/flowwork/edit/wf/<id>     워크플로우 수정
  */
 const parseEditPage = (segments) => {
   const [a, b, c] = segments;
-  if (a === 'merge') return { kind: 'merge' };
   if (a === 't' && b && c) return { kind: 'task', domain: b, task: c };
   if (a === 'run' && b) return { kind: 'run', id: b };
   if (a === 'new') return { kind: 'new', domain: b, task: c };
@@ -43,13 +40,7 @@ const parseFlowworkHash = (hash) => {
   if (segments[0] !== 'flowwork') return null;
   const [, a, b, c] = segments;
   if (a === 'edit') {
-    let rest = segments.slice(2);
-    let branch = null;
-    if (rest[0] === 'b' && rest[1]) {
-      branch = rest[1];
-      rest = rest.slice(2);
-    }
-    return { view: 'edit', branch, page: parseEditPage(rest) };
+    return { view: 'edit', page: parseEditPage(segments.slice(2)) };
   }
   if (a === 'executions' && b) return { view: 'execution', executionId: b };
   if (a === 'run' && b) return { view: 'run', id: b };
@@ -59,8 +50,6 @@ const parseFlowworkHash = (hash) => {
 
 const editPageHash = (page) => {
   switch (page.kind) {
-    case 'merge':
-      return '/merge';
     case 'task':
       return `/t/${encodeURIComponent(page.domain)}/${encodeURIComponent(page.task)}`;
     case 'run':
@@ -78,10 +67,8 @@ const editPageHash = (page) => {
 
 const hashForRoute = (route) => {
   switch (route.view) {
-    case 'edit': {
-      const base = route.branch ? `#/flowwork/edit/b/${encodeURIComponent(route.branch)}` : '#/flowwork/edit';
-      return `${base}${editPageHash(route.page)}`;
-    }
+    case 'edit':
+      return `#/flowwork/edit${editPageHash(route.page)}`;
     case 'execution':
       return executionHash(route.executionId);
     case 'run':
@@ -130,9 +117,8 @@ export default function Flowwork() {
       <StyledWrapper>
         <div className="flowwork-content edit-area">
           <EditPage
-            branch={route.branch}
             page={route.page}
-            go={(branch, page) => setRoute({ view: 'edit', branch, page })}
+            go={(page) => setRoute({ view: 'edit', page })}
             onExit={() => setRoute({ view: 'home' })}
             onOpenExecution={openExecution}
           />
@@ -149,8 +135,8 @@ export default function Flowwork() {
     action: (
       <button
         className="small"
-        onClick={() => setRoute({ view: 'edit', branch: null, page: { kind: 'home' } })}
-        title="워크플로우 등록/수정 (브랜치 → 커밋 → develop 머지 → 운영 반영)"
+        onClick={() => setRoute({ view: 'edit', page: { kind: 'home' } })}
+        title="워크플로우 등록/수정 — 저장 즉시 기록, 원하는 작업만 운영 반영"
       >
         편집 모드
       </button>
@@ -175,7 +161,16 @@ export default function Flowwork() {
               <ExecutionDetail executionId={route.executionId} onOpenTask={openTask} />
             </section>
           ) : (
-            <HomeGuide onOpenEdit={() => setRoute({ view: 'edit', branch: null, page: { kind: 'home' } })} />
+            <section className="home-guide">
+              <div className="guide-hero">
+                <h2>워크플로우</h2>
+                <p className="muted">
+                  Bruno에 저장된 API들을 순서대로 엮어 여러 단계 업무를 한 번에 실행하는 도구입니다. 왼쪽에서
+                  업무를 선택하면 실행할 수 있습니다.
+                </p>
+                <p className="muted">워크플로우 등록/수정과 동작 원리 안내는 왼쪽 위 "편집 모드"에 있습니다.</p>
+              </div>
+            </section>
           )}
         </WorkflowLayout>
       </div>

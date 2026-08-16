@@ -11,10 +11,10 @@ flowwork 프로젝트(github.com/…/flowwork)의 서버를 bruno 웹 서버에 
   - 실행 이력: 서버 로컬 executions/*.jsonl (git에 남기지 않는다)
   - 프록시: SSRF allowlist + vault:// 시크릿 리졸브 + 이력 리댁션
 
-워크플로우/도메인 색상의 등록·수정은 flowwork 원본의 편집 반영 단계를 따른다:
-운영(main 체크아웃)은 읽기 전용이고, 쓰기는 source=edit(브랜치별 worktree)로만
-가능하다. 저장 → stage → commit → push → develop 머지(충돌 해결) →
-develop → main 운영 릴리스의 단계는 /api/flowwork/edit/* (gitops.py)가 담당한다.
+워크플로우/도메인 색상의 등록·수정은 "변경"과 "운영 반영" 두 단계만 노출한다:
+운영(main 체크아웃)은 읽기 전용이고, 쓰기는 source=edit(공용 편집 worktree)로만
+가능하며 저장 즉시 자동 기록(autocommit + push)된다. 변경 목록/작업 단위 운영
+반영/되돌리기는 /api/flowwork/edit/* (gitops.py)가 담당한다.
 
 실행 로직(값 리졸브·분기·스텝 순회)은 프론트(bruno-app components/Flowwork)가 담당한다.
 """
@@ -296,28 +296,8 @@ class ExecutionInputsBody(BaseModel):
     workflow_id: Optional[str] = None
 
 
-class BranchBody(BaseModel):
-    name: str
-
-
-class CommitBody(BaseModel):
-    message: str
-    stage_all: bool = True
-    branch: Optional[str] = None
-
-
 class PathsBody(BaseModel):
-    paths: Optional[list[str]] = None
-    branch: Optional[str] = None
-
-
-class MergeBody(BaseModel):
-    branch: str
-
-
-class ResolveBody(BaseModel):
-    path: str
-    content: str
+    paths: list[str]
 
 
 def catalog_entry_id(department: str, collection_file: str, item_path: list[str], name: str) -> str:
@@ -345,6 +325,15 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
                 status_code=403, detail="운영 데이터는 직접 수정할 수 없습니다. 편집 모드를 사용하세요."
             )
         return source
+
+    def _autocommit(message: str, branch: Optional[str]) -> None:
+        """편집 저장/삭제 직후 즉시 기록 — git 저장소가 아니면(테스트 등) 건너뛴다."""
+        if not (repo_dir / ".git").exists():
+            return
+        try:
+            gitops.autocommit(message, branch)
+        except gitops.GitError as e:
+            print(f"[flowwork] autocommit 실패: {e}")
 
     def _workflows_dir(source: str = "prod", branch: Optional[str] = None) -> Path:
         return _data_root(source, branch) / "workflows"
@@ -463,6 +452,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         tmp = domains_file.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(colors, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         tmp.replace(domains_file)
+        _autocommit(f"flowwork: 도메인 '{domain}' 색상 변경", branch)
         return {"status": "saved"}
 
     # -- 워크플로우 CRUD -----------------------------------------------------
@@ -565,6 +555,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         if old_path is not None and old_path.resolve() != new_path.resolve():
             old_path.unlink(missing_ok=True)
 
+        _autocommit(f"flowwork: '{wf.name}' 저장", branch)
         return {"status": "saved", "version": _file_version(new_path)}
 
     @router.delete("/workflows/{workflow_id}")
@@ -574,11 +565,12 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         if path is None:
             raise HTTPException(status_code=404, detail=f"워크플로우를 찾을 수 없습니다: {workflow_id}")
         path.unlink()
+        _autocommit(f"flowwork: 워크플로우 '{workflow_id}' 삭제", branch)
         return {"status": "deleted"}
 
-    # -- 편집(git) — 브랜치별 worktree의 상태/커밋/머지/충돌 해결 ---------------
-    #    브랜치마다 전용 worktree를 두므로 여러 브랜치를 동시에 편집할 수 있다.
-    #    branch 미지정은 develop worktree를 뜻한다.
+    # -- 편집(git) — "변경"과 "운영 반영" 두 개념만 노출한다 -------------------
+    #    저장/삭제가 편집 worktree에 즉시 기록(autocommit)되므로 stage/commit/
+    #    push/merge 단계가 따로 없다. 운영 반영과 되돌리기는 작업(파일) 단위다.
     def _edit_op(fn, *args, **kwargs):
         try:
             return fn(*args, **kwargs)
@@ -586,77 +578,26 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
             raise HTTPException(status_code=409, detail=str(e)) from e
 
     @router.get("/edit/state")
-    def edit_state(branch: Optional[str] = None) -> dict:
-        return _edit_op(gitops.state, branch)
-
-    @router.get("/edit/status")
-    def edit_status(branch: Optional[str] = None) -> dict:
-        return _edit_op(gitops.file_states, branch)
-
-    @router.post("/edit/branches")
-    def edit_create_branch(body: BranchBody) -> dict:
-        return {"branch": _edit_op(gitops.create_branch, body.name)}
-
-    @router.post("/edit/stage")
-    def edit_stage(body: PathsBody) -> dict:
-        _edit_op(gitops.stage, body.branch, body.paths)
-        return {"status": "staged"}
-
-    @router.post("/edit/unstage")
-    def edit_unstage(body: PathsBody) -> dict:
-        _edit_op(gitops.unstage, body.branch, body.paths)
-        return {"status": "unstaged"}
-
-    @router.post("/edit/discard")
-    def edit_discard(body: PathsBody) -> dict:
-        if not body.paths:
-            raise HTTPException(status_code=400, detail="되돌릴 파일 경로가 필요합니다")
-        _edit_op(gitops.discard, body.branch, body.paths)
-        return {"status": "discarded"}
-
-    @router.post("/edit/discard-all")
-    def edit_discard_all(body: PathsBody) -> dict:
-        _edit_op(gitops.discard_all, body.branch)
-        return {"status": "discarded"}
-
-    @router.post("/edit/commit")
-    def edit_commit(body: CommitBody) -> dict:
-        return {"commit": _edit_op(gitops.commit, body.branch, body.message, body.stage_all)}
-
-    @router.post("/edit/push")
-    def edit_push(body: PathsBody) -> dict:
-        return _edit_op(gitops.push, body.branch)
-
-    @router.post("/edit/merge")
-    def edit_merge(body: MergeBody) -> dict:
-        return _edit_op(gitops.merge_to_base, body.branch)
-
-    @router.get("/edit/conflicts")
-    def edit_conflicts() -> dict:
-        return _edit_op(gitops.conflicts)
-
-    @router.post("/edit/conflicts/resolve")
-    def edit_resolve(body: ResolveBody) -> dict:
-        _edit_op(gitops.resolve_conflict, body.path, body.content)
-        return {"status": "resolved"}
-
-    @router.post("/edit/merge/continue")
-    def edit_merge_continue() -> dict:
-        return _edit_op(gitops.merge_continue)
-
-    @router.post("/edit/merge/abort")
-    def edit_merge_abort() -> dict:
-        _edit_op(gitops.merge_abort)
-        return {"status": "aborted"}
+    def edit_state() -> dict:
+        return {
+            "base_branch": gitops.EDIT_BASE_BRANCH,
+            "prod_branch": _edit_op(gitops.prod_branch),
+        }
 
     @router.get("/edit/pending")
     def edit_pending() -> dict:
+        """운영(main)에 아직 반영되지 않은 변경 목록."""
         return _edit_op(gitops.pending_for_prod)
 
     @router.post("/edit/release")
-    def edit_release() -> dict:
-        """develop → main(운영) 병합 + push. 워크플로우 목록은 파일 기반이라 즉시 반영된다."""
-        return _edit_op(gitops.release_to_prod)
+    def edit_release(body: PathsBody) -> dict:
+        """선택한 작업(파일)들만 운영에 반영 + push."""
+        return _edit_op(gitops.release_paths, body.paths)
+
+    @router.post("/edit/revert")
+    def edit_revert(body: PathsBody) -> dict:
+        """선택한 작업(파일)들을 운영 버전으로 되돌린다."""
+        return _edit_op(gitops.revert_paths, body.paths)
 
     # -- 실행 이력 ------------------------------------------------------------
     def _execution_path(execution_id: str) -> Path:

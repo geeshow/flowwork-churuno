@@ -1,9 +1,10 @@
 import React from 'react';
 
 /**
- * 워크플로우 홈(사용 모드 첫 화면) 안내 — 초급 개발자 눈높이로
- * ① Bruno API(.bru)와 워크플로우가 연결되는 과정, ② 수정이 운영(main)에
- * 반영되기까지의 브랜치 전략을 그림과 함께 설명한다.
+ * 편집 모드 홈의 안내 — 초급 개발자 눈높이로
+ * ① Bruno API(.bru)와 워크플로우가 연결되는 과정, ② 편집 공간의 변경이
+ * 운영(main)에 반영되는 과정(작업 단위)을 그림과 함께 설명한다.
+ * 변경 목록(운영 반영 대상) 아래에 렌더된다.
  */
 
 const PIPELINE_STEPS = [
@@ -31,16 +32,16 @@ const PIPELINE_STEPS = [
 
 const VALUE_SOURCES = ['기본 입력값 (사용자 입력)', '이전 스텝 응답', '환경변수', '고정값'];
 
-// 브랜치 전략 단계 — 번호·색이 아래 SVG의 배지와 1:1로 대응한다
+// 반영 단계 — 번호·색이 아래 SVG의 배지와 1:1로 대응한다
 const BRANCH_STEPS = [
-  { lane: 'feature', text: '편집 모드에서 feature 브랜치를 만들어 수정 모드로 들어갑니다 (내 전용 작업 공간)' },
-  { lane: 'feature', text: '저장하면 그 브랜치에만 임시 저장됩니다 — 다른 사람과 운영 화면에는 영향 없음' },
-  { lane: 'feature', text: '변경이 확정되면 커밋(+푸시)합니다' },
-  { lane: 'develop', text: 'develop에 머지합니다 — 충돌이 나면 화면에서 비교하며 해결' },
-  { lane: 'main', text: '운영 반영(develop → main)을 누르면 비로소 이 화면에 나타납니다' }
+  { lane: 'main', text: 'Bruno main 브랜치의 API 목록(.bru 컬렉션)이 자동으로 카탈로그로 연결됩니다' },
+  { lane: 'feature', text: '편집 공간에서 카탈로그의 API를 연결해 워크플로우를 추가/수정합니다 — 저장하면 바로 기록됩니다' },
+  { lane: 'feature', text: '위 변경 목록에서 작업 단위로 확인하고, 필요 없으면 작업 삭제합니다 (작업 내용을 지우고 운영 버전으로 복원)' },
+  { lane: 'main', text: '운영 반영은 작업 단위 — 준비된 작업만 골라 반영하면 사용 모드(운영 화면)에 나타납니다' }
 ];
 
-function GitGraph() {
+// Bruno API 연결 → 편집 공간에서 추가/수정 → 변경 목록 → 작업 단위 운영 반영 전체 흐름
+function ProcessGraph() {
   const badge = (n, x, y, lane) => (
     <g key={n} className={`git-badge git-badge-${lane}`}>
       <circle cx={x} cy={y} r="10" />
@@ -49,40 +50,49 @@ function GitGraph() {
   );
 
   return (
-    <svg className="guide-git" viewBox="0 0 680 200" role="img" aria-label="feature 브랜치에서 develop을 거쳐 main으로 반영되는 과정">
-      <text className="git-label" x="8" y="39">main (운영)</text>
-      <text className="git-label" x="8" y="99">develop (통합)</text>
-      <text className="git-label" x="8" y="159">feature/* (내 작업)</text>
+    <svg
+      className="guide-git"
+      viewBox="0 0 680 240"
+      role="img"
+      aria-label="Bruno main의 API 목록을 연결해 편집 공간에서 워크플로우를 추가/수정하고, 변경 목록에서 작업 단위로 운영에 반영하는 과정"
+    >
+      <text className="git-label" x="8" y="49">운영 (main)</text>
+      <text className="git-label" x="8" y="194">편집 공간</text>
 
-      <path className="git-lane lane-main" d="M115 35 H668" />
-      <path className="git-lane lane-develop" d="M115 95 H668" />
-      {/* develop에서 갈라져 나왔다가(1) 작업 후 다시 develop으로 합쳐지는(4) feature 브랜치 */}
-      <path className="git-lane lane-feature" d="M150 95 C175 95 175 155 200 155 H430 C455 155 455 95 480 95" />
-      {/* develop → main 운영 반영(5) */}
-      <path className="git-lane lane-main" d="M560 95 C585 95 585 35 610 35" />
+      <path className="git-lane lane-main" d="M115 45 H668" />
+      <path className="git-lane lane-feature" d="M115 190 H668" />
 
-      <text className="git-label" x="668" y="18" textAnchor="end">지금 이 화면이 읽는 브랜치</text>
+      {/* ① main의 .bru API 목록이 편집 공간의 카탈로그로 내려온다 */}
+      <path className="git-flow flow-main" d="M200 68 C200 120 240 140 240 186" />
+      {/* ④ 준비된 작업만 골라 운영으로 반영 — 작업 단위 */}
+      <path className="git-flow flow-main" d="M530 190 C560 190 560 45 590 45" />
 
-      {badge(1, 200, 155, 'feature')}
-      {badge(2, 280, 155, 'feature')}
-      {badge(3, 360, 155, 'feature')}
-      {badge(4, 480, 95, 'develop')}
-      {badge(5, 610, 35, 'main')}
+      <g className="git-node">
+        <rect x="125" y="22" width="150" height="46" rx="8" />
+        <text x="200" y="41" textAnchor="middle">Bruno API 목록</text>
+        <text className="git-node-sub" x="200" y="57" textAnchor="middle">(main 브랜치 .bru 컬렉션)</text>
+      </g>
+
+      <text className="git-label" x="668" y="23" textAnchor="end">사용 모드(운영 화면)가 읽는 데이터</text>
+
+      {badge(1, 216, 126, 'main')}
+      <text className="git-step-label" x="234" y="130">API 카탈로그로 연결</text>
+
+      {badge(2, 330, 190, 'feature')}
+      <text className="git-step-label" x="330" y="218" textAnchor="middle">API 연결해 추가/수정 (저장=기록)</text>
+
+      {badge(3, 470, 190, 'feature')}
+      <text className="git-step-label" x="482" y="218" textAnchor="middle">변경 목록 · 작업 삭제</text>
+
+      {badge(4, 600, 45, 'main')}
+      <text className="git-step-label" x="600" y="78" textAnchor="middle">작업 단위 운영 반영</text>
     </svg>
   );
 }
 
-export function HomeGuide({ onOpenEdit }) {
+export function HomeGuide() {
   return (
-    <section className="home-guide">
-      <div className="guide-hero">
-        <h2>워크플로우</h2>
-        <p className="muted">
-          Bruno에 저장된 API들을 순서대로 엮어 여러 단계 업무를 한 번에 실행하는 도구입니다. 왼쪽에서 업무를
-          선택하면 실행할 수 있습니다.
-        </p>
-      </div>
-
+    <>
       <div className="panel guide-panel">
         <h3>Bruno API와 어떻게 연결되나요?</h3>
         <p className="muted">
@@ -113,12 +123,14 @@ export function HomeGuide({ onOpenEdit }) {
       </div>
 
       <div className="panel guide-panel">
-        <h3>수정한 워크플로우는 언제 여기에 보이나요? (브랜치 전략)</h3>
+        <h3>전체 흐름 — Bruno API 연결부터 운영 반영까지</h3>
         <p className="muted">
-          이 화면은 운영(main) 데이터를 읽기 전용으로 보여줍니다. 수정은 내 전용 브랜치에서 시작해 아래 다섯
-          단계를 거쳐야 운영에 반영됩니다 — 검토 없이 바로 바뀌는 일이 없도록 하기 위해서입니다.
+          편집 모드의 저장은 즉시 기록되지만 운영(main)에는 반영되지 않습니다. 사용 모드 화면은 운영 데이터를
+          읽기 전용으로 보여주고, 위 변경 목록에서 <strong>운영 반영</strong>을 누른 작업만 거기에 나타납니다 —
+          검토 없이 운영이 바뀌는 일이 없도록 하기 위해서입니다. 운영 반영은 <strong>작업 단위</strong>로
+          가능해서, 여러 변경이 쌓여 있어도 준비된 것만 골라 내보낼 수 있습니다.
         </p>
-        <GitGraph />
+        <ProcessGraph />
         <ol className="guide-flow-list">
           {BRANCH_STEPS.map((s, i) => (
             <li key={i}>
@@ -127,11 +139,16 @@ export function HomeGuide({ onOpenEdit }) {
             </li>
           ))}
         </ol>
-        <button className="primary" onClick={onOpenEdit}>
-          편집 모드 열기 →
-        </button>
+        <p className="muted">
+          <strong>작업 삭제는 어떻게 되나요?</strong> 변경 목록의 작업 삭제는{' '}
+          <strong>편집 공간에서 작업한 내용을 삭제하고 운영(main) 버전으로 복원</strong>합니다. 운영에 있던
+          워크플로우를 수정한 경우에는 수정 내용이 삭제되어 운영과 같은 내용으로 돌아가고, 새로 추가한
+          워크플로우는 운영에 없으므로 통째로 삭제됩니다.{' '}
+          <strong className="error-text">삭제된 작업 내용은 복구할 수 없으니</strong> 누르기 전에 확인하세요.
+          운영 데이터에는 아무 영향이 없습니다.
+        </p>
       </div>
-    </section>
+    </>
   );
 }
 
