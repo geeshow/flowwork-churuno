@@ -40,15 +40,23 @@ const QueryResultPreview = ({
     setNumPages(numPages);
   }
 
+  // collection은 없을 수 있다 — Devtools Network 상세 패널은 컬렉션에 속하지 않는
+  // 요청(flowwork 실행, 닫힌 컬렉션)도 이 컴포넌트로 응답을 보여준다.
   const onRun = () => {
-    if (disableRunEventListener) {
+    if (disableRunEventListener || !collection) {
       return;
     }
 
     dispatch(sendRequest(item, collection.uid));
   };
 
-  const onSave = () => dispatch(saveRequest(item.uid, collection.uid));
+  const onSave = () => {
+    if (!collection) {
+      return;
+    }
+
+    dispatch(saveRequest(item.uid, collection.uid));
+  };
 
   if (selectedTab === 'editor') {
     return (

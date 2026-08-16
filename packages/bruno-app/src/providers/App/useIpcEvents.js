@@ -42,7 +42,6 @@ import { collectionAddOauth2CredentialsByUrl, collectionClearOauth2CredentialsBy
 import { migrationProgressEvent } from 'providers/ReduxStore/slices/collection-migration';
 import { addLog } from 'providers/ReduxStore/slices/logs';
 import { loadNotifications } from 'providers/ReduxStore/slices/notifications';
-import { updateSystemResources } from 'providers/ReduxStore/slices/performance';
 import { apiSpecAddFileEvent, apiSpecChangeFileEvent } from 'providers/ReduxStore/slices/apiSpec';
 
 const useIpcEvents = () => {
@@ -296,10 +295,6 @@ const useIpcEvents = () => {
       }));
     });
 
-    const removeSystemResourcesListener = ipcRenderer.on('main:filesync-system-resources', (resourceData) => {
-      dispatch(updateSystemResources(resourceData));
-    });
-
     const removeConfigUpdatesListener = ipcRenderer.on('main:bruno-config-update', (val) =>
       dispatch(brunoConfigUpdateEvent(val))
     );
@@ -423,7 +418,6 @@ const useIpcEvents = () => {
       removeCollectionLoadingStateListener();
       removeCollectionVariablesUpdateListener();
       removeRuntimeVariablesUpdateListener();
-      removeSystemResourcesListener();
       gitVersionListener();
       removeLoadNotificationsListener();
     };

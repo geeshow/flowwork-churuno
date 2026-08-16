@@ -2,18 +2,21 @@ import { createSlice } from '@reduxjs/toolkit';
 
 export const TABS = {
   CONSOLE: 'console',
-  NETWORK: 'network',
-  PERFORMANCE: 'performance'
+  NETWORK: 'network'
 };
 
 export const TAB_IDENFIERS = Object.values(TABS);
 
 const MAX_LOGS = 1000;
 const MAX_DEBUG_ERRORS = 500;
+const MAX_FLOWWORK_REQUESTS = 500;
 
 const initialState = {
   logs: [],
   debugErrors: [],
+  // 워크플로우(flowwork) 실행 중 프록시로 나간 API 호출 — 컬렉션 timeline과 합쳐
+  // Network 탭에 표시된다 (엔트리 형태는 collection.timeline의 request 엔트리와 동일)
+  flowworkRequests: [],
   isConsoleOpen: false,
   activeTab: 'console',
   filters: {
@@ -81,6 +84,13 @@ export const logsSlice = createSlice({
     clearDebugErrors: (state) => {
       state.debugErrors = [];
     },
+    addFlowworkRequest: (state, action) => {
+      state.flowworkRequests.push(action.payload);
+
+      if (state.flowworkRequests.length > MAX_FLOWWORK_REQUESTS) {
+        state.flowworkRequests = state.flowworkRequests.slice(-MAX_FLOWWORK_REQUESTS);
+      }
+    },
     openConsole: (state) => {
       state.isConsoleOpen = true;
     },
@@ -130,6 +140,7 @@ export const {
   addDebugError,
   clearLogs,
   clearDebugErrors,
+  addFlowworkRequest,
   openConsole,
   closeConsole,
   setActiveTab,

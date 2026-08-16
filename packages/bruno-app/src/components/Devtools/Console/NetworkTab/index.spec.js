@@ -33,7 +33,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-const renderNetworkTab = (requests = []) => {
+const renderNetworkTab = (requests = [], flowworkRequests = []) => {
   const store = configureStore({
     reducer: {
       collections: (state = {
@@ -45,7 +45,8 @@ const renderNetworkTab = (requests = []) => {
       }) => state,
       logs: (state = {
         networkFilters: ALL_FILTERS,
-        selectedRequest: null
+        selectedRequest: null,
+        flowworkRequests
       }) => state
     }
   });
@@ -203,5 +204,27 @@ describe('sort results', () => {
     fireEvent.click(screen.getByTestId('network-header-method'));
     fireEvent.click(screen.getByTestId('network-header-method'));
     expect(getRowMethods()).toEqual(['POST', 'GET', 'DELETE']);
+  });
+});
+
+describe('flowwork requests', () => {
+  it('merges flowwork entries with collection timeline entries in timestamp order', () => {
+    const requests = [makeRequest({ itemUid: 'a', method: 'GET', timestamp: 2000 })];
+    const flowworkRequests = [{
+      type: 'request',
+      collectionUid: null,
+      itemUid: 'exec-1/step-1',
+      timestamp: 1000,
+      data: {
+        request: { method: 'POST', url: 'https://example.com/api/orders' },
+        response: { statusCode: 201, duration: 80, size: 128 },
+        timestamp: 1000
+      }
+    }];
+    renderNetworkTab(requests, flowworkRequests);
+    const rows = screen.getAllByTestId('network-request-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('POST');
+    expect(rows[1]).toHaveTextContent('GET');
   });
 });

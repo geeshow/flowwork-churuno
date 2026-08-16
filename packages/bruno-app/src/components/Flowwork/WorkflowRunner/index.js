@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { addFlowworkRequest } from 'providers/ReduxStore/slices/logs';
 
 import api from '../api';
 import { makeTemplateResolver, refKey } from '../engine/catalogLookup';
@@ -8,9 +10,53 @@ import { executionShareUrl } from '../shareUrl';
 import { StepCard, stepTypeMeta } from '../StepCard';
 import StepInputForm from '../StepInputForm';
 
+// 프록시는 파싱된 body만 주므로 응답 뷰어(formatResponse)가 요구하는
+// base64 원문은 여기서 재구성한다. 비-JSON 응답은 {_raw: text}로 감싸져 온다.
+const encodeResponseBase64 = (body) => {
+  if (body === null || body === undefined) return undefined;
+  const text = typeof body._raw === 'string' && Object.keys(body).length === 1
+    ? body._raw
+    : JSON.stringify(body);
+  return Buffer.from(text, 'utf-8').toString('base64');
+};
+
+// 스텝 프록시 호출 결과를 Devtools Network 탭 엔트리(collection.timeline의
+// request 엔트리와 동일한 형태)로 변환한다.
+const toNetworkEntry = (payload, result) => {
+  const timestamp = result.timestamp ? Math.round(result.timestamp * 1000) : Date.now();
+  // 서버가 리댁션한 요청(result.request)을 우선 사용 — 실행 이력과 동일하게
+  // Authorization 등 민감 값이 화면에 남지 않는다.
+  const request = result.request ?? payload.request;
+  const { response } = result;
+  return {
+    type: 'request',
+    collectionUid: null,
+    itemUid: `${payload.execution_id}/${payload.step_id}`,
+    timestamp,
+    data: {
+      request: {
+        method: request.method,
+        url: request.url,
+        headers: request.headers,
+        data: request.body
+      },
+      response: {
+        statusCode: response.status,
+        headers: response.headers,
+        duration: result.elapsed_ms,
+        size: response.size_bytes,
+        data: response.body,
+        dataBuffer: encodeResponseBase64(response.body)
+      },
+      timestamp
+    }
+  };
+};
+
 // source="edit"이면 워크플로우 목록/하위 워크플로우를 편집 worktree 기준으로 읽는다
 // (커밋 전 임시 저장 내용으로 동작 확인). 카탈로그/환경변수는 main 기준 공통.
 export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
+  const dispatch = useDispatch();
   const [catalog, setCatalog] = useState([]);
   const [env, setEnv] = useState({});
   const [summaries, setSummaries] = useState([]);
@@ -59,7 +105,11 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
     const wfCache = new Map();
     const deps = {
       getRequestTemplate: makeTemplateResolver(catalog),
-      proxy: api.proxy,
+      proxy: async (payload) => {
+        const result = await api.proxy(payload);
+        dispatch(addFlowworkRequest(toNetworkEntry(payload, result)));
+        return result;
+      },
       env,
       // 다른 업무 연결 스텝: 내부 id로 하위 워크플로우 로드 (세션 내 캐시)
       getWorkflow: async (id) => {

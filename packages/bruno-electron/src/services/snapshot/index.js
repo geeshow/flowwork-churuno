@@ -457,7 +457,6 @@ class SnapshotManager {
     const devToolKeys = [
       'console',
       'network',
-      'performance',
       'terminal'
     ];
     const devToolTabs = isObject(devTools.tabs) ? devTools.tabs : {};

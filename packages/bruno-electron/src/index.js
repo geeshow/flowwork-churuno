@@ -41,7 +41,6 @@ const { registerYmlMigrationIpc } = require('./ipc/yml-migration');
 const registerFilesystemIpc = require('./ipc/filesystem');
 const registerPreferencesIpc = require('./ipc/preferences');
 const registerSnapshotIpc = require('./ipc/snapshot');
-const registerSystemMonitorIpc = require('./ipc/system-monitor');
 const registerWorkspaceIpc = require('./ipc/workspace');
 const registerApiSpecIpc = require('./ipc/apiSpec');
 const registerGitIpc = require('./ipc/git');
@@ -63,11 +62,9 @@ const TerminalManager = require('./ipc/terminal');
 const { safeParseJSON, safeStringifyJSON } = require('./utils/common');
 const { getDomainsWithCookies } = require('./utils/cookies');
 const { cookiesStore } = require('./store/cookies');
-const SystemMonitor = require('./app/system-monitor');
 const { getIsRunningInRosetta } = require('./utils/arch');
 const { handleAppProtocolUrl, getAppProtocolUrlFromArgv } = require('./utils/deeplink');
 
-const systemMonitor = new SystemMonitor();
 const terminalManager = new TerminalManager();
 
 const workspaceWatcher = new WorkspaceWatcher();
@@ -520,7 +517,6 @@ app.on('ready', async () => {
   registerApiSpecIpc(mainWindow, apiSpecWatcher);
   registerNotificationsIpc(mainWindow, collectionWatcher);
   registerFilesystemIpc(mainWindow);
-  registerSystemMonitorIpc(mainWindow, systemMonitor);
   registerGitIpc(mainWindow);
   registerOpenAPISyncIpc(mainWindow);
   registerMockServerIpc(mainWindow);
@@ -569,8 +565,6 @@ app.on('before-quit', (event) => {
     } catch (err) {
       console.warn('Failed to flush cookies on quit', err);
     }
-
-    systemMonitor.stop();
 
     try {
       terminalManager.killAll();

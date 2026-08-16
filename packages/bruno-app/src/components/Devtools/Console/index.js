@@ -8,8 +8,7 @@ import {
   IconTrash,
   IconBug,
   IconTerminal2,
-  IconNetwork,
-  IconDashboard
+  IconNetwork
 } from '@tabler/icons';
 import {
   closeConsole,
@@ -28,9 +27,9 @@ import NetworkTab from './NetworkTab';
 import RequestDetailsPanel from './RequestDetailsPanel';
 // import DebugTab from './DebugTab';
 import ErrorDetailsPanel from './ErrorDetailsPanel';
-import Performance from '../Performance';
 import StyledWrapper from './StyledWrapper';
 import { useResizablePanel } from 'hooks/useResizablePanel';
+import { useNetworkRequests } from 'hooks/useNetworkRequests';
 
 const MIN_DETAILS_PANEL_WIDTH = 280;
 const DETAILS_PANEL_MAX_RATIO = 0.7;
@@ -233,7 +232,6 @@ const ConsoleTab = ({ logs, filters, logCounts, onFilterToggle, onToggleAll, onC
 const Console = () => {
   const dispatch = useDispatch();
   const { logs, filters, activeTab, selectedRequest, selectedError, networkFilters, debugErrors } = useSelector((state) => state.logs);
-  const collections = useSelector((state) => state.collections.collections);
   const [savedDetailsPanelWidth, setSavedDetailsPanelWidth] = usePersistedState({ key: 'devtools-details-panel-width', default: 400 });
   const consoleRef = useRef(null);
   const [consoleWidth, setConsoleWidth] = useState(0);
@@ -268,25 +266,7 @@ const Console = () => {
     return counts;
   }, {});
 
-  const allRequests = React.useMemo(() => {
-    const requests = [];
-
-    collections.forEach((collection) => {
-      if (collection.timeline) {
-        collection.timeline
-          .filter((entry) => entry.type === 'request')
-          .forEach((entry) => {
-            requests.push({
-              ...entry,
-              collectionName: collection.name,
-              collectionUid: collection.uid
-            });
-          });
-      }
-    });
-
-    return requests.sort((a, b) => a.timestamp - b.timestamp);
-  }, [collections]);
+  const allRequests = useNetworkRequests();
 
   const filteredLogs = logs.filter((log) => filters[log.type]);
   const filteredRequests = allRequests.filter((request) => {
@@ -347,8 +327,6 @@ const Console = () => {
         );
       case 'network':
         return <NetworkTab />;
-      case 'performance':
-        return <Performance />;
       // case 'debug':
       //   return <DebugTab />;
       default:
@@ -450,14 +428,6 @@ const Console = () => {
           >
             <IconNetwork size={16} strokeWidth={1.5} />
             <span>Network</span>
-          </button>
-
-          <button
-            className={`console-tab ${activeTab === 'performance' ? 'active' : ''}`}
-            onClick={() => handleTabChange('performance')}
-          >
-            <IconDashboard size={16} strokeWidth={1.5} />
-            <span>Performance</span>
           </button>
 
           {/* <button
