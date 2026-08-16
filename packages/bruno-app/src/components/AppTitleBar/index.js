@@ -213,6 +213,18 @@ const AppTitleBar = () => {
 
         {/* Right section: Action buttons */}
         <div className="titlebar-right">
+          {/* Workspace Dropdown — 워크스페이스는 Bruno 기능이라 Bruno 앱에서만 보인다 */}
+          {activeApp === 'bruno' && (
+            <MenuDropdown
+              data-testid="workspace-menu"
+              items={workspaceMenuItems}
+              placement="bottom-end"
+              selectedItemId={activeWorkspaceUid}
+            >
+              <WorkspaceName />
+            </MenuDropdown>
+          )}
+
           <div className="titlebar-actions">
             {/* Toggle sidebar */}
             <ActionIcon
@@ -237,18 +249,6 @@ const AppTitleBar = () => {
             {/* 응답 패널 레이아웃은 Bruno 요청 화면 전용 */}
             {activeApp === 'bruno' && <ResponseLayoutToggle />}
           </div>
-
-          {/* Workspace Dropdown — 워크스페이스는 Bruno 기능이라 Bruno 앱에서만 보인다 */}
-          {activeApp === 'bruno' && (
-            <MenuDropdown
-              data-testid="workspace-menu"
-              items={workspaceMenuItems}
-              placement="bottom-end"
-              selectedItemId={activeWorkspaceUid}
-            >
-              <WorkspaceName />
-            </MenuDropdown>
-          )}
         </div>
       </div>
     </StyledWrapper>
