@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { IconRefresh } from '@tabler/icons';
+import { IconEye, IconEyeOff, IconRefresh, IconUpload, IconX } from '@tabler/icons';
 import toast from 'react-hot-toast';
 import serverApi from '../../../web-ipc/server-api';
+import { getLocalStorageValue, setLocalStorageValue } from 'utils/common/localStorage';
 import ConfirmButton from 'components/Flowwork/ConfirmButton';
 import useOpenChangeLocation from './useOpenChangeLocation';
 import FilterChips from './FilterChips';
@@ -14,6 +15,24 @@ const KIND_LABEL = { folder: '폴더', collection: '컬렉션', environment: '�
 // 필터 칩 — 사용자는 요청을 'API'라 부른다
 const CHANGE_FILTERS = [['A', '추가'], ['M', '수정'], ['D', '삭제']];
 const KIND_FILTERS = [['collection', '컬렉션'], ['folder', '폴더'], ['request', 'API'], ['environment', '환경']];
+
+// 필터는 새로고침(원복 후 새로고침 포함) 뒤에도 유지되도록 저장한다
+const FILTERS_KEY = 'bruno.workspaceRelease.filters';
+
+const readStoredFilter = (key) => {
+  const stored = getLocalStorageValue(FILTERS_KEY, null, JSON.parse);
+  return new Set(Array.isArray(stored?.[key]) ? stored[key] : []);
+};
+
+const toggledSet = (values, value) => {
+  const next = new Set(values);
+  if (next.has(value)) {
+    next.delete(value);
+  } else {
+    next.add(value);
+  }
+  return next;
+};
 
 /**
  * 워크스페이스 → main 반영 (웹 모드 전용).
@@ -30,8 +49,8 @@ const WorkspaceRelease = ({ workspace }) => {
   const [selected, setSelected] = useState(() => new Set());
   const [showIgnored, setShowIgnored] = useState(false);
   const [openDiffs, setOpenDiffs] = useState(() => new Set());
-  const [changeFilter, setChangeFilter] = useState(() => new Set());
-  const [kindFilter, setKindFilter] = useState(() => new Set());
+  const [changeFilter, setChangeFilter] = useState(() => readStoredFilter('changes'));
+  const [kindFilter, setKindFilter] = useState(() => readStoredFilter('kinds'));
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const reload = useCallback(() => setRefresh((n) => n + 1), []);
@@ -74,16 +93,10 @@ const WorkspaceRelease = ({ workspace }) => {
   const changeCounts = useMemo(() => countBy('change'), [listed]);
   const kindCounts = useMemo(() => countBy('kind'), [listed]);
 
-  const toggleFilter = (setFilter) => (value) => {
-    setFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(value)) {
-        next.delete(value);
-      } else {
-        next.add(value);
-      }
-      return next;
-    });
+  const applyFilters = (changes, kinds) => {
+    setChangeFilter(changes);
+    setKindFilter(kinds);
+    setLocalStorageValue(FILTERS_KEY, JSON.stringify({ changes: [...changes], kinds: [...kinds] }));
   };
 
   const selectedPaths = useMemo(
@@ -178,16 +191,16 @@ const WorkspaceRelease = ({ workspace }) => {
             options={CHANGE_FILTERS}
             counts={changeCounts}
             selected={changeFilter}
-            onToggle={toggleFilter(setChangeFilter)}
-            onClear={() => setChangeFilter(new Set())}
+            onToggle={(value) => applyFilters(toggledSet(changeFilter, value), kindFilter)}
+            onClear={() => applyFilters(new Set(), kindFilter)}
           />
           <span className="filter-divider" />
           <FilterChips
             options={KIND_FILTERS}
             counts={kindCounts}
             selected={kindFilter}
-            onToggle={toggleFilter(setKindFilter)}
-            onClear={() => setKindFilter(new Set())}
+            onToggle={(value) => applyFilters(changeFilter, toggledSet(kindFilter, value))}
+            onClear={() => applyFilters(changeFilter, new Set())}
           />
         </div>
       )}
@@ -267,6 +280,7 @@ const WorkspaceRelease = ({ workspace }) => {
                   done: `${selectedPaths.length}건을 변경 목록으로 되돌렸습니다`
                 })}
             >
+              <IconEye size={14} strokeWidth={1.5} />
               무시 해제
             </button>
           ) : (
@@ -280,6 +294,7 @@ const WorkspaceRelease = ({ workspace }) => {
                     done: `${selectedPaths.length}건을 무시했습니다 — 작업 내용은 그대로 있습니다`
                   })}
               >
+                <IconEyeOff size={14} strokeWidth={1.5} />
                 무시
               </button>
               <ConfirmButton
@@ -292,6 +307,7 @@ const WorkspaceRelease = ({ workspace }) => {
                     keepNotice: 'main 버전으로 되돌렸습니다. 열려 있는 요청 화면에 반영하려면 새로고침하세요.'
                   })}
               >
+                <IconX size={14} strokeWidth={1.5} />
                 main 원복
               </ConfirmButton>
               <ConfirmButton
@@ -304,6 +320,7 @@ const WorkspaceRelease = ({ workspace }) => {
                     done: `${selectedPaths.length}건을 main에 반영했습니다 — flowwork에서 바로 사용할 수 있습니다`
                   })}
               >
+                <IconUpload size={14} strokeWidth={1.5} />
                 main 반영
               </ConfirmButton>
             </>

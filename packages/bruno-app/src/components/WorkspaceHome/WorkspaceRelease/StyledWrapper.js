@@ -231,6 +231,9 @@ const StyledWrapper = styled.div`
 
   button.release-submit,
   button.secondary-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     flex-shrink: 0;
     padding: 4px 10px;
     border-radius: ${(props) => props.theme.border.radius.base};
@@ -244,15 +247,16 @@ const StyledWrapper = styled.div`
     }
   }
 
+  /* 반영은 되돌리기 어려운 동작이라 셋 중 유일하게 색으로 강조한다 */
   button.release-submit {
-    border: 1px solid ${(props) => props.theme.brand};
-    color: ${(props) => props.theme.brand};
+    border: 1px solid ${(props) => props.theme.colors.text.green};
+    color: ${(props) => props.theme.colors.text.green};
 
     &:hover:not(:disabled) {
-      background: ${(props) => props.theme.brand}10;
+      background: ${(props) => props.theme.colors.text.green}10;
     }
     &.confirm-armed {
-      background: ${(props) => props.theme.brand};
+      background: ${(props) => props.theme.colors.text.green};
       color: white;
     }
   }
