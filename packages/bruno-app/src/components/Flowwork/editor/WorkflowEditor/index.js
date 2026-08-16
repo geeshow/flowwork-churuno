@@ -6,8 +6,10 @@ import { colorForDomain, isValidHex, PRESET_COLORS } from '../../domainPalette';
 import InputDefEditor from '../InputDefEditor';
 import StepEditor from '../StepEditor';
 
-// 도메인/업무는 파일 경로 세그먼트이므로 단어문자 + 한글 + 하이픈만 허용
-const SAFE_SEGMENT = /^[\w가-힣-]+$/;
+// 도메인/업무는 파일 경로 세그먼트 — 단어문자 + 한글 + 하이픈 + 공백(앞뒤 제외)만 허용.
+// 업무는 하위 업무를 가질 수 있어 '/'로 나뉜 마디마다 이 규칙을 적용한다.
+const SAFE_SEGMENT = /^[\w가-힣-](?:[\w가-힣 -]*[\w가-힣-])?$/;
+const SEGMENT_RULE = '영문/숫자/한글/-/_ 와 사이 공백';
 
 const emptyWorkflow = (domain = '', task = '') => ({
   id: crypto.randomUUID(),
@@ -114,8 +116,10 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
   };
 
   function validate(w) {
-    if (!SAFE_SEGMENT.test(w.domain)) return '도메인은 영문/숫자/한글/-/_ 만 사용할 수 있습니다.';
-    if (!SAFE_SEGMENT.test(w.task)) return '업무는 영문/숫자/한글/-/_ 만 사용할 수 있습니다.';
+    if (!SAFE_SEGMENT.test(w.domain)) return `도메인은 ${SEGMENT_RULE}만 사용할 수 있습니다.`;
+    if (!w.task.split('/').every((segment) => SAFE_SEGMENT.test(segment))) {
+      return `업무는 ${SEGMENT_RULE}만 사용할 수 있습니다 (하위 업무는 '/'로 구분).`;
+    }
     if (!w.name.trim()) return '이름을 입력하세요.';
     // (도메인, 업무) 내 이름 중복 사전 검사 (서버도 409로 최종 검증)
     const dup = workflows.some(
@@ -225,9 +229,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
             /* 폴더 안에서 만들기 시작했으면 위치는 고정한다 — 옮기려면 저장 후 수정에서 바꾼다 */
             <div className="field">
               <span className="field-label">위치</span>
-              <div className="field-fixed">
-                {wf.domain} / {wf.task}
-              </div>
+              <div className="field-fixed">{[wf.domain, ...wf.task.split('/')].join(' / ')}</div>
             </div>
           ) : (
             <>
@@ -253,7 +255,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
                 <input
                   list="flowwork-task-options"
                   value={wf.task}
-                  placeholder="예: 계좌개설 (선택 또는 입력)"
+                  placeholder="예: 계좌개설 · 하위 업무는 개설/신규 (선택 또는 입력)"
                   onChange={(e) => patch({ task: e.target.value })}
                 />
                 <datalist id="flowwork-task-options">

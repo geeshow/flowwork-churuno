@@ -33,6 +33,10 @@ GIT_PUSH = os.environ.get("BRUNO_WEB_GIT_PUSH", "1") == "1"
 EDITABLE_TOP_PATHS = ("workflows",)
 EDITABLE_FILES = ("domains.json",)
 
+# 빈 업무(폴더)를 남기기 위한 표식 — git이 빈 디렉토리를 기록하지 않는다.
+# 확장자를 붙이지 않아 워크플로우를 찾는 `*.json` 조회에 걸리지 않는다.
+FOLDER_MARKER = ".folder"
+
 # 브랜치명: 영문/숫자/한글/-/_/./ 만 허용, '..'과 선행 '-' 금지 (git 옵션/경로 주입 방지)
 BRANCH_NAME_RE = re.compile(r"^[\w가-힣][\w가-힣./-]*$", re.UNICODE)
 
@@ -166,8 +170,15 @@ def _summarize(path: str, content: Optional[str]) -> dict[str, Any]:
             data = json.loads(content)
         except json.JSONDecodeError:
             data = {}
-    if parts[0] == "workflows" and len(parts) == 4:
-        entry.update(kind="workflow", domain=parts[1], task=parts[2], id=Path(path).stem)
+    # 빈 업무 표식은 파일이 아니라 "업무" 자체가 생기고 없어진 것으로 보여준다
+    if parts[0] == "workflows" and parts[-1] == FOLDER_MARKER and len(parts) >= 3:
+        entry.update(kind="task", domain=parts[1], task="/".join(parts[2:-1]))
+        entry.update(name=f"{entry['domain']} / {entry['task']} (업무)")
+    # workflows/<도메인>/<업무…>/<id>.json — 업무는 하위 업무를 가질 수 있어 깊이가 열려 있다
+    elif parts[0] == "workflows" and len(parts) >= 4:
+        entry.update(
+            kind="workflow", domain=parts[1], task="/".join(parts[2:-1]), id=Path(path).stem
+        )
         entry.update(
             id=data.get("id", entry["id"]),
             domain=data.get("domain", entry["domain"]),

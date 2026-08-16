@@ -57,21 +57,21 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
     return map;
   }, [files]);
 
-  // 업무(도메인/업무)별 변경 건수 — 사이드바 업무 배지
-  const taskChanges = useMemo(() => {
-    const map = new Map();
+  // 변경이 있는 업무(도메인/업무) — 사이드바에서 불릿 대신 U로 표시한다.
+  // 업무 자체가 새로 생긴 것(kind: task)도 아직 운영에 없는 변경이다.
+  const changedTasks = useMemo(() => {
+    const set = new Set();
     for (const f of files) {
-      if (f.kind !== 'workflow' || !f.domain || !f.task) continue;
-      const key = `${f.domain.normalize('NFC')}/${f.task.normalize('NFC')}`;
-      map.set(key, (map.get(key) ?? 0) + 1);
+      if (!f.domain || !f.task) continue;
+      set.add(`${f.domain.normalize('NFC')}/${f.task.normalize('NFC')}`);
     }
-    return map;
+    return set;
   }, [files]);
 
   // 도메인별 변경 여부 — 사이드바 도메인(상위 메뉴)의 변경 점 표시
   const changedDomains = useMemo(() => {
     const set = new Set();
-    for (const f of files) if (f.kind === 'workflow' && f.domain) set.add(f.domain.normalize('NFC'));
+    for (const f of files) if (f.domain) set.add(f.domain.normalize('NFC'));
     return set;
   }, [files]);
 
@@ -140,11 +140,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
         activeTask={page.kind === 'task' ? { domain: page.domain, task: page.task } : undefined}
         onOpenTask={(d, t) => go({ kind: 'task', domain: d, task: t })}
         onOpenHome={() => go({ kind: 'home' })}
-        taskBadge={(domain, task) => {
-          const count = taskChanges.get(`${domain}/${task}`);
-          if (!count) return null;
-          return <span className="state-badge sm st-changed">변경{count > 1 ? ` ${count}` : ''}</span>;
-        }}
+        taskChanged={(domain, task) => changedTasks.has(`${domain}/${task}`)}
         domainBadge={(domain) =>
           changedDomains.has(domain) ? <span className="domain-dot-changed" title="하위 변경 있음" /> : null}
         taskMenu={(domain, task) => (
@@ -155,6 +151,17 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
               clipboard,
               setClipboard,
               go,
+              prompt: setPrompt,
+              onError: setError,
+              onDone: bump
+            })}
+          />
+        )}
+        domainMenu={(domain) => (
+          <TaskMenu
+            items={domainMenuItems({
+              domain,
+              clipboard,
               prompt: setPrompt,
               onError: setError,
               onDone: bump
@@ -200,20 +207,29 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
   );
 }
 
-// 업무(폴더) "..." 메뉴 구성 — Bruno 사이드바 항목 메뉴와 같은 순서.
-// 이름을 받아야 하는 동작은 prompt()로 대화상자를 띄운 뒤 이어서 실행한다.
-function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onError, onDone }) {
-  const run = (promise) => promise.then(onDone).catch((e) => onError(e.message));
+// 업무 경로("개설/신규")에서 표시용 이름과 형제·자식 경로를 만든다
+const taskLeaf = (task) => task.slice(task.lastIndexOf('/') + 1);
+const siblingTask = (task, name) => {
+  const cut = task.lastIndexOf('/');
+  return cut < 0 ? name : `${task.slice(0, cut)}/${name}`;
+};
 
-  const askName = ({ title, label, initial, submitLabel, action }) =>
-    prompt({ title, label, initial, submitLabel, onSubmit: (name) => run(action(name)) });
+// 이름을 받아야 하는 동작은 대화상자를 띄운 뒤 이어서 실행한다 (window.prompt는 웹뷰에서 막힌다)
+const nameAsker = ({ prompt, onError, onDone }) => ({ title, label, initial, submitLabel, action }) =>
+  prompt({
+    title,
+    label,
+    initial,
+    submitLabel,
+    onSubmit: (name) => action(name).then(onDone).catch((e) => onError(e.message))
+  });
+
+// 도메인 "..." 메뉴 — 도메인 바로 아래(최상위) 업무를 만든다.
+// 하위 업무는 업무 메뉴의 New Folder로 만든다.
+function domainMenuItems({ domain, clipboard, prompt, onError, onDone }) {
+  const askName = nameAsker({ prompt, onError, onDone });
 
   return [
-    {
-      id: 'newWorkflow',
-      label: 'New Workflow',
-      onClick: () => go({ kind: 'new', domain, task })
-    },
     {
       id: 'newFolder',
       label: 'New Folder',
@@ -225,17 +241,60 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
           action: (name) => api.createTask(domain, name)
         })
     },
+    ...(clipboard
+      ? [
+          {
+            id: 'paste',
+            label: `Paste (${taskLeaf(clipboard.task)})`,
+            onClick: () =>
+              askName({
+                title: `'${domain}'에 '${taskLeaf(clipboard.task)}' 붙여넣기`,
+                label: '업무 이름',
+                initial: taskLeaf(clipboard.task),
+                submitLabel: '붙여넣기',
+                action: (name) => api.copyTask(clipboard.domain, clipboard.task, { domain, task: name })
+              })
+          }
+        ]
+      : [])
+  ];
+}
+
+// 업무(폴더) "..." 메뉴 구성 — Bruno 사이드바 항목 메뉴와 같은 순서.
+// New Folder와 Paste는 이 업무의 하위 업무를 만든다.
+function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onError, onDone }) {
+  const askName = nameAsker({ prompt, onError, onDone });
+  const leaf = taskLeaf(task);
+
+  return [
+    {
+      id: 'newWorkflow',
+      label: 'New Workflow',
+      onClick: () => go({ kind: 'new', domain, task })
+    },
+    {
+      id: 'newFolder',
+      label: 'New Folder',
+      title: '이 업무 안에 하위 업무를 만듭니다',
+      onClick: () =>
+        askName({
+          title: `'${leaf}' 안에 하위 업무`,
+          label: '업무 이름',
+          submitLabel: '만들기',
+          action: (name) => api.createTask(domain, `${task}/${name}`)
+        })
+    },
     {
       id: 'clone',
       label: 'Clone',
-      title: '업무와 그 안의 워크플로우를 통째로 복제합니다',
+      title: '업무와 그 안의 워크플로우·하위 업무를 통째로 복제합니다',
       onClick: () =>
         askName({
-          title: `'${task}' 복제`,
+          title: `'${leaf}' 복제`,
           label: '새 업무 이름',
-          initial: `${task} copy`,
+          initial: `${leaf} copy`,
           submitLabel: '복제',
-          action: (name) => api.copyTask(domain, task, { domain, task: name })
+          action: (name) => api.copyTask(domain, task, { domain, task: siblingTask(task, name) })
         })
     },
     {
@@ -248,14 +307,15 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
       ? [
           {
             id: 'paste',
-            label: `Paste (${clipboard.task})`,
+            label: `Paste (${taskLeaf(clipboard.task)})`,
             onClick: () =>
               askName({
-                title: `'${domain}'에 '${clipboard.task}' 붙여넣기`,
+                title: `'${leaf}' 안에 '${taskLeaf(clipboard.task)}' 붙여넣기`,
                 label: '업무 이름',
-                initial: clipboard.task,
+                initial: taskLeaf(clipboard.task),
                 submitLabel: '붙여넣기',
-                action: (name) => api.copyTask(clipboard.domain, clipboard.task, { domain, task: name })
+                action: (name) =>
+                  api.copyTask(clipboard.domain, clipboard.task, { domain, task: `${task}/${name}` })
               })
           }
         ]
@@ -265,11 +325,11 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
       label: 'Rename',
       onClick: () =>
         askName({
-          title: `'${task}' 이름 변경`,
+          title: `'${leaf}' 이름 변경`,
           label: '업무 이름',
-          initial: task,
+          initial: leaf,
           submitLabel: '변경',
-          action: (name) => api.renameTask(domain, task, { domain, task: name })
+          action: (name) => api.renameTask(domain, task, { domain, task: siblingTask(task, name) })
         })
     },
     {
@@ -286,8 +346,12 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
       id: 'delete',
       label: 'Delete',
       danger: true,
-      title: '워크플로우가 없는 빈 업무만 삭제할 수 있습니다',
-      onClick: () => run(api.deleteTask(domain, task))
+      title: '워크플로우가 없는 업무만 삭제할 수 있습니다',
+      onClick: () =>
+        api
+          .deleteTask(domain, task)
+          .then(onDone)
+          .catch((e) => onError(e.message))
     }
   ];
 }
@@ -434,9 +498,13 @@ function EditTaskDetail({ domain, task, statusById, refreshKey, onRun, onEdit, o
       <div className="task-detail-head">
         <div className="crumb">
           <span className="task-bullet lg" style={{ background: color }} />
-          <span className="muted">{domain}</span>
-          <span className="muted">/</span>
-          <h2>{task}</h2>
+          {[domain, ...task.split('/').slice(0, -1)].map((crumb, depth) => (
+            <React.Fragment key={`${depth}-${crumb}`}>
+              <span className="muted">{crumb}</span>
+              <span className="muted">/</span>
+            </React.Fragment>
+          ))}
+          <h2>{taskLeaf(task)}</h2>
         </div>
         <button className="primary small" onClick={onNew}>
           <IconPlus size={14} strokeWidth={2} />

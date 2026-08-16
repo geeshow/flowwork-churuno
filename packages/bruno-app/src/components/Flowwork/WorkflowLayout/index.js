@@ -21,13 +21,25 @@ export function orderGroups(groups) {
   return [...known, ...rest];
 }
 
+// 업무 경로("개설/신규")를 마디 단위로 비교해 부모가 자식 바로 앞에 오게 한다.
+// 경로 문자열끼리 비교하면 '/'가 무시돼 형제 사이에 남의 자식이 끼어든다.
+function compareTaskPaths(a, b) {
+  const left = a.split('/');
+  const right = b.split('/');
+  for (let i = 0; i < Math.min(left.length, right.length); i += 1) {
+    const order = left[i].localeCompare(right[i], 'ko');
+    if (order) return order;
+  }
+  return left.length - right.length;
+}
+
 /**
  * 좌측 사이드바에 [도메인(세로) → 업무(자식 메뉴)] 트리를 고정으로 두고,
  * 우측 detail 영역에 선택한 업무의 워크플로우 목록 / 실행 화면(children)을 보여준다.
  * 자식(업무) 메뉴 왼쪽에는 도메인 전용 색상 불릿을 찍어 도메인을 구분한다.
  *
  * source="edit"이면 편집 worktree(develop/feature 브랜치) 기준 목록을 보여주고,
- * taskBadge/domainBadge로 업무·도메인 옆에 변경 상태 배지를 붙일 수 있다.
+ * taskChanged/domainBadge로 업무·도메인에 변경 상태를 표시할 수 있다.
  * refreshKey가 바뀌면 목록을 다시 불러온다 (저장/삭제 후 갱신용).
  */
 export function WorkflowLayout({
@@ -39,9 +51,10 @@ export function WorkflowLayout({
   activeTask,
   onOpenTask,
   onOpenHome,
-  taskBadge,
+  taskChanged,
   domainBadge,
   taskMenu,
+  domainMenu,
   children
 }) {
   const dispatch = useDispatch();
@@ -131,21 +144,27 @@ export function WorkflowLayout({
     setOpenDomains((cur) => (cur.has(hlDomain) ? cur : new Set(cur).add(hlDomain)));
   }, [hlDomain]);
 
-  // 도메인 → 업무(정렬) 트리. 워크플로우가 없는 빈 업무도 서버의 폴더 목록으로 채운다.
+  // 도메인 → 업무 트리. 업무는 하위 업무를 가질 수 있어 경로("개설/신규")로 다루고,
+  // 화면에서는 깊이만큼 들여쓴다. 워크플로우가 없는 빈 업무도 서버의 폴더 목록으로 채운다.
   const tree = useMemo(() => {
     const byDomain = new Map();
     for (const d of GROUP_ORDER) byDomain.set(d, new Set());
     const add = (domain, task) => {
       const d = domain.normalize('NFC');
       const tasks = byDomain.get(d) ?? new Set();
-      tasks.add(task.normalize('NFC'));
+      // 상위 업무는 목록에 없어도 트리에서 빠지면 안 된다
+      const segments = task.normalize('NFC').split('/');
+      for (let i = 1; i <= segments.length; i += 1) tasks.add(segments.slice(0, i).join('/'));
       byDomain.set(d, tasks);
     };
     for (const w of rows ?? []) add(w.domain, w.task);
     for (const t of taskDirs) add(t.domain, t.task);
     return orderGroups([...byDomain.keys()]).map((domain) => ({
       domain,
-      tasks: [...byDomain.get(domain)].sort((a, b) => a.localeCompare(b, 'ko'))
+      tasks: [...byDomain.get(domain)].sort(compareTaskPaths).map((path) => {
+        const segments = path.split('/');
+        return { path, name: segments[segments.length - 1], depth: segments.length - 1 };
+      })
     }));
   }, [rows, taskDirs]);
 
@@ -177,41 +196,51 @@ export function WorkflowLayout({
                     const open = openDomains.has(domain);
                     return (
                       <div key={domain} className={`domain-group ${open ? 'open' : ''}`}>
-                        <button
-                          className="domain-head"
-                          onClick={() =>
-                            setOpenDomains((cur) => {
-                              const next = new Set(cur);
-                              if (next.has(domain)) next.delete(domain);
-                              else next.add(domain);
-                              return next;
-                            })}
-                          aria-expanded={open}
-                        >
-                          <span className="domain-caret">{open ? '▾' : '▸'}</span>
-                          <span className="domain-swatch" style={{ background: color }} />
-                          <span className="domain-name">{domain}</span>
-                          {domainBadge?.(domain)}
-                          <span className="domain-count">{tasks.length}</span>
-                        </button>
+                        <div className="domain-row">
+                          <button
+                            className="domain-head"
+                            onClick={() =>
+                              setOpenDomains((cur) => {
+                                const next = new Set(cur);
+                                if (next.has(domain)) next.delete(domain);
+                                else next.add(domain);
+                                return next;
+                              })}
+                            aria-expanded={open}
+                          >
+                            <span className="domain-caret">{open ? '▾' : '▸'}</span>
+                            <span className="domain-swatch" style={{ background: color }} />
+                            <span className="domain-name">{domain}</span>
+                            {domainBadge?.(domain)}
+                            <span className="domain-count">{tasks.length}</span>
+                          </button>
+                          {domainMenu?.(domain)}
+                        </div>
                         {open ? (
                           tasks.length === 0 ? (
                             <div className="task-empty muted">업무 없음</div>
                           ) : (
                             <ul className="task-menu">
-                              {tasks.map((task) => {
-                                const on = hlDomain === domain && hlTask === task;
+                              {tasks.map(({ path, name, depth }) => {
+                                const on = hlDomain === domain && hlTask === path;
+                                const changed = taskChanged?.(domain, path);
                                 return (
-                                  <li key={task} className="task-row">
+                                  <li key={path} className="task-row">
                                     <button
                                       className={`task-item ${on ? 'active' : ''}`}
-                                      onClick={() => onOpenTask(domain, task)}
+                                      style={{ paddingLeft: 8 + depth * 14 }}
+                                      onClick={() => onOpenTask(domain, path)}
                                     >
-                                      <span className="task-bullet" style={{ background: color }} />
-                                      <span className="task-text">{task}</span>
-                                      {taskBadge?.(domain, task)}
+                                      {changed ? (
+                                        <span className="task-bullet changed" title="운영 미반영 변경 있음">
+                                          U
+                                        </span>
+                                      ) : (
+                                        <span className="task-bullet" style={{ background: color }} />
+                                      )}
+                                      <span className="task-text">{name}</span>
                                     </button>
-                                    {taskMenu?.(domain, task)}
+                                    {taskMenu?.(domain, path)}
                                   </li>
                                 );
                               })}

@@ -50,13 +50,10 @@ _ALLOWED_HOST_PREFIXES = [
 # 카탈로그 대상에서 제외되는 최상위 디렉토리 (환경/워크플로우/저장소 메타)
 _NON_DEPARTMENT_DIRS = {"environments", "workflows", "node_modules", ".git", ".bruno-history", ".transient"}
 
-# 빈 업무(폴더)를 남기기 위한 표식 — git이 빈 디렉토리를 기록하지 않는다.
-# 확장자를 붙이지 않아 워크플로우를 찾는 `*.json` 조회에 걸리지 않는다.
-FOLDER_MARKER = ".folder"
-
 _HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
-# 경로 traversal 방지: 단어문자(한글 포함) + 하이픈만
-_SAFE_SEGMENT = re.compile(r"^[-\w]+$", re.UNICODE)
+# 경로 traversal 방지: 단어문자(한글 포함) + 하이픈 + 공백.
+# 앞뒤 공백은 눈에 보이지 않으면서 다른 이름이 되므로 가운데에서만 허용한다.
+_SAFE_SEGMENT = re.compile(r"^[-\w](?:[-\w ]*[-\w])?$", re.UNICODE)
 _TEMPLATE_VAR = re.compile(r"\{\{(\w+)\}\}")
 
 
@@ -64,6 +61,11 @@ def _safe(segment: str) -> str:
     if not segment or not _SAFE_SEGMENT.match(segment):
         raise HTTPException(status_code=400, detail=f"허용되지 않는 이름입니다: {segment!r}")
     return segment
+
+
+def _safe_task(task: str) -> tuple[str, ...]:
+    """업무 경로 → 마디들. 업무는 하위 업무를 가질 수 있어 '/'로 계층을 나눈다."""
+    return tuple(_safe(part) for part in task.split("/"))
 
 
 # ---------------------------------------------------------------------------
@@ -544,19 +546,35 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
     def _workflow_path(
         domain: str, task: str, workflow_id: str, source: str, branch: Optional[str]
     ) -> Path:
-        return _workflows_dir(source, branch) / _safe(domain) / _safe(task) / f"{_safe(workflow_id)}.json"
+        return _task_dir(domain, task, source, branch) / f"{_safe(workflow_id)}.json"
 
     def _find_path_by_id(workflow_id: str, source: str, branch: Optional[str]) -> Optional[Path]:
         workflows_dir = _workflows_dir(source, branch)
         if not workflows_dir.exists():
             return None
-        return next(workflows_dir.glob(f"*/*/{_safe(workflow_id)}.json"), None)
+        return next(workflows_dir.glob(f"*/*/**/{_safe(workflow_id)}.json"), None)
 
     # -- 업무(폴더) ----------------------------------------------------------
+    #    업무는 하위 업무를 가질 수 있어 도메인 아래 임의 깊이의 디렉토리다.
+    #    워크플로우는 언제나 업무 안에 있으므로 도메인 바로 밑에는 두지 않는다.
     #    워크플로우가 없는 빈 업무도 남기려면 표식이 필요하다. git은 빈 디렉토리를
     #    기록하지 않기 때문이다. 확장자를 붙이지 않아 `*.json` 조회에 걸리지 않는다.
+    def _domain_dir(domain: str, source: str, branch: Optional[str]) -> Path:
+        return _workflows_dir(source, branch) / _safe(domain)
+
     def _task_dir(domain: str, task: str, source: str, branch: Optional[str]) -> Path:
-        return _workflows_dir(source, branch) / _safe(domain) / _safe(task)
+        return _domain_dir(domain, source, branch).joinpath(*_safe_task(task))
+
+    def _retarget(root: Path, domain: str, domain_dir: Path) -> None:
+        """옮기거나 복제한 폴더 안의 워크플로우에 새 위치(도메인/업무)를 반영한다."""
+        for path in sorted(root.rglob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            data["domain"] = domain
+            data["task"] = path.parent.relative_to(domain_dir).as_posix()
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def list_task_dirs(source: str, branch: Optional[str]) -> list[tuple[str, str]]:
         workflows_dir = _workflows_dir(source, branch)
@@ -566,9 +584,9 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         for domain_dir in sorted(workflows_dir.iterdir()):
             if not domain_dir.is_dir():
                 continue
-            for task_dir in sorted(domain_dir.iterdir()):
-                if task_dir.is_dir():
-                    tasks.append((domain_dir.name, task_dir.name))
+            for path in sorted(domain_dir.rglob("*")):
+                if path.is_dir():
+                    tasks.append((domain_dir.name, path.relative_to(domain_dir).as_posix()))
         return tasks
 
     @router.get("/tasks")
@@ -583,15 +601,15 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         if path.exists():
             raise HTTPException(status_code=409, detail=f"'{body.domain}'에 이미 '{body.task}' 업무가 있습니다.")
         path.mkdir(parents=True)
-        (path / FOLDER_MARKER).write_text("", encoding="utf-8")
+        (path / gitops.FOLDER_MARKER).write_text("", encoding="utf-8")
         _autocommit(f"flowwork: 업무 '{body.domain}/{body.task}' 추가", branch)
         return {"status": "created", "domain": body.domain, "task": body.task}
 
-    @router.put("/tasks/{domain}/{task}")
+    @router.put("/tasks/{domain}/{task:path}")
     def rename_task(
         domain: str, task: str, body: TaskBody, source: str = "edit", branch: Optional[str] = None
     ) -> dict:
-        """업무 이름·도메인 변경 — 폴더를 옮기고 안의 워크플로우 위치 정보도 맞춘다."""
+        """업무 이름·위치 변경 — 폴더를 옮기고 안의 워크플로우 위치 정보도 맞춘다."""
         _check_editable(source)
         old = _task_dir(domain, task, source, branch)
         if not old.is_dir():
@@ -601,23 +619,20 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
             return {"status": "unchanged", "domain": body.domain, "task": body.task}
         if new.exists():
             raise HTTPException(status_code=409, detail=f"'{body.domain}'에 이미 '{body.task}' 업무가 있습니다.")
+        # 자기 하위로는 옮길 수 없다 (폴더가 자기 안으로 사라진다)
+        if new.resolve().is_relative_to(old.resolve()):
+            raise HTTPException(status_code=400, detail="업무를 자기 하위 업무로 옮길 수 없습니다.")
         new.parent.mkdir(parents=True, exist_ok=True)
         old.rename(new)
-        for path in sorted(new.glob("*.json")):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            data["domain"], data["task"] = body.domain, body.task
-            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _retarget(new, body.domain, _domain_dir(body.domain, source, branch))
         _autocommit(f"flowwork: 업무 '{domain}/{task}' → '{body.domain}/{body.task}'", branch)
         return {"status": "renamed", "domain": body.domain, "task": body.task}
 
-    @router.post("/tasks/{domain}/{task}/copy")
+    @router.post("/tasks/{domain}/{task:path}/copy")
     def copy_task(
         domain: str, task: str, body: TaskBody, source: str = "edit", branch: Optional[str] = None
     ) -> dict:
-        """업무를 통째로 복제한다 — 안의 워크플로우는 새 id로 복사된다."""
+        """업무를 하위 업무까지 통째로 복제한다 — 안의 워크플로우는 새 id로 복사된다."""
         _check_editable(source)
         old = _task_dir(domain, task, source, branch)
         if not old.is_dir():
@@ -625,31 +640,34 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         new = _task_dir(body.domain, body.task, source, branch)
         if new.exists():
             raise HTTPException(status_code=409, detail=f"'{body.domain}'에 이미 '{body.task}' 업무가 있습니다.")
-        new.mkdir(parents=True)
-        (new / FOLDER_MARKER).write_text("", encoding="utf-8")
+        if new.resolve().is_relative_to(old.resolve()):
+            raise HTTPException(status_code=400, detail="업무를 자기 하위 업무로 복제할 수 없습니다.")
+        new.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(old, new)
         copied = 0
-        for path in sorted(old.glob("*.json")):
+        for path in sorted(new.rglob("*.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 continue
             data["id"] = uuid.uuid4().hex[:12]  # 같은 id가 둘이면 조회가 엉킨다
-            data["domain"], data["task"] = body.domain, body.task
-            (new / f"{data['id']}.json").write_text(
+            path.unlink()
+            (path.parent / f"{data['id']}.json").write_text(
                 json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             copied += 1
+        _retarget(new, body.domain, _domain_dir(body.domain, source, branch))
         _autocommit(f"flowwork: 업무 '{domain}/{task}' 복제 → '{body.domain}/{body.task}'", branch)
         return {"status": "copied", "domain": body.domain, "task": body.task, "workflows": copied}
 
-    @router.delete("/tasks/{domain}/{task}")
+    @router.delete("/tasks/{domain}/{task:path}")
     def delete_task(domain: str, task: str, source: str = "edit", branch: Optional[str] = None) -> dict:
-        """빈 업무만 지운다 — 워크플로우가 남아 있으면 그쪽부터 지우게 안내한다."""
+        """워크플로우가 없는 업무만 지운다 — 남아 있으면 그쪽부터 지우게 안내한다."""
         _check_editable(source)
         path = _task_dir(domain, task, source, branch)
         if not path.is_dir():
             raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
-        remaining = list(path.glob("*.json"))
+        remaining = list(path.rglob("*.json"))
         if remaining:
             raise HTTPException(
                 status_code=409,
@@ -664,7 +682,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         out = []
         workflows_dir = _workflows_dir(source, branch)
         if workflows_dir.exists():
-            for path in sorted(workflows_dir.glob("*/*/*.json")):
+            for path in sorted(workflows_dir.glob("*/*/**/*.json")):
                 try:
                     data = json.loads(path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
@@ -702,7 +720,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
             raise HTTPException(status_code=400, detail="본문 id와 경로 id가 다릅니다")
 
         # (도메인, 업무) 내 이름 중복 검사
-        folder = _workflows_dir(source, branch) / _safe(wf.domain) / _safe(wf.task)
+        folder = _task_dir(wf.domain, wf.task, source, branch)
         if folder.exists():
             for path in folder.glob("*.json"):
                 try:

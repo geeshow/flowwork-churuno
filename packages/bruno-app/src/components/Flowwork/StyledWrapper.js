@@ -245,11 +245,23 @@ const StyledWrapper = styled.div`
     gap: 2px;
   }
 
+  /* 도메인 줄 — 업무 줄과 마찬가지로 hover할 때만 "..."이 나타난다 */
+  .domain-row {
+    display: flex;
+    align-items: center;
+
+    &:hover .task-menu-trigger,
+    .task-menu-trigger.open {
+      opacity: 1;
+    }
+  }
+
   .domain-head {
     display: flex;
     align-items: center;
     gap: 7px;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     padding: 6px 8px;
     border-radius: ${(props) => props.theme.border.radius.base};
     font-size: ${(props) => props.theme.font.size.sm};
@@ -414,6 +426,17 @@ const StyledWrapper = styled.div`
     &.lg {
       width: 10px;
       height: 10px;
+    }
+    /* 운영 미반영 변경이 있는 업무는 불릿 자리에 U를 세운다 */
+    &.changed {
+      width: 8px;
+      height: auto;
+      border-radius: 0;
+      color: ${(props) => props.theme.colors.text.yellow};
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      text-align: center;
     }
   }
   .task-text {
@@ -1593,23 +1616,6 @@ const StyledWrapper = styled.div`
 
   .small-text {
     font-size: ${(props) => props.theme.font.size.xs};
-  }
-
-  /* 변경 배지: 운영 반영 전 변경이 있는 업무 표시 */
-  .state-badge {
-    padding: 1px 8px;
-    border-radius: 999px;
-    font-size: ${(props) => props.theme.font.size.xs};
-    border: 1px solid ${(props) => props.theme.border.border1};
-    white-space: nowrap;
-    &.sm {
-      padding: 0 6px;
-      margin-left: 6px;
-    }
-    &.st-changed {
-      color: ${(props) => props.theme.colors.text.yellow};
-      border-color: ${(props) => props.theme.colors.text.yellow};
-    }
   }
 
   /* 워크플로우가 운영과 다르다는 표시 — 종류(추가/수정/삭제)는 변경 목록에서 본다 */
