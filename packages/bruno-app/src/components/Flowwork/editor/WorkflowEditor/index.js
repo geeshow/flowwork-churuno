@@ -29,8 +29,10 @@ const newStep = () => ({
 });
 
 /**
- * 워크플로우 등록/수정 — 저장하면 main 브랜치의 repo/workflows에 바로 반영된다
- * (서버가 자동 커밋·푸시). 낙관적 잠금 충돌 시 덮어쓰기/다시 불러오기를 선택한다.
+ * 워크플로우 등록/수정 — 항상 편집 worktree(source=edit) 기준으로 읽고 쓴다.
+ * 저장은 현재 편집 브랜치의 worktree 파일 쓰기(커밋 전 임시 저장)이고,
+ * main 반영은 커밋 → develop 머지 → 운영 릴리스 단계를 거친다.
+ * 낙관적 잠금 충돌 시 덮어쓰기/다시 불러오기를 선택한다.
  */
 export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, onCancel }) {
   const [wf, setWf] = useState(mode === 'new' ? emptyWorkflow(initialDomain, initialTask) : null);
@@ -48,7 +50,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows(), api.getDomainColors()])
+    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows('edit'), api.getDomainColors('edit')])
       .then(([cat, envs, wfs, colors]) => {
         if (!alive) return;
         setEntries(cat.results);
@@ -66,7 +68,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
     if (mode !== 'edit' || !id) return;
     let alive = true;
     api
-      .getWorkflow(id)
+      .getWorkflow(id, 'edit')
       .then((w) => alive && setWf(w))
       .catch((e) => alive && setError(e.message));
     return () => {
@@ -151,7 +153,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
       onSaved(normalized);
     } catch (e) {
       if (e instanceof VersionConflictError) {
-        const server = await api.getWorkflow(normalized.id).catch(() => null);
+        const server = await api.getWorkflow(normalized.id, 'edit').catch(() => null);
         setConflict({ deleted: server == null });
       } else {
         setError(e.message);
@@ -162,7 +164,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
   }
 
   async function reloadFromServer() {
-    const server = await api.getWorkflow(wf.id).catch(() => null);
+    const server = await api.getWorkflow(wf.id, 'edit').catch(() => null);
     if (server) setWf(server);
     setConflict(null);
   }

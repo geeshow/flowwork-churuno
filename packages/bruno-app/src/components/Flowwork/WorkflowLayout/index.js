@@ -1,7 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+
+import { updateIsDragging, updateLeftSidebarWidth } from 'providers/ReduxStore/slices/app';
+import { setLocalStorageValue, SIDEBAR_WIDTH_KEY } from 'utils/common/localStorage';
 
 import api from '../api';
 import { colorForDomain } from '../domainPalette';
+
+// Bruno 사이드바와 동일한 리사이즈 범위
+const MIN_SIDEBAR_WIDTH = 220;
+const MAX_SIDEBAR_WIDTH = 600;
+const DEFAULT_SIDEBAR_WIDTH = 270;
 
 // 도메인 표시 순서 (미지정 도메인은 이 뒤에 가나다순으로 붙는다)
 export const GROUP_ORDER = ['계좌', '계정', '매매', '정산', '인증', '마케팅', '상품'];
@@ -17,20 +26,67 @@ export function orderGroups(groups) {
  * 우측 detail 영역에 선택한 업무의 워크플로우 목록 / 실행 화면(children)을 보여준다.
  * 자식(업무) 메뉴 왼쪽에는 도메인 전용 색상 불릿을 찍어 도메인을 구분한다.
  *
+ * source="edit"이면 편집 worktree(develop/feature 브랜치) 기준 목록을 보여주고,
+ * taskBadge/domainBadge로 업무·도메인 옆에 변경 상태 배지를 붙일 수 있다.
  * refreshKey가 바뀌면 목록을 다시 불러온다 (저장/삭제 후 갱신용).
  */
 export function WorkflowLayout({
   title = '워크플로우',
+  source = 'prod',
   refreshKey,
   action,
   activeId,
   activeTask,
   onOpenTask,
+  onOpenHome,
+  taskBadge,
+  domainBadge,
   children
 }) {
+  const dispatch = useDispatch();
   const [rows, setRows] = useState(null);
   const [colors, setColors] = useState({});
   const [error, setError] = useState(null);
+  // 타이틀바의 사이드바 토글·폭 조절을 Bruno 화면과 동일한 상태로 따른다
+  const sidebarCollapsed = useSelector((state) => state.app.sidebarCollapsed);
+  const leftSidebarWidth = useSelector((state) => state.app.leftSidebarWidth);
+  const [dragging, setDragging] = useState(false);
+  const [asideWidth, setAsideWidth] = useState(leftSidebarWidth ?? DEFAULT_SIDEBAR_WIDTH);
+  const lastWidthRef = useRef(asideWidth);
+  const sidebarWidth = dragging ? asideWidth : leftSidebarWidth ?? DEFAULT_SIDEBAR_WIDTH;
+
+  const handleDragbarMouseDown = (e) => {
+    e.preventDefault();
+    const width = leftSidebarWidth ?? DEFAULT_SIDEBAR_WIDTH;
+    setAsideWidth(width);
+    lastWidthRef.current = width;
+    setDragging(true);
+    dispatch(updateIsDragging({ isDragging: true }));
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const handleMouseMove = (e) => {
+      e.preventDefault();
+      const nextWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, e.clientX + 2));
+      if (Math.abs(nextWidth - lastWidthRef.current) < 3) return;
+      lastWidthRef.current = nextWidth;
+      setAsideWidth(nextWidth);
+    };
+    const handleMouseUp = (e) => {
+      e.preventDefault();
+      setDragging(false);
+      dispatch(updateLeftSidebarWidth({ leftSidebarWidth: lastWidthRef.current }));
+      setLocalStorageValue(SIDEBAR_WIDTH_KEY, lastWidthRef.current);
+      dispatch(updateIsDragging({ isDragging: false }));
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragging, dispatch]);
   // 펼친 도메인 집합. 여러 도메인을 동시에 열어둘 수 있고, 새 선택이 기존 열림을 닫지 않는다.
   // 라우트 이동으로 레이아웃이 다시 마운트돼도 유지되도록 localStorage에 저장.
   const [openDomains, setOpenDomains] = useState(() => {
@@ -48,7 +104,7 @@ export function WorkflowLayout({
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.listWorkflows(), api.getDomainColors()])
+    Promise.all([api.listWorkflows(source), api.getDomainColors(source)])
       .then(([r, c]) => {
         if (!alive) return;
         setRows(r);
@@ -59,7 +115,7 @@ export function WorkflowLayout({
     return () => {
       alive = false;
     };
-  }, [refreshKey]);
+  }, [source, refreshKey]);
 
   // 실행 중인 워크플로우가 있으면 그 (도메인,업무)를 강조 대상으로
   const runningWf = useMemo(() => rows?.find((w) => w.id === activeId) ?? null, [rows, activeId]);
@@ -91,69 +147,84 @@ export function WorkflowLayout({
 
   return (
     <div className="workspace">
-      <aside className="wf-sidebar">
-        <div className="sidebar-scroll">
-          <div className="sidebar-head">
-            <h2 className="sidebar-title">{title}</h2>
-            {action}
+      {sidebarCollapsed ? null : (
+        <div className="wf-sidebar-wrap">
+          <aside className="wf-sidebar" style={{ width: sidebarWidth }}>
+            <div className="sidebar-scroll">
+              <div className="sidebar-head">
+                {onOpenHome ? (
+                  <button className="sidebar-title-btn" onClick={onOpenHome} title="홈으로">
+                    <h2 className="sidebar-title">{title}</h2>
+                  </button>
+                ) : (
+                  <h2 className="sidebar-title">{title}</h2>
+                )}
+                {action}
+              </div>
+
+              {error ? <div className="error-banner">{error}</div> : null}
+
+              {!rows ? (
+                <p className="muted">불러오는 중…</p>
+              ) : (
+                <nav className="domain-tree">
+                  {tree.map(({ domain, tasks }) => {
+                    const color = colorForDomain(domain, colors);
+                    const open = openDomains.has(domain);
+                    return (
+                      <div key={domain} className={`domain-group ${open ? 'open' : ''}`}>
+                        <button
+                          className="domain-head"
+                          onClick={() =>
+                            setOpenDomains((cur) => {
+                              const next = new Set(cur);
+                              if (next.has(domain)) next.delete(domain);
+                              else next.add(domain);
+                              return next;
+                            })}
+                          aria-expanded={open}
+                        >
+                          <span className="domain-caret">{open ? '▾' : '▸'}</span>
+                          <span className="domain-swatch" style={{ background: color }} />
+                          <span className="domain-name">{domain}</span>
+                          {domainBadge?.(domain)}
+                          <span className="domain-count">{tasks.length}</span>
+                        </button>
+                        {open ? (
+                          tasks.length === 0 ? (
+                            <div className="task-empty muted">업무 없음</div>
+                          ) : (
+                            <ul className="task-menu">
+                              {tasks.map((task) => {
+                                const on = hlDomain === domain && hlTask === task;
+                                return (
+                                  <li key={task}>
+                                    <button
+                                      className={`task-item ${on ? 'active' : ''}`}
+                                      onClick={() => onOpenTask(domain, task)}
+                                    >
+                                      <span className="task-bullet" style={{ background: color }} />
+                                      <span className="task-text">{task}</span>
+                                      {taskBadge?.(domain, task)}
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </nav>
+              )}
+            </div>
+          </aside>
+          <div className="wf-sidebar-drag-handle" onMouseDown={handleDragbarMouseDown}>
+            <div className="drag-border" />
           </div>
-
-          {error ? <div className="error-banner">{error}</div> : null}
-
-          {!rows ? (
-            <p className="muted">불러오는 중…</p>
-          ) : (
-            <nav className="domain-tree">
-              {tree.map(({ domain, tasks }) => {
-                const color = colorForDomain(domain, colors);
-                const open = openDomains.has(domain);
-                return (
-                  <div key={domain} className={`domain-group ${open ? 'open' : ''}`}>
-                    <button
-                      className="domain-head"
-                      onClick={() =>
-                        setOpenDomains((cur) => {
-                          const next = new Set(cur);
-                          if (next.has(domain)) next.delete(domain);
-                          else next.add(domain);
-                          return next;
-                        })}
-                      aria-expanded={open}
-                    >
-                      <span className="domain-caret">{open ? '▾' : '▸'}</span>
-                      <span className="domain-swatch" style={{ background: color }} />
-                      <span className="domain-name">{domain}</span>
-                      <span className="domain-count">{tasks.length}</span>
-                    </button>
-                    {open ? (
-                      tasks.length === 0 ? (
-                        <div className="task-empty muted">업무 없음</div>
-                      ) : (
-                        <ul className="task-menu">
-                          {tasks.map((task) => {
-                            const on = hlDomain === domain && hlTask === task;
-                            return (
-                              <li key={task}>
-                                <button
-                                  className={`task-item ${on ? 'active' : ''}`}
-                                  onClick={() => onOpenTask(domain, task)}
-                                >
-                                  <span className="task-bullet" style={{ background: color }} />
-                                  <span className="task-text">{task}</span>
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )
-                    ) : null}
-                  </div>
-                );
-              })}
-            </nav>
-          )}
         </div>
-      </aside>
+      )}
 
       <div className="wf-detail">{children}</div>
     </div>

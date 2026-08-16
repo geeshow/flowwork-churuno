@@ -72,6 +72,30 @@ git worktree**(`web-server/worktrees/<이름>`)를 만들고, 각각을 Bruno �
 | `BRUNO_WEB_WORKTREES_DIR` | `web-server/worktrees` | 브랜치별 worktree 위치 |
 | `BRUNO_WEB_GIT_PUSH` | `1` | 자동 커밋 후 push 여부 |
 
+## flowwork 워크플로우 편집 반영 단계 (브랜치 → develop → main)
+
+워크플로우(`{repo}/workflows/**`)와 도메인 색상(`{repo}/domains.json`)은 flowwork
+원본의 편집 흐름을 따릅니다. API 콜렉션(workspace 브랜치)의 "저장 = 즉시 커밋"과
+달리, **운영(main 체크아웃)은 읽기 전용**이고 쓰기는 편집 worktree로만 갑니다:
+
+1. 편집 모드 진입 — develop 뷰는 읽기 전용, `feature/*` 브랜치를 만들면
+   `web-server/edit-worktrees/<브랜치>`에 전용 worktree가 생깁니다
+   (브랜치별로 독립 보존 → 여러 명이 동시에 편집 가능)
+2. 저장 = 그 브랜치 worktree 파일 쓰기 (커밋 전 임시 저장, 자동 커밋 없음)
+3. stage → commit → push (파일 상태: 수정됨 → 스테이지 → 커밋됨 → 푸시됨)
+4. develop 머지 — develop worktree에서 `--no-ff` 머지, 충돌 시 파일별
+   ours/theirs 해결 화면, 완료 시 feature 브랜치/worktree 자동 정리
+5. 운영 반영 — develop → main 병합 + push (`/api/flowwork/edit/release`)
+
+서버 구현은 `web-server/gitops.py`(`/api/flowwork/edit/*` 라우트는
+`flowwork.py`), 프론트는 `packages/bruno-app/src/components/Flowwork/Edit/`
+(`#/flowwork/edit[/b/<브랜치>]` 해시 라우트)입니다.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `BRUNO_WEB_EDIT_DIR` | `web-server/edit-worktrees` | 편집 브랜치 worktree 위치 |
+| `BRUNO_WEB_EDIT_BASE_BRANCH` | `develop` | 편집 기본(머지 대상) 브랜치 |
+
 ## 샘플 컬렉션 & 내장 Mock API
 
 `web-server/collections/` 아래에 두 개의 샘플이 들어 있습니다:

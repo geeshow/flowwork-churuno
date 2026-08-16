@@ -241,11 +241,13 @@ def safe_path(raw: str) -> Path:
 
 # ---------------------------------------------------------------------------
 # flowwork — 워크플로우 기능 (카탈로그는 main 체크아웃의 .bru 기준)
+# 워크플로우 등록/수정은 편집 브랜치 worktree(gitops.py)에서만 이뤄지고,
+# main 반영은 develop 머지 → 운영 릴리스 단계(/api/flowwork/edit/*)를 거친다.
 # ---------------------------------------------------------------------------
 
 import flowwork
 
-app.include_router(flowwork.build_router(REPO_DIR, SERVER_DIR / "executions", schedule_commit))
+app.include_router(flowwork.build_router(REPO_DIR, SERVER_DIR / "executions"))
 
 
 # ---------------------------------------------------------------------------

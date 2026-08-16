@@ -6,10 +6,15 @@ flowwork 프로젝트(github.com/…/flowwork)의 서버를 bruno 웹 서버에 
 
   - 카탈로그: {repo}/<부서 폴더>/**/*.bru 를 평탄화 (department = 최상위 폴더)
   - 환경변수: {repo}/environments/*.bru 의 vars 병합
-  - 워크플로우: {repo}/workflows/{domain}/{task}/{id}.json — 저장 시 main에 자동 커밋/푸시
+  - 워크플로우: {repo}/workflows/{domain}/{task}/{id}.json
   - 도메인 색상: {repo}/domains.json
   - 실행 이력: 서버 로컬 executions/*.jsonl (git에 남기지 않는다)
   - 프록시: SSRF allowlist + vault:// 시크릿 리졸브 + 이력 리댁션
+
+워크플로우/도메인 색상의 등록·수정은 flowwork 원본의 편집 반영 단계를 따른다:
+운영(main 체크아웃)은 읽기 전용이고, 쓰기는 source=edit(브랜치별 worktree)로만
+가능하다. 저장 → stage → commit → push → develop 머지(충돌 해결) →
+develop → main 운영 릴리스의 단계는 /api/flowwork/edit/* (gitops.py)가 담당한다.
 
 실행 로직(값 리졸브·분기·스텝 순회)은 프론트(bruno-app components/Flowwork)가 담당한다.
 """
@@ -21,11 +26,13 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+
+import gitops
 
 PROXY_TIMEOUT_SECONDS = float(os.environ.get("BRUNO_WEB_FLOWWORK_PROXY_TIMEOUT", "15.0"))
 
@@ -289,16 +296,61 @@ class ExecutionInputsBody(BaseModel):
     workflow_id: Optional[str] = None
 
 
+class BranchBody(BaseModel):
+    name: str
+
+
+class CommitBody(BaseModel):
+    message: str
+    stage_all: bool = True
+    branch: Optional[str] = None
+
+
+class PathsBody(BaseModel):
+    paths: Optional[list[str]] = None
+    branch: Optional[str] = None
+
+
+class MergeBody(BaseModel):
+    branch: str
+
+
+class ResolveBody(BaseModel):
+    path: str
+    content: str
+
+
 def catalog_entry_id(department: str, collection_file: str, item_path: list[str], name: str) -> str:
     key = "/".join([department, collection_file, *item_path, name])
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
 
-def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable[[Path], None]) -> APIRouter:
+def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
     router = APIRouter(prefix="/api/flowwork")
 
-    workflows_dir = repo_dir / "workflows"
-    domains_file = repo_dir / "domains.json"
+    # -- 데이터 소스: prod(운영 main 트리, 읽기 전용) | edit(브랜치별 편집 worktree) --
+    def _data_root(source: str, branch: Optional[str]) -> Path:
+        if source == "prod":
+            return repo_dir
+        if source == "edit":
+            try:
+                return gitops.ensure_worktree(branch)
+            except gitops.GitError as e:
+                raise HTTPException(status_code=409, detail=str(e)) from e
+        raise HTTPException(status_code=400, detail=f"알 수 없는 데이터 소스입니다: {source!r}")
+
+    def _check_editable(source: str) -> str:
+        if source != "edit":
+            raise HTTPException(
+                status_code=403, detail="운영 데이터는 직접 수정할 수 없습니다. 편집 모드를 사용하세요."
+            )
+        return source
+
+    def _workflows_dir(source: str = "prod", branch: Optional[str] = None) -> Path:
+        return _data_root(source, branch) / "workflows"
+
+    def _domains_file(source: str = "prod", branch: Optional[str] = None) -> Path:
+        return _data_root(source, branch) / "domains.json"
 
     # -- 카탈로그 ------------------------------------------------------------
     def build_catalog() -> list[dict[str, Any]]:
@@ -381,7 +433,8 @@ def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable
         return {"values": merged}
 
     # -- 도메인 색상 ---------------------------------------------------------
-    def load_domain_colors() -> dict[str, str]:
+    def load_domain_colors(source: str = "prod", branch: Optional[str] = None) -> dict[str, str]:
+        domains_file = _domains_file(source, branch)
         if not domains_file.exists():
             return {}
         try:
@@ -393,37 +446,45 @@ def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable
         return {str(k): str(v) for k, v in data.items() if _HEX_COLOR.match(str(v))}
 
     @router.get("/domains")
-    def list_domain_colors() -> dict:
-        return {"colors": load_domain_colors()}
+    def list_domain_colors(source: str = "prod", branch: Optional[str] = None) -> dict:
+        return {"colors": load_domain_colors(source, branch)}
 
     @router.put("/domains/{domain}")
-    def set_domain_color(domain: str, body: DomainColorBody) -> dict:
+    def set_domain_color(
+        domain: str, body: DomainColorBody, source: str = "edit", branch: Optional[str] = None
+    ) -> dict:
+        _check_editable(source)
         _safe(domain)
         if not _HEX_COLOR.match(body.color):
             raise HTTPException(status_code=400, detail=f"허용되지 않는 색상입니다(#rgb/#rrggbb): {body.color!r}")
-        colors = load_domain_colors()
+        colors = load_domain_colors(source, branch)
         colors[domain] = body.color
+        domains_file = _domains_file(source, branch)
         tmp = domains_file.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(colors, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         tmp.replace(domains_file)
-        schedule_commit(domains_file)
         return {"status": "saved"}
 
     # -- 워크플로우 CRUD -----------------------------------------------------
+    #    조회는 source=prod(기본)|edit, 등록/수정/삭제는 edit(브랜치 worktree)만 허용.
     def _file_version(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
 
-    def _workflow_path(domain: str, task: str, workflow_id: str) -> Path:
-        return workflows_dir / _safe(domain) / _safe(task) / f"{_safe(workflow_id)}.json"
+    def _workflow_path(
+        domain: str, task: str, workflow_id: str, source: str, branch: Optional[str]
+    ) -> Path:
+        return _workflows_dir(source, branch) / _safe(domain) / _safe(task) / f"{_safe(workflow_id)}.json"
 
-    def _find_path_by_id(workflow_id: str) -> Optional[Path]:
+    def _find_path_by_id(workflow_id: str, source: str, branch: Optional[str]) -> Optional[Path]:
+        workflows_dir = _workflows_dir(source, branch)
         if not workflows_dir.exists():
             return None
         return next(workflows_dir.glob(f"*/*/{_safe(workflow_id)}.json"), None)
 
     @router.get("/workflows")
-    def list_workflows() -> dict:
+    def list_workflows(source: str = "prod", branch: Optional[str] = None) -> dict:
         out = []
+        workflows_dir = _workflows_dir(source, branch)
         if workflows_dir.exists():
             for path in sorted(workflows_dir.glob("*/*/*.json")):
                 try:
@@ -442,8 +503,8 @@ def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable
         return {"workflows": out}
 
     @router.get("/workflows/{workflow_id}")
-    def get_workflow(workflow_id: str) -> dict:
-        path = _find_path_by_id(workflow_id)
+    def get_workflow(workflow_id: str, source: str = "prod", branch: Optional[str] = None) -> dict:
+        path = _find_path_by_id(workflow_id, source, branch)
         if path is None:
             raise HTTPException(status_code=404, detail=f"워크플로우를 찾을 수 없습니다: {workflow_id}")
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -451,12 +512,19 @@ def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable
         return data
 
     @router.put("/workflows/{workflow_id}")
-    def save_workflow(workflow_id: str, wf: WorkflowFileModel, force: bool = False) -> dict:
+    def save_workflow(
+        workflow_id: str,
+        wf: WorkflowFileModel,
+        force: bool = False,
+        source: str = "edit",
+        branch: Optional[str] = None,
+    ) -> dict:
+        _check_editable(source)
         if wf.id != workflow_id:
             raise HTTPException(status_code=400, detail="본문 id와 경로 id가 다릅니다")
 
         # (도메인, 업무) 내 이름 중복 검사
-        folder = workflows_dir / _safe(wf.domain) / _safe(wf.task)
+        folder = _workflows_dir(source, branch) / _safe(wf.domain) / _safe(wf.task)
         if folder.exists():
             for path in folder.glob("*.json"):
                 try:
@@ -469,8 +537,8 @@ def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable
                         detail=f"'{wf.domain}/{wf.task}'에 이미 '{wf.name}' 이름이 있습니다.",
                     )
 
-        new_path = _workflow_path(wf.domain, wf.task, wf.id)
-        old_path = _find_path_by_id(wf.id)
+        new_path = _workflow_path(wf.domain, wf.task, wf.id, source, branch)
+        old_path = _find_path_by_id(wf.id, source, branch)
 
         # 낙관적 잠금 — 조회 이후 다른 사용자가 저장/삭제했으면 409
         if not force and wf.version is not None:
@@ -497,17 +565,98 @@ def build_router(repo_dir: Path, executions_dir: Path, schedule_commit: Callable
         if old_path is not None and old_path.resolve() != new_path.resolve():
             old_path.unlink(missing_ok=True)
 
-        schedule_commit(new_path)
         return {"status": "saved", "version": _file_version(new_path)}
 
     @router.delete("/workflows/{workflow_id}")
-    def delete_workflow(workflow_id: str) -> dict:
-        path = _find_path_by_id(workflow_id)
+    def delete_workflow(workflow_id: str, source: str = "edit", branch: Optional[str] = None) -> dict:
+        _check_editable(source)
+        path = _find_path_by_id(workflow_id, source, branch)
         if path is None:
             raise HTTPException(status_code=404, detail=f"워크플로우를 찾을 수 없습니다: {workflow_id}")
         path.unlink()
-        schedule_commit(workflows_dir)
         return {"status": "deleted"}
+
+    # -- 편집(git) — 브랜치별 worktree의 상태/커밋/머지/충돌 해결 ---------------
+    #    브랜치마다 전용 worktree를 두므로 여러 브랜치를 동시에 편집할 수 있다.
+    #    branch 미지정은 develop worktree를 뜻한다.
+    def _edit_op(fn, *args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except gitops.GitError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+
+    @router.get("/edit/state")
+    def edit_state(branch: Optional[str] = None) -> dict:
+        return _edit_op(gitops.state, branch)
+
+    @router.get("/edit/status")
+    def edit_status(branch: Optional[str] = None) -> dict:
+        return _edit_op(gitops.file_states, branch)
+
+    @router.post("/edit/branches")
+    def edit_create_branch(body: BranchBody) -> dict:
+        return {"branch": _edit_op(gitops.create_branch, body.name)}
+
+    @router.post("/edit/stage")
+    def edit_stage(body: PathsBody) -> dict:
+        _edit_op(gitops.stage, body.branch, body.paths)
+        return {"status": "staged"}
+
+    @router.post("/edit/unstage")
+    def edit_unstage(body: PathsBody) -> dict:
+        _edit_op(gitops.unstage, body.branch, body.paths)
+        return {"status": "unstaged"}
+
+    @router.post("/edit/discard")
+    def edit_discard(body: PathsBody) -> dict:
+        if not body.paths:
+            raise HTTPException(status_code=400, detail="되돌릴 파일 경로가 필요합니다")
+        _edit_op(gitops.discard, body.branch, body.paths)
+        return {"status": "discarded"}
+
+    @router.post("/edit/discard-all")
+    def edit_discard_all(body: PathsBody) -> dict:
+        _edit_op(gitops.discard_all, body.branch)
+        return {"status": "discarded"}
+
+    @router.post("/edit/commit")
+    def edit_commit(body: CommitBody) -> dict:
+        return {"commit": _edit_op(gitops.commit, body.branch, body.message, body.stage_all)}
+
+    @router.post("/edit/push")
+    def edit_push(body: PathsBody) -> dict:
+        return _edit_op(gitops.push, body.branch)
+
+    @router.post("/edit/merge")
+    def edit_merge(body: MergeBody) -> dict:
+        return _edit_op(gitops.merge_to_base, body.branch)
+
+    @router.get("/edit/conflicts")
+    def edit_conflicts() -> dict:
+        return _edit_op(gitops.conflicts)
+
+    @router.post("/edit/conflicts/resolve")
+    def edit_resolve(body: ResolveBody) -> dict:
+        _edit_op(gitops.resolve_conflict, body.path, body.content)
+        return {"status": "resolved"}
+
+    @router.post("/edit/merge/continue")
+    def edit_merge_continue() -> dict:
+        return _edit_op(gitops.merge_continue)
+
+    @router.post("/edit/merge/abort")
+    def edit_merge_abort() -> dict:
+        _edit_op(gitops.merge_abort)
+        return {"status": "aborted"}
+
+    @router.get("/edit/pending")
+    def edit_pending() -> dict:
+        return _edit_op(gitops.pending_for_prod)
+
+    @router.post("/edit/release")
+    def edit_release() -> dict:
+        """develop → main(운영) 병합 + push. 워크플로우 목록은 파일 기반이라 즉시 반영된다."""
+        return _edit_op(gitops.release_to_prod)
 
     # -- 실행 이력 ------------------------------------------------------------
     def _execution_path(execution_id: str) -> Path:

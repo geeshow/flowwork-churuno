@@ -8,7 +8,9 @@ import { executionShareUrl } from '../shareUrl';
 import { StepCard, stepTypeMeta } from '../StepCard';
 import StepInputForm from '../StepInputForm';
 
-export function WorkflowRunner({ workflow, onOpenExecution }) {
+// source="edit"이면 워크플로우 목록/하위 워크플로우를 편집 worktree 기준으로 읽는다
+// (커밋 전 임시 저장 내용으로 동작 확인). 카탈로그/환경변수는 main 기준 공통.
+export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
   const [catalog, setCatalog] = useState([]);
   const [env, setEnv] = useState({});
   const [summaries, setSummaries] = useState([]);
@@ -28,7 +30,7 @@ export function WorkflowRunner({ workflow, onOpenExecution }) {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows()])
+    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows(source)])
       .then(([cat, envs, wfs]) => {
         if (!alive) return;
         setCatalog(cat.results);
@@ -40,7 +42,7 @@ export function WorkflowRunner({ workflow, onOpenExecution }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [source]);
 
   // 기본 입력값(워크플로우 레벨)이 곧 실행 엔진의 userInputs가 된다
   const allInputs = workflow.baseInputs;
@@ -63,7 +65,7 @@ export function WorkflowRunner({ workflow, onOpenExecution }) {
       getWorkflow: async (id) => {
         const cached = wfCache.get(id);
         if (cached) return cached;
-        const wf = await api.getWorkflow(id);
+        const wf = await api.getWorkflow(id, source);
         wfCache.set(id, wf);
         return wf;
       },
