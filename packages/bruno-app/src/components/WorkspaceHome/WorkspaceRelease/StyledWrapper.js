@@ -131,6 +131,41 @@ const StyledWrapper = styled.div`
     }
   }
 
+  .release-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 6px 12px;
+    border-bottom: 1px solid ${(props) => props.theme.workspace.border};
+  }
+
+  .filter-divider {
+    width: 1px;
+    height: 14px;
+    background: ${(props) => props.theme.workspace.border};
+  }
+
+  /* 이름·경로를 누르면 그 위치로 이동한다 */
+  button.row-open {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover .api-name {
+      text-decoration: underline;
+    }
+  }
+
   /* 긴 이름·경로가 줄을 접지 않고 말줄임되도록 (min-width: 0 이 없으면 flex가 안 줄어든다) */
   .api-name,
   .api-directory {

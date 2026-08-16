@@ -3,12 +3,17 @@ import { IconRefresh } from '@tabler/icons';
 import toast from 'react-hot-toast';
 import serverApi from '../../../web-ipc/server-api';
 import ConfirmButton from 'components/Flowwork/ConfirmButton';
+import useOpenChangeLocation from './useOpenChangeLocation';
+import FilterChips from './FilterChips';
 import ApiDiff from './ApiDiff';
 import StyledWrapper from './StyledWrapper';
 
 const CHANGE_LABEL = { A: '추가', M: '수정', D: '삭제' };
 // 요청은 메서드 배지로 이미 구분되므로 종류 라벨을 따로 붙이지 않는다
 const KIND_LABEL = { folder: '폴더', collection: '컬렉션', environment: '환경' };
+// 필터 칩 — 사용자는 요청을 'API'라 부른다
+const CHANGE_FILTERS = [['A', '추가'], ['M', '수정'], ['D', '삭제']];
+const KIND_FILTERS = [['collection', '컬렉션'], ['folder', '폴더'], ['request', 'API'], ['environment', '환경']];
 
 /**
  * 워크스페이스 → main 반영 (웹 모드 전용).
@@ -25,9 +30,12 @@ const WorkspaceRelease = ({ workspace }) => {
   const [selected, setSelected] = useState(() => new Set());
   const [showIgnored, setShowIgnored] = useState(false);
   const [openDiffs, setOpenDiffs] = useState(() => new Set());
+  const [changeFilter, setChangeFilter] = useState(() => new Set());
+  const [kindFilter, setKindFilter] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const reload = useCallback(() => setRefresh((n) => n + 1), []);
+  const openLocation = useOpenChangeLocation(workspace);
 
   useEffect(() => {
     let alive = true;
@@ -50,7 +58,33 @@ const WorkspaceRelease = ({ workspace }) => {
 
   const files = pending?.files ?? [];
   const ignoredCount = useMemo(() => files.filter((f) => f.ignored).length, [files]);
-  const visible = useMemo(() => files.filter((f) => (showIgnored ? f.ignored : !f.ignored)), [files, showIgnored]);
+  // 필터 개수는 필터 적용 전(무시 여부만 반영한) 목록 기준이라야 0건인 칩을 알 수 있다
+  const listed = useMemo(() => files.filter((f) => (showIgnored ? f.ignored : !f.ignored)), [files, showIgnored]);
+  const visible = useMemo(
+    () =>
+      listed.filter(
+        (f) => (changeFilter.size === 0 || changeFilter.has(f.change))
+          && (kindFilter.size === 0 || kindFilter.has(f.kind))
+      ),
+    [listed, changeFilter, kindFilter]
+  );
+
+  const countBy = (key) =>
+    listed.reduce((counts, f) => ({ ...counts, [f[key]]: (counts[f[key]] ?? 0) + 1 }), {});
+  const changeCounts = useMemo(() => countBy('change'), [listed]);
+  const kindCounts = useMemo(() => countBy('kind'), [listed]);
+
+  const toggleFilter = (setFilter) => (value) => {
+    setFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) {
+        next.delete(value);
+      } else {
+        next.add(value);
+      }
+      return next;
+    });
+  };
 
   const selectedPaths = useMemo(
     () => visible.filter((f) => selected.has(f.path)).map((f) => f.path),
@@ -138,6 +172,26 @@ const WorkspaceRelease = ({ workspace }) => {
         </button>
       </div>
 
+      {listed.length > 0 && (
+        <div className="release-filters">
+          <FilterChips
+            options={CHANGE_FILTERS}
+            counts={changeCounts}
+            selected={changeFilter}
+            onToggle={toggleFilter(setChangeFilter)}
+            onClear={() => setChangeFilter(new Set())}
+          />
+          <span className="filter-divider" />
+          <FilterChips
+            options={KIND_FILTERS}
+            counts={kindCounts}
+            selected={kindFilter}
+            onToggle={toggleFilter(setKindFilter)}
+            onClear={() => setKindFilter(new Set())}
+          />
+        </div>
+      )}
+
       {error && <div className="release-error">{error}</div>}
       {notice && (
         <div className="release-notice">
@@ -152,9 +206,11 @@ const WorkspaceRelease = ({ workspace }) => {
         <div className="release-loading">불러오는 중…</div>
       ) : visible.length === 0 ? (
         <div className="release-empty">
-          {showIgnored
-            ? '무시한 항목이 없습니다.'
-            : 'main에 반영할 변경이 없습니다. 컬렉션에서 요청·문서·환경을 만들거나 수정하면 여기에 나타납니다.'}
+          {listed.length > 0
+            ? '필터에 맞는 항목이 없습니다.'
+            : showIgnored
+              ? '무시한 항목이 없습니다.'
+              : 'main에 반영할 변경이 없습니다. 컬렉션에서 요청·문서·환경을 만들거나 수정하면 여기에 나타납니다.'}
         </div>
       ) : (
         visible.map((file) => (
@@ -169,10 +225,14 @@ const WorkspaceRelease = ({ workspace }) => {
               ) : (
                 <span className="api-method kind-label">{KIND_LABEL[file.kind] ?? ''}</span>
               )}
-              <span className="api-name">{file.name}</span>
-              <span className="api-directory" title={file.path}>
-                {file.directory}
-              </span>
+              <button
+                className="row-open"
+                title={file.change === 'D' ? file.path : `${file.path} — 눌러서 열기`}
+                onClick={() => openLocation(file)}
+              >
+                <span className="api-name">{file.name}</span>
+                <span className="api-directory">{file.directory}</span>
+              </button>
               {file.status === 'duplicate' && (
                 <span className="duplicate-hint" title="main에 같은 위치·이름의 항목이 이미 있습니다">
                   중복 — 이름이나 위치를 바꿔 주세요
