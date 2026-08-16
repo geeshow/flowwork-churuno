@@ -522,6 +522,12 @@ const StyledWrapper = styled.div`
     h3 {
       margin: 0;
     }
+    /* 아이콘이 붙은 버튼 — 글자와 세로 중앙을 맞춘다 */
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
   }
 
   .input-form {
@@ -1540,6 +1546,13 @@ const StyledWrapper = styled.div`
     display: inline-flex;
     gap: 10px;
     flex-shrink: 0;
+
+    /* 아이콘이 붙은 링크 버튼 — 글자와 세로 중앙을 맞춘다 */
+    button.link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
   }
 
   .run-actions {

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { IconTrash, IconUpload } from '@tabler/icons';
 import toast from 'react-hot-toast';
 
 import api from '../api';
@@ -222,6 +223,7 @@ function EditHome({ st, files, loaded, onAction }) {
               onConfirm={() =>
                 act(() => api.editRelease(files.map((f) => f.path)), '모든 변경을 운영에 반영했습니다')}
             >
+              <IconUpload size={14} strokeWidth={1.5} />
               전체 운영 반영
             </ConfirmButton>
           ) : null}
@@ -249,6 +251,7 @@ function EditHome({ st, files, loaded, onAction }) {
                     onConfirm={() =>
                       act(() => api.editRelease([f.path]), `'${f.name ?? f.path}'을(를) 운영에 반영했습니다`)}
                   >
+                    <IconUpload size={14} strokeWidth={1.5} />
                     운영 반영
                   </ConfirmButton>
                   <ConfirmButton
@@ -259,6 +262,7 @@ function EditHome({ st, files, loaded, onAction }) {
                     onConfirm={() =>
                       act(() => api.editRevert([f.path]), `'${f.name ?? f.path}' 작업 내용을 삭제하고 운영 버전으로 복원했습니다`)}
                   >
+                    <IconTrash size={14} strokeWidth={1.5} />
                     작업 삭제
                   </ConfirmButton>
                 </span>
