@@ -124,6 +124,7 @@ const Wrapper = styled.div`
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 6px;
     flex-shrink: 0;
     -webkit-app-region: no-drag;
   }

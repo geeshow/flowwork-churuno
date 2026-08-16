@@ -67,6 +67,11 @@ const AppTitleBar = () => {
   });
 
   const handleHomeClick = () => {
+    // flowwork는 해시 라우팅을 쓴다 — 해시를 홈으로 바꾸면 Flowwork가 hashchange로 화면을 맞춘다
+    if (activeApp === 'flowwork') {
+      window.location.hash = '#/flowwork';
+      return;
+    }
     const scratchCollectionUid = activeWorkspace?.scratchCollectionUid;
     if (scratchCollectionUid) {
       dispatch(focusTab({ uid: `${scratchCollectionUid}-overview` }));
@@ -185,16 +190,6 @@ const AppTitleBar = () => {
           <ActionIcon onClick={handleHomeClick} label="Home" size="lg" className="home-button">
             <IconHome size={16} stroke={1.5} />
           </ActionIcon>
-
-          {/* Workspace Dropdown */}
-          <MenuDropdown
-            data-testid="workspace-menu"
-            items={workspaceMenuItems}
-            placement="bottom-start"
-            selectedItemId={activeWorkspaceUid}
-          >
-            <WorkspaceName />
-          </MenuDropdown>
         </div>
 
         {/* Center section: flowwork / Bruno app switcher */}
@@ -239,8 +234,21 @@ const AppTitleBar = () => {
               <IconBottombarToggle collapsed={!isConsoleOpen} size={16} strokeWidth={1.5} />
             </ActionIcon>
 
-            <ResponseLayoutToggle />
+            {/* 응답 패널 레이아웃은 Bruno 요청 화면 전용 */}
+            {activeApp === 'bruno' && <ResponseLayoutToggle />}
           </div>
+
+          {/* Workspace Dropdown — 워크스페이스는 Bruno 기능이라 Bruno 앱에서만 보인다 */}
+          {activeApp === 'bruno' && (
+            <MenuDropdown
+              data-testid="workspace-menu"
+              items={workspaceMenuItems}
+              placement="bottom-end"
+              selectedItemId={activeWorkspaceUid}
+            >
+              <WorkspaceName />
+            </MenuDropdown>
+          )}
         </div>
       </div>
     </StyledWrapper>
