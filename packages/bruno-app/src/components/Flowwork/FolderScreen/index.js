@@ -91,11 +91,11 @@ export function FolderScreen({
         {tab === 'docs' ? (
           <DocsPane
             docs={docs ?? ''}
-            editable={editable}
             context={{ scope: 'folder', name: task, location: domain, workflows: items.map((w) => w.name) }}
             emptyLabel="이 폴더가 어떤 업무를 묶고 있는지 적어두세요."
+            saveNote={editable ? undefined : '문서는 운영에 바로 반영됩니다'}
             autoGenerate={generateDocs}
-            onSave={(next) => api.setTaskDocs(domain, task, next).then(() => setDocs(next))}
+            onSave={(next) => api.setTaskDocs(domain, task, next, source).then(() => setDocs(next))}
           />
         ) : (
           <div className="folder-overview">

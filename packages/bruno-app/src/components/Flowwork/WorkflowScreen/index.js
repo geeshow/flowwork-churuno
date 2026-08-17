@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { IconPencil } from '@tabler/icons';
 
 import api from '../api';
 import DocsPane from '../DocsPane';
@@ -45,7 +46,8 @@ export const WORKFLOW_TABS = [
  * 작업 화면 — Bruno의 요청 화면과 같은 구성이다. 위쪽에 어디에 있는 무슨 작업인지
  * 고정으로 띄우고, 그 아래를 탭(실행 / History / Flowmap / 환경변수 / Docs)으로 나눈다.
  *
- * 편집 모드(source="edit")에서만 수정·삭제와 문서 편집을 열어준다.
+ * 수정·삭제는 편집 모드(source="edit")에서만 열어주고, Docs는 사용 모드에서도 쓸 수
+ * 있다 — 문서는 동작이 아니라 설명이라 운영 반영 절차를 거칠 이유가 없다.
  */
 export function WorkflowScreen({
   id,
@@ -59,6 +61,7 @@ export function WorkflowScreen({
   onEdit,
   onDelete,
   onOpenExecution,
+  onOpenWorkflow,
   onSaved
 }) {
   const [wf, setWf] = useState(null);
@@ -92,21 +95,24 @@ export function WorkflowScreen({
   return (
     <section className="wf-screen">
       <header className="wf-screen-head" style={{ borderLeftColor: color }}>
-        <div className="wf-screen-crumb">
-          {[wf.domain, ...wf.task.split('/')].map((crumb, depth) => (
-            <React.Fragment key={`${depth}-${crumb}`}>
-              <span className="muted">{crumb}</span>
-              <span className="muted">/</span>
-            </React.Fragment>
-          ))}
-          <strong>{wf.name}</strong>
-          {changed ? <span className="changed-badge">변경됨</span> : null}
+        <div className="wf-screen-title">
+          <div className="wf-screen-crumb">
+            {[wf.domain, ...wf.task.split('/')].map((crumb, depth) => (
+              <React.Fragment key={`${depth}-${crumb}`}>
+                <span className="muted">{crumb}</span>
+                <span className="muted">/</span>
+              </React.Fragment>
+            ))}
+            <strong>{wf.name}</strong>
+            {changed ? <span className="changed-badge">변경됨</span> : null}
+          </div>
+          {wf.description ? <p className="muted wf-screen-desc">{wf.description}</p> : null}
         </div>
-        {wf.description ? <p className="muted wf-screen-desc">{wf.description}</p> : null}
         {editable ? (
           <div className="wf-screen-actions">
             {onEdit ? (
               <button className="link small" onClick={() => onEdit(wf.id)}>
+                <IconPencil size={14} strokeWidth={1.5} />
                 수정
               </button>
             ) : null}
@@ -135,17 +141,23 @@ export function WorkflowScreen({
             {tab === 'history' ? (
               <HistoryTab workflow={wf} refreshKey={refreshKey} />
             ) : tab === 'flowmap' ? (
-              <Flowmap workflow={wf} workflows={workflows} />
+              <Flowmap workflow={wf} workflows={workflows} onOpenWorkflow={onOpenWorkflow} />
             ) : tab === 'env' ? (
               <EnvTab workflow={wf} />
             ) : tab === 'docs' ? (
               <DocsPane
                 docs={wf.docs ?? ''}
-                editable={editable}
                 context={docsContext(wf)}
                 emptyLabel="이 작업이 무엇을 하는지 적어두면, 처음 보는 사람도 실행 전에 무슨 일이 일어나는지 알 수 있습니다."
+                saveNote={editable ? undefined : '문서는 운영에 바로 반영됩니다'}
                 autoGenerate={generateDocs}
-                onSave={(next) => api.saveWorkflow({ ...wf, docs: next }).then(onSaved)}
+                onSave={(next) =>
+                  api.setWorkflowDocs(wf.id, next, source).then((saved) => {
+                    // 저장으로 파일이 바뀌었으니 판(version)도 새것으로 — 이어지는
+                    // 파일 모드 저장이 충돌로 튕기지 않게 한다
+                    setWf({ ...wf, docs: next, version: saved.version });
+                    if (onSaved) onSaved();
+                  })}
               />
             ) : (
               <WorkflowRunner workflow={wf} source={source} onOpenExecution={onOpenExecution} />

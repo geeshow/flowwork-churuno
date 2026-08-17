@@ -15,7 +15,7 @@ import StyledWrapper from './StyledWrapper';
  * #/flowwork 하위 해시 ↔ 내부 route 매핑. useWebRouteSync가 앱 전환(activeApp)만
  * 담당하고, 하위 경로의 해석·미러링은 여기서 한다 (해시는 정적 서빙을 그대로 탄다).
  *
- * 사용 모드 (운영 main 트리, 읽기 전용):
+ * 사용 모드 (운영 main 트리, Docs 외에는 읽기 전용):
  *   #/flowwork                     home
  *   #/flowwork/t/<도메인>/<업무>    업무 화면
  *   #/flowwork/run/<id>            실행 화면
@@ -91,6 +91,15 @@ const hashForRoute = (route) => {
   }
 };
 
+// Bruno 앱으로 갔다 오면 이 컴포넌트가 통째로 다시 마운트되고, 그 사이 주소는
+// Bruno 쪽 해시로 바뀌어 있다. 마지막 화면을 적어 두었다가 그 자리로 돌아온다.
+const LAST_HASH_KEY = 'flowwork-last-hash';
+
+const initialRoute = () =>
+  parseFlowworkHash(window.location.hash)
+  ?? parseFlowworkHash(localStorage.getItem(LAST_HASH_KEY))
+  ?? { view: 'home' };
+
 // 머리띠 브레드크럼 — 지금 열려 있는 화면의 위치를 컬렉션부터 늘어놓는다
 const crumbsFor = (route, tabs) => {
   if (route.view === 'task') return [route.domain, ...route.task.split('/')];
@@ -106,9 +115,10 @@ const crumbsFor = (route, tabs) => {
  *
  * 사용 모드는 운영(main) 데이터를 읽기 전용으로 보여주고, 등록/수정은 편집 모드
  * (feature 브랜치 worktree → 커밋 → develop 머지 → 운영 릴리스)에서만 한다.
+ * 다만 Docs는 사용 모드에서도 쓸 수 있다 — 서버가 운영에 바로 기록한다.
  */
 export default function Flowwork() {
-  const [route, setRoute] = useState(() => parseFlowworkHash(window.location.hash) ?? { view: 'home' });
+  const [route, setRoute] = useState(initialRoute);
   // 사용 모드가 읽는 브랜치 = 워크스페이스 이름
   const [workspace, setWorkspace] = useState(null);
 
@@ -126,6 +136,7 @@ export default function Flowwork() {
   // route → URL: 현재 화면이 곧 주소창의 공유 링크가 된다 (replaceState — 이력 스팸 없음)
   useEffect(() => {
     const canonical = hashForRoute(route);
+    localStorage.setItem(LAST_HASH_KEY, canonical);
     if (window.location.hash !== canonical) {
       window.history.replaceState(null, '', canonical);
     }
@@ -214,6 +225,7 @@ export default function Flowwork() {
               tab={route.tab ?? 'run'}
               onTabChange={(tab) => setRoute({ view: 'run', id: route.id, tab })}
               onOpenExecution={openExecution}
+              onOpenWorkflow={openWorkflow}
             />
           ) : route.view === 'execution' ? (
             <section className="execution-page">

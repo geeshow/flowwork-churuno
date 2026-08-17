@@ -165,10 +165,13 @@ export function WorkflowLayout({
     };
   }, [source, refreshKey]);
 
-  // 열려 있는 작업(워크플로우)이 있으면 그 (컬렉션,폴더)를 강조 대상으로
+  // 열려 있는 작업(워크플로우)이 있으면 그 (컬렉션,폴더)까지 펼쳐 보여준다.
+  // 선택 표시는 여기에 딸리지 않는다 — 지금 보고 있는 항목 하나만 칠한다.
   const activeWf = useMemo(() => rows?.find((w) => w.id === activeId) ?? null, [rows, activeId]);
   const hlDomain = (activeTask?.domain ?? activeWf?.domain)?.normalize('NFC');
   const hlTask = (activeTask?.task ?? activeWf?.task)?.normalize('NFC');
+  const openTaskDomain = activeTask?.domain?.normalize('NFC');
+  const openTaskPath = activeTask?.task?.normalize('NFC');
 
   // 선택된 항목이 보이도록 그 컬렉션과 상위 폴더들을 (기존 열림은 유지한 채) 펼친다
   useEffect(() => {
@@ -293,7 +296,7 @@ export function WorkflowLayout({
                                 // 상위 폴더가 접혀 있으면 그 아래는 그리지 않는다
                                 if (!ancestorsOf(path).every((p) => openTasks.has(`${domain}/${p}`))) return null;
                                 const folderOpen = openTasks.has(`${domain}/${path}`);
-                                const on = hlDomain === domain && hlTask === path;
+                                const on = openTaskDomain === domain && openTaskPath === path;
                                 return (
                                   <React.Fragment key={path}>
                                     <li className="task-row">

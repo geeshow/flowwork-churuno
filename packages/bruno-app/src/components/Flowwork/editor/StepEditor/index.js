@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 
 import { refKey } from '../../engine/catalogLookup';
-import { stepTypeMeta } from '../../StepCard';
+import { stepBadgeClass, stepTypeMeta } from '../../StepCard';
 import BranchConditionEditor from '../BranchConditionEditor';
 import CatalogPicker from '../CatalogPicker';
 import MidInputEditor from '../MidInputEditor';
+import RepeatEditor from '../RepeatEditor';
 import VariableBindingEditor from '../VariableBindingEditor';
 import WorkflowLinkEditor from '../WorkflowLinkEditor';
 
@@ -12,6 +13,28 @@ const EMPTY_API_BINDING = {
   catalogEntry: { department: '', collectionFile: '', itemPath: [], name: '' },
   variableBindings: {}
 };
+
+/**
+ * 지금 고른 처리 방식. 편집 중에는 방식을 바꿔도 다른 방식의 설정을 지우지 않으므로
+ * (되돌아오면 그대로 있어야 한다) 고른 방식을 editorMode에 따로 적어 둔다.
+ * 저장할 때 normalizeStepForSave가 고른 방식만 남기고 editorMode는 떼어낸다.
+ */
+export const stepMode = (step) => {
+  if (step.editorMode) return step.editorMode;
+  if (step.delayBinding) return 'DELAY';
+  return step.workflowBinding ? 'WORKFLOW' : 'API';
+};
+
+/** 저장할 모양 — 고르지 않은 처리 방식의 설정은 파일에 남기지 않는다. */
+export function normalizeStepForSave(step) {
+  const mode = stepMode(step);
+  const { editorMode: _editorMode, apiBinding, workflowBinding, delayBinding, ...rest } = step;
+  if (mode === 'DELAY') {
+    // 부를 API가 없는 스텝이라 결과 표시·반복은 뜻이 없다
+    return { ...rest, delayBinding, resultView: undefined, repeat: undefined };
+  }
+  return mode === 'WORKFLOW' ? { ...rest, workflowBinding } : { ...rest, apiBinding };
+}
 
 export function StepEditor({
   step,
@@ -27,11 +50,11 @@ export function StepEditor({
   onRemove,
   onMove
 }) {
-  const mode = step.workflowBinding ? 'WORKFLOW' : 'API';
+  const mode = stepMode(step);
   const apiBinding = step.apiBinding ?? EMPTY_API_BINDING;
 
-  // 스텝 종류 배지/분류 (실행 화면과 동일) — 편집 중 선택에 따라 실시간 갱신
-  const { typeLabel, category } = stepTypeMeta(step, (id) => {
+  // 스텝 종류 배지/분류 (실행 화면과 동일) — 지금 고른 방식만 보고 정한다
+  const { typeLabel, category } = stepTypeMeta(normalizeStepForSave(step), (id) => {
     const w = workflows.find((x) => x.id === id);
     return w ? { domain: w.domain, task: w.task, name: w.name } : undefined;
   });
@@ -56,12 +79,26 @@ export function StepEditor({
     setColText('');
   };
 
+  // 방식을 바꿔도 다른 방식의 설정은 그대로 둔다 — 되돌아오면 고르던 값이 남아 있고,
+  // 저장할 때 고른 방식만 파일에 남는다. 이름은 손대지 않는다(직접 붙인 이름이 지워지지
+  // 않게) — API·업무를 새로 고르면 그때 그 이름으로 맞춰진다.
   const setMode = (next) => {
     if (next === mode) return;
     if (next === 'WORKFLOW') {
-      onChange({ ...step, name: '', apiBinding: undefined, workflowBinding: { ref: { id: '' }, inputMappings: {} } });
+      onChange({
+        ...step,
+        editorMode: next,
+        workflowBinding: step.workflowBinding ?? { ref: { id: '' }, inputMappings: {} }
+      });
+    } else if (next === 'DELAY') {
+      onChange({
+        ...step,
+        editorMode: next,
+        delayBinding: step.delayBinding ?? { seconds: 3 },
+        name: step.name || '대기'
+      });
     } else {
-      onChange({ ...step, name: '', workflowBinding: undefined, apiBinding: EMPTY_API_BINDING });
+      onChange({ ...step, editorMode: next, apiBinding: step.apiBinding ?? EMPTY_API_BINDING });
     }
   };
 
@@ -107,8 +144,10 @@ export function StepEditor({
         <span className="step-title">
           <span className="step-name-text">
             <span className="step-name-row">
-              <span className={`step-type-badge ${typeLabel === 'API' ? 'api' : 'wf'}`}>{typeLabel}</span>
+              <span className={`step-type-badge ${stepBadgeClass(typeLabel)}`}>{typeLabel}</span>
               <span>{step.name || <span className="muted">새 스텝</span>}</span>
+              {step.repeat ? <span className="step-flag">반복</span> : null}
+              {step.parallel ? <span className="step-flag">비동기</span> : null}
             </span>
             {category ? <span className="step-category">{category}</span> : null}
           </span>
@@ -129,12 +168,25 @@ export function StepEditor({
       <div className="step-section">
         <div className="processing-head">
           <h4>처리 방식</h4>
+          {/* 비동기 요청 = 앞 스텝과 함께 출발하고 응답을 기다리지 않는다 */}
+          <label className="async-toggle" title="앞 스텝과 함께 출발하고, 다음 스텝은 이 응답을 기다리지 않습니다">
+            <input
+              type="checkbox"
+              checked={!!step.parallel}
+              disabled={index === 0}
+              onChange={(e) => onChange({ ...step, parallel: e.target.checked })}
+            />
+            비동기 요청
+          </label>
           <div className="mode-toggle">
             <button className={mode === 'API' ? 'active' : ''} onClick={() => setMode('API')}>
               API 호출
             </button>
             <button className={mode === 'WORKFLOW' ? 'active' : ''} onClick={() => setMode('WORKFLOW')}>
               다른 업무 연결
+            </button>
+            <button className={mode === 'DELAY' ? 'active' : ''} onClick={() => setMode('DELAY')}>
+              지연(대기)
             </button>
           </div>
         </div>
@@ -151,11 +203,24 @@ export function StepEditor({
                   inputKeys={inputKeys}
                   envKeys={[...envKeys]}
                   prevStepIds={prevSteps}
+                  repeating={!!step.repeat}
                   onChange={setBinding}
                 />
               </div>
             ) : null}
           </>
+        ) : mode === 'DELAY' ? (
+          <div className="repeat-row">
+            <label className="field-label">대기 시간</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={step.delayBinding?.seconds ?? 0}
+              onChange={(e) => onChange({ ...step, delayBinding: { seconds: Number(e.target.value) } })}
+            />
+            <span className="hint">초 — 다음 스텝은 이만큼 쉬었다가 시작합니다</span>
+          </div>
         ) : (
           <WorkflowLinkEditor
             binding={step.workflowBinding}
@@ -261,9 +326,23 @@ export function StepEditor({
         <BranchConditionEditor
           condition={step.branchCondition}
           prevStepIds={prevSteps}
+          inputKeys={inputKeys}
+          envKeys={[...envKeys]}
+          repeating={!!step.repeat}
           onChange={(branchCondition) => onChange({ ...step, branchCondition })}
         />
       </div>
+
+      {mode === 'DELAY' ? null : (
+        <div className="step-section">
+          <h4>반복</h4>
+          <RepeatEditor
+            repeat={step.repeat}
+            prevStepIds={prevSteps}
+            onChange={(repeat) => onChange({ ...step, repeat })}
+          />
+        </div>
+      )}
 
       <label className="stop-toggle">
         <input

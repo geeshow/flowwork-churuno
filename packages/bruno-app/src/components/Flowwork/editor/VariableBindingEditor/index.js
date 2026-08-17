@@ -4,15 +4,17 @@ const DEFAULT_BY_KIND = {
   USER_INPUT: { kind: 'USER_INPUT', inputKey: '' },
   ENV: { kind: 'ENV', envKey: '' },
   FIXED: { kind: 'FIXED', value: '' },
-  PREV_RESPONSE: { kind: 'PREV_RESPONSE', stepId: '', jsonPath: '$.' }
+  PREV_RESPONSE: { kind: 'PREV_RESPONSE', stepId: '', jsonPath: '$.' },
+  LOOP_ITEM: { kind: 'LOOP_ITEM', itemPath: '$' }
 };
 
 /**
- * 변수 → ValueSource 매핑 — 각 변수를 4개 소스 중 하나로 지정한다:
- * 기본입력값(USER_INPUT) / 환경변수값(ENV) / 고정값(FIXED) / 전 단계 output(PREV_RESPONSE).
+ * 변수 → ValueSource 매핑 — 각 변수를 소스 하나로 지정한다:
+ * 기본입력값(USER_INPUT) / 환경변수값(ENV) / 고정값(FIXED) / 전 단계 output(PREV_RESPONSE),
+ * 그리고 반복 스텝에서는 그 회차의 항목(LOOP_ITEM).
  * 전 단계 output이 배열·객체형이면 jsonPath로 고급 매핑한다.
  */
-export function VariableBindingEditor({ variables, bindings, inputKeys, envKeys, prevStepIds, onChange }) {
+export function VariableBindingEditor({ variables, bindings, inputKeys, envKeys, prevStepIds, repeating, onChange }) {
   if (variables.length === 0) {
     return <p className="muted">매핑할 변수가 없습니다.</p>;
   }
@@ -32,6 +34,7 @@ export function VariableBindingEditor({ variables, bindings, inputKeys, envKeys,
               <option value="ENV">환경변수값</option>
               <option value="FIXED">고정값</option>
               <option value="PREV_RESPONSE">전 단계 output</option>
+              {repeating ? <option value="LOOP_ITEM">반복 항목</option> : null}
             </select>
 
             {src?.kind === 'USER_INPUT' ? (
@@ -92,6 +95,16 @@ export function VariableBindingEditor({ variables, bindings, inputKeys, envKeys,
                   onChange={(e) => onChange(v, { kind: 'PREV_RESPONSE', stepId: src.stepId, jsonPath: e.target.value })}
                 />
               </>
+            ) : null}
+
+            {src?.kind === 'LOOP_ITEM' ? (
+              <input
+                type="text"
+                className="jsonpath-input"
+                placeholder="$.accountNo  (항목 자체를 쓰려면 $)"
+                value={src.itemPath ?? '$'}
+                onChange={(e) => onChange(v, { kind: 'LOOP_ITEM', itemPath: e.target.value })}
+              />
             ) : null}
           </div>
         );

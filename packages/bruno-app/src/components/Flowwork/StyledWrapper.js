@@ -235,8 +235,11 @@ const StyledWrapper = styled.div`
     margin-bottom: 10px;
     padding: 0 4px;
   }
+  /* 사이드바 글자는 Bruno 사이드바와 같은 크기·굵기로 맞춘다 —
+     머리말 12px/600, 컬렉션·업무·작업 줄 13px/400, 줄 높이 1.6rem */
   .sidebar-title {
-    font-size: 15px;
+    font-size: 12px;
+    font-weight: 600;
   }
   .sidebar-title-btn:hover .sidebar-title {
     text-decoration: underline;
@@ -296,8 +299,9 @@ const StyledWrapper = styled.div`
     gap: 7px;
     flex: 1;
     min-width: 0;
-    padding: 6px 8px;
-    font-size: ${(props) => props.theme.font.size.sm};
+    height: 1.6rem;
+    padding: 0 8px;
+    font-size: 13px;
     &:hover {
       background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
     }
@@ -308,9 +312,11 @@ const StyledWrapper = styled.div`
     width: 10px;
   }
   .domain-name {
-    font-weight: 600;
     flex: 1;
     text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .domain-count {
     color: ${(props) => props.theme.colors.text.muted};
@@ -374,16 +380,18 @@ const StyledWrapper = styled.div`
     gap: 7px;
     flex: 1;
     min-width: 0;
-    padding: 5px 8px 5px 4px;
+    height: 1.6rem;
+    padding: 0 8px 0 4px;
     border-radius: ${(props) => props.theme.border.radius.base};
-    font-size: ${(props) => props.theme.font.size.sm};
-    border: 1px solid transparent;
+    font-size: 13px;
     &:hover {
       background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
     }
-    &.active {
-      border-color: ${(props) => props.theme.input.focusBorder};
-      background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
+    /* 선택 표시는 Bruno 사이드바(item-focused-in-tab)와 같다 — 테두리 없이 배경만,
+       hover로도 색이 흔들리지 않게 고정한다 */
+    &.active,
+    &.active:hover {
+      background: ${(props) => props.theme.sidebar.collection.item.bg};
     }
     &.wf-item {
       color: ${(props) => props.theme.colors.text.muted};
@@ -634,7 +642,10 @@ const StyledWrapper = styled.div`
     overflow: hidden;
   }
 
-  /* ---------------- 열린 작업 탭 줄 (Bruno 요청 탭) ---------------- */
+  /* ---------------- 열린 작업 탭 줄 ----------------
+     Bruno 요청 탭(components/RequestTabs)과 같은 모양: 활성 탭만 본문과 같은 색으로
+     떠오르고, 아래 경계선이 그 탭에서만 끊긴다. 양옆 오목한 곡선(::before/::after)이
+     탭과 본문을 한 장으로 잇는 부분이라 Bruno의 수치를 그대로 쓴다. */
   .wf-tabbar {
     position: relative;
     margin: -4px -4px 12px;
@@ -647,15 +658,16 @@ const StyledWrapper = styled.div`
       right: 0;
       height: 1px;
       background: ${(props) => props.theme.requestTabs.bottomBorder};
+      z-index: 0;
     }
 
     ul {
       display: flex;
       align-items: flex-end;
-      gap: 3px;
       margin: 0;
       padding: 0 3px;
       overflow-x: auto;
+      overflow-y: clip;
       list-style: none;
 
       &::-webkit-scrollbar {
@@ -666,57 +678,149 @@ const StyledWrapper = styled.div`
 
     li {
       display: inline-flex;
-      align-items: center;
       flex-shrink: 0;
-      max-width: 200px;
-      padding: 0 4px 0 8px;
+      min-width: 80px;
+      max-width: 180px;
+      margin-right: 3px;
+      margin-bottom: 3px;
+      padding: 6px 0;
       border: 1px solid transparent;
-      border-bottom: none;
-      border-radius: ${(props) => props.theme.border.radius.base}
-        ${(props) => props.theme.border.radius.base} 0 0;
       background: ${(props) => props.theme.requestTabs.bg};
+      border-radius: ${(props) => props.theme.border.radius.base};
       color: ${(props) => props.theme.requestTabs.color};
-      font-size: ${(props) => props.theme.font.size.sm};
+      font-size: 0.8125rem;
+
+      &:nth-last-child(1) {
+        margin-right: 4px;
+      }
 
       &.active {
         position: relative;
         z-index: 1;
-        background: ${(props) => props.theme.background.surface0};
+        background: ${(props) => props.theme.bg};
         border-color: ${(props) => props.theme.requestTabs.bottomBorder};
-        font-weight: 600;
+        border-bottom-color: ${(props) => props.theme.bg};
+        border-radius: 8px 8px 0 0;
+        margin-bottom: -2px;
+        padding-bottom: 12px;
+
+        &::before {
+          content: '';
+          position: absolute;
+          bottom: 1px;
+          left: -8px;
+          width: 8px;
+          height: 8px;
+          border-bottom-right-radius: 6px;
+          box-shadow: 3px 3px 0 0 ${(props) => props.theme.bg};
+          border-right: 1px solid ${(props) => props.theme.requestTabs.bottomBorder};
+          border-bottom: 1px solid ${(props) => props.theme.requestTabs.bottomBorder};
+        }
+
+        &::after {
+          content: '';
+          position: absolute;
+          bottom: 1px;
+          right: -8px;
+          width: 8px;
+          height: 8px;
+          border-bottom-left-radius: 6px;
+          box-shadow: -3px 3px 0 0 ${(props) => props.theme.bg};
+          border-left: 1px solid ${(props) => props.theme.requestTabs.bottomBorder};
+          border-bottom: 1px solid ${(props) => props.theme.requestTabs.bottomBorder};
+        }
       }
     }
-  }
-  .wf-tabbar-name {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    min-width: 0;
-    padding: 7px 2px;
-    color: inherit;
-  }
-  .wf-tabbar-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .wf-tabbar-changed {
-    flex-shrink: 0;
-    color: ${(props) => props.theme.colors.text.yellow};
-    font-size: 11px;
-    font-weight: 700;
-  }
-  .wf-tabbar-close {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    padding: 3px;
-    border-radius: ${(props) => props.theme.border.radius.sm};
-    color: ${(props) => props.theme.requestTabs.icon.color};
 
-    &:hover {
-      color: ${(props) => props.theme.requestTabs.icon.hoverColor};
-      background: ${(props) => props.theme.requestTabs.icon.hoverBg};
+    .tab-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 0 8px;
+      overflow: hidden;
+    }
+
+    .tab-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex: 1;
+      min-width: 0;
+      color: inherit;
+    }
+
+    .tab-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 닫기는 이름 위로 덮이므로, 글자가 아이콘 밑으로 사라지지 않게 배경색으로 흐린다 */
+    .tab-close {
+      position: absolute;
+      top: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      width: 44px;
+      height: 100%;
+      padding-right: 4px;
+      background-image: linear-gradient(
+        90deg,
+        transparent 0%,
+        ${(props) => props.theme.requestTabs.bg} 40%
+      );
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+    li.active .tab-close {
+      background-image: linear-gradient(90deg, transparent 0%, ${(props) => props.theme.bg} 40%);
+    }
+    li:hover .tab-close,
+    .tab-close.has-changes {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* 평소엔 변경 표시(U), 탭에 올리면 닫기 — Bruno의 draft 점과 같은 자리다 */
+    .tab-changed {
+      display: none;
+      width: 22px;
+      color: ${(props) => props.theme.colors.text.yellow};
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .tab-close.has-changes .tab-changed {
+      display: block;
+    }
+    .tab-close.has-changes .tab-close-icon {
+      display: none;
+    }
+    li:hover .tab-close .tab-changed {
+      display: none;
+    }
+    li:hover .tab-close .tab-close-icon {
+      display: flex;
+    }
+
+    .tab-close-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: ${(props) => props.theme.border.radius.base};
+      color: ${(props) => props.theme.requestTabs.icon.color};
+      transition: background-color 0.12s ease, color 0.12s ease;
+
+      &:hover {
+        background-color: ${(props) => props.theme.requestTabs.icon.hoverBg};
+        color: ${(props) => props.theme.requestTabs.icon.hoverColor};
+      }
     }
   }
 
@@ -726,13 +830,21 @@ const StyledWrapper = styled.div`
     flex-direction: column;
     min-height: 100%;
   }
-  /* 컬렉션 색은 머리말 왼쪽 띠로 — 사이드바의 컬렉션 상자와 같은 색이다 */
+  /* 컬렉션 색은 머리말 왼쪽 띠로 — 사이드바의 컬렉션 상자와 같은 색이다.
+     수정·삭제는 이름과 같은 줄 오른쪽 끝에 둔다 */
   .wf-screen-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 2px 0 12px 10px;
+    border-left: 3px solid transparent;
+  }
+  .wf-screen-title {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 2px 0 12px 10px;
-    border-left: 3px solid transparent;
+    min-width: 0;
   }
   .wf-screen-crumb {
     display: flex;
@@ -752,6 +864,7 @@ const StyledWrapper = styled.div`
   .wf-screen-actions {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
     gap: 12px;
 
     button {
@@ -788,12 +901,14 @@ const StyledWrapper = styled.div`
     padding-top: 14px;
   }
 
-  /* ---------------- Flowmap ---------------- */
+  /* ---------------- Flowmap ----------------
+     바탕과 노드가 같은 회색 톤이면 카드 경계가 뭉개진다 — 바탕을 한 단계 가라앉히고
+     노드는 본문 색으로 띄워, 카드가 판 위에 놓인 것처럼 보이게 한다. */
   .flowmap {
     overflow-x: auto;
     border: 1px solid ${(props) => props.theme.border.border1};
     border-radius: ${(props) => props.theme.border.radius.md};
-    background: ${(props) => props.theme.background.surface0};
+    background: ${(props) => props.theme.background.mantle};
   }
   .flowmap-node {
     display: flex;
@@ -801,15 +916,18 @@ const StyledWrapper = styled.div`
     gap: 3px;
     height: 100%;
     padding: 8px 10px;
-    border: 1px solid ${(props) => props.theme.border.border1};
+    border: 1px solid ${(props) => props.theme.border.border2};
     border-radius: ${(props) => props.theme.border.radius.md};
-    background: ${(props) => props.theme.background.surface1};
+    background: ${(props) => props.theme.bg};
+    box-shadow: ${(props) => props.theme.shadow.sm};
     font-size: ${(props) => props.theme.font.size.xs};
     overflow: hidden;
 
-    &.source {
+    &.source,
+    &.result {
       border-style: dashed;
       background: transparent;
+      box-shadow: none;
     }
     .step-type-badge {
       align-self: flex-start;
@@ -825,7 +943,7 @@ const StyledWrapper = styled.div`
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    border: 1px solid ${(props) => props.theme.border.border1};
+    border: 1px solid ${(props) => props.theme.border.border2};
     text-align: center;
     line-height: 15px;
   }
@@ -837,12 +955,54 @@ const StyledWrapper = styled.div`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
+    /* Bruno 요청·연결업무로 건너뛸 수 있는 스텝 */
+    &.link {
+      color: ${(props) => props.theme.textLink};
+      text-align: left;
+      &:hover {
+        text-decoration: underline;
+      }
+    }
   }
   .flowmap-node-sub {
     color: ${(props) => props.theme.colors.text.muted};
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* 스텝을 감싸는 테두리 — 반복은 무엇을 기준으로 도는지, 분기는 언제 도는지 적는다.
+     반복은 파랑, 분기는 노랑으로 갈라 두 겹이 겹쳐도 구분된다. */
+  .flowmap-frame {
+    rect {
+      fill: none;
+      stroke-width: 1.2;
+      stroke-dasharray: 6 4;
+    }
+    text {
+      font-size: 10px;
+      font-weight: 600;
+      stroke: ${(props) => props.theme.background.mantle};
+      stroke-width: 3.5;
+      paint-order: stroke fill;
+    }
+
+    &.repeat {
+      rect {
+        stroke: ${(props) => props.theme.textLink};
+      }
+      text {
+        fill: ${(props) => props.theme.textLink};
+      }
+    }
+    &.branch {
+      rect {
+        stroke: ${(props) => props.theme.colors.text.yellow};
+      }
+      text {
+        fill: ${(props) => props.theme.colors.text.yellow};
+      }
+    }
   }
   .flowmap-chip {
     flex-shrink: 0;
@@ -853,6 +1013,16 @@ const StyledWrapper = styled.div`
   }
   .flowmap-arrowhead {
     fill: ${(props) => props.theme.colors.text.muted};
+
+    &.seq {
+      fill: ${(props) => props.theme.text};
+    }
+    /* 비동기 요청은 속이 빈 화살표 — 응답이 돌아오지 않는 호출이라는 표시 */
+    &.async {
+      fill: none;
+      stroke: ${(props) => props.theme.brand};
+      stroke-width: 1;
+    }
   }
   .flowmap-edge {
     path {
@@ -862,14 +1032,29 @@ const StyledWrapper = styled.div`
     }
     /* 선 위에 글자가 얹혀도 읽히도록 배경색으로 테두리를 두른다 */
     text {
-      fill: ${(props) => props.theme.colors.text.muted};
-      font-size: 10px;
-      stroke: ${(props) => props.theme.background.surface0};
-      stroke-width: 3;
+      fill: ${(props) => props.theme.text};
+      font-size: 11px;
+      stroke: ${(props) => props.theme.background.mantle};
+      stroke-width: 3.5;
       paint-order: stroke fill;
     }
+    /* 실행 순서선은 값이 흐르는 선보다 진하게 — 흐름을 먼저 읽게 한다 */
     &.seq path {
+      stroke: ${(props) => props.theme.text};
       stroke-width: 1.6;
+    }
+    /* 비동기 요청 — 응답을 기다리지 않는 호출이라 순서선과 색·모양을 갈라 놓는다 */
+    &.async {
+      path {
+        stroke: ${(props) => props.theme.brand};
+        stroke-width: 1.6;
+        stroke-dasharray: 2 4;
+        stroke-linecap: round;
+      }
+      text {
+        fill: ${(props) => props.theme.brand};
+        font-weight: 600;
+      }
     }
     &.data path {
       stroke-dasharray: 3 3;
@@ -894,6 +1079,10 @@ const StyledWrapper = styled.div`
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
+  }
+  /* 저장 위치 안내는 버튼 무리와 떨어뜨려 왼쪽 끝에 둔다 */
+  .wf-docs-note {
+    margin-right: auto;
   }
   /* Bruno의 Docs 편집기는 h-full로 부모를 채우므로 높이가 확정돼 있어야 한다
      (min-height만 주면 마크다운 모드의 CodeEditor가 0px로 접힌다) */
@@ -1153,6 +1342,77 @@ const StyledWrapper = styled.div`
       color: ${(props) => props.theme.colors.text.green};
       border: 1px solid ${(props) => props.theme.colors.text.green};
     }
+    &.delay {
+      color: ${(props) => props.theme.colors.text.muted};
+      border: 1px solid ${(props) => props.theme.border.border2};
+    }
+    &.loop {
+      color: ${(props) => props.theme.textLink};
+      border: 1px solid ${(props) => props.theme.textLink};
+    }
+    &.cond {
+      color: ${(props) => props.theme.colors.text.yellow};
+      border: 1px solid ${(props) => props.theme.colors.text.yellow};
+    }
+  }
+  /* 반복은 기준이 되는 목록으로, 분기는 조건으로 스텝을 감싼다 (흐름도의 테두리와 같은 뜻).
+     반복 안의 분기처럼 겹쳐 감싸이면 상자가 한 겹 더 들어간다. */
+  .step-frame {
+    position: relative;
+    padding: 22px 10px 10px;
+    border: 1px dashed;
+    border-radius: ${(props) => props.theme.border.radius.md};
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    &.repeat {
+      border-color: ${(props) => props.theme.textLink};
+      > .step-frame-label {
+        color: ${(props) => props.theme.textLink};
+      }
+    }
+    &.branch {
+      border-color: ${(props) => props.theme.colors.text.yellow};
+      > .step-frame-label {
+        color: ${(props) => props.theme.colors.text.yellow};
+      }
+    }
+  }
+  .step-frame.skipped {
+    opacity: 0.55;
+  }
+  .step-frame-progress {
+    color: ${(props) => props.theme.colors.text.muted};
+    font-weight: 400;
+  }
+  .step-frame-label {
+    position: absolute;
+    top: 4px;
+    left: 12px;
+    padding: 0 4px;
+    /* 스텝 목록이 놓인 판(.panel)과 같은 색이라 테두리를 가리고 앉는다 */
+    background: ${(props) => props.theme.background.surface0};
+    font-size: ${(props) => props.theme.font.size.xs};
+    font-weight: 600;
+  }
+
+  /* 반복·비동기처럼 "어떻게 도는지"를 알리는 표시 */
+  .step-flag {
+    flex-shrink: 0;
+    padding: 0 6px;
+    border: 1px solid ${(props) => props.theme.colors.text.yellow};
+    border-radius: 999px;
+    color: ${(props) => props.theme.colors.text.yellow};
+    font-size: ${(props) => props.theme.font.size.xs};
+    font-weight: 500;
+  }
+  .step-iterations {
+    flex-shrink: 0;
+    margin-right: 10px;
+    font-size: ${(props) => props.theme.font.size.xs};
+    color: ${(props) => props.theme.colors.text.muted};
+    white-space: nowrap;
   }
   .step-category {
     font-size: ${(props) => props.theme.font.size.xs};
@@ -1342,11 +1602,42 @@ const StyledWrapper = styled.div`
     margin: 0 auto;
     padding: 16px 20px 60px;
   }
+  /* 취소·미리보기·저장은 어디까지 스크롤해도 손에 닿게 위에 붙여 둔다 */
   .editor-head {
+    position: sticky;
+    top: 0;
+    z-index: 5;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    margin: 0 -20px 14px;
+    padding: 10px 20px;
+    background: ${(props) => props.theme.bg};
+    border-bottom: 1px solid ${(props) => props.theme.border.border1};
+  }
+
+  /* 저장 전 내용을 그대로 그려 보는 흐름도 */
+  .preview-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(1100px, 92vw);
+    max-height: 86vh;
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.md};
+    background: ${(props) => props.theme.bg};
+    box-shadow: ${(props) => props.theme.shadow.lg};
+  }
+  .preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    h4 {
+      margin: 0;
+    }
   }
   .editor-actions {
     display: flex;
@@ -1539,6 +1830,58 @@ const StyledWrapper = styled.div`
     border-radius: ${(props) => props.theme.border.radius.md};
     background: ${(props) => props.theme.bg};
     padding: 12px 14px;
+
+    /* 반복·분기 블록의 머리 — 그 아래 들여쓰기된 스텝들이 이 블록 안에서 돈다 */
+    &.block {
+      background: ${(props) => props.theme.background.surface0};
+
+      &.repeat {
+        border-color: ${(props) => props.theme.textLink};
+      }
+      &.branch {
+        border-color: ${(props) => props.theme.colors.text.yellow};
+      }
+    }
+  }
+  .block-name {
+    width: 100%;
+    max-width: 320px;
+    font-weight: 600;
+  }
+  /* 들여쓰기는 블록 안에 든 스텝이라는 표시 — 왼쪽에 안내선을 세운다 */
+  .step-editor-row {
+    position: relative;
+
+    &[style*='margin-left']::before {
+      content: '';
+      position: absolute;
+      left: -13px;
+      top: 0;
+      bottom: 0;
+      border-left: 1px dashed ${(props) => props.theme.border.border2};
+    }
+  }
+
+  .add-step-choices {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding: 8px;
+    border: 1px dashed ${(props) => props.theme.border.border2};
+    border-radius: ${(props) => props.theme.border.radius.base};
+  }
+  .add-step-choice {
+    padding: 5px 12px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.base};
+    background: ${(props) => props.theme.background.surface0};
+    font-size: ${(props) => props.theme.font.size.sm};
+
+    &:hover {
+      border-color: ${(props) => props.theme.input.focusBorder};
+    }
   }
   .step-editor-head {
     display: flex;
@@ -1567,6 +1910,25 @@ const StyledWrapper = styled.div`
       margin: 0;
     }
   }
+  /* 처리 방식 줄 오른쪽의 비동기 요청 선택 */
+  .async-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    margin-right: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
+    cursor: pointer;
+
+    input {
+      accent-color: ${(props) => props.theme.brand};
+    }
+    &:has(input:disabled) {
+      color: ${(props) => props.theme.colors.text.muted};
+      cursor: not-allowed;
+    }
+  }
+
   .mode-toggle {
     display: inline-flex;
     border: 1px solid ${(props) => props.theme.border.border1};
@@ -1586,6 +1948,34 @@ const StyledWrapper = styled.div`
         border-left: 1px solid ${(props) => props.theme.border.border1};
       }
     }
+  }
+
+  /* 반복 설정 — 한 줄에 [소스][경로] 또는 [라벨][숫자][단위] */
+  .repeat-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .repeat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    width: 100%;
+
+    input[type='number'] {
+      width: 90px;
+    }
+    .jsonpath-input {
+      flex: 1;
+    }
+  }
+  .repeat-add {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
   }
 
   .binding-block {
