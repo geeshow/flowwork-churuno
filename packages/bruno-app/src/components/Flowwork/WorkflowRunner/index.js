@@ -4,10 +4,10 @@ import { addFlowworkRequest } from 'providers/ReduxStore/slices/logs';
 
 import api from '../api';
 import { makeTemplateResolver, refKey } from '../engine/catalogLookup';
-import { runWorkflow } from '../engine/runWorkflow';
+import { buildStepTree, isBlockStep, runWorkflow } from '../engine/runWorkflow';
 import { ApiComboProvider } from '../ApiComboProvider';
 import { executionShareUrl } from '../shareUrl';
-import { StepCard, stepTypeMeta } from '../StepCard';
+import { conditionLabel, leafOf, repeatLabel, StepCard, stepTypeMeta } from '../StepCard';
 import StepInputForm from '../StepInputForm';
 
 // 프록시는 파싱된 body만 주므로 응답 뷰어(formatResponse)가 요구하는
@@ -127,7 +127,14 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
         })
     };
 
-    const onStepUpdate = (s) => setStates((prev) => new Map(prev).set(s.stepId, s));
+    // 반복 안의 스텝·블록은 회차마다 결과가 오므로, 마지막 상태에 회차별 집계를 얹는다
+    const onStepUpdate = (s) =>
+      setStates((prev) => {
+        const before = prev.get(s.stepId);
+        const ranTimes = (before?.ranTimes ?? 0) + (s.status === 'SUCCESS' || s.status === 'FAILED' ? 1 : 0);
+        const skippedTimes = (before?.skippedTimes ?? 0) + (s.status === 'SKIPPED' ? 1 : 0);
+        return new Map(prev).set(s.stepId, { ...s, ranTimes, skippedTimes });
+      });
 
     try {
       const res = await runWorkflow(workflow, values, deps, onStepUpdate);
@@ -178,6 +185,95 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
     );
   };
 
+  // 조건·반복은 스텝을 감싸는 상자로 보여준다 — 흐름도의 테두리와 같은 말을 쓴다
+  const stepName = (id) => orderedSteps.find((s) => s.id === id)?.name;
+  const conditionText = (condition) =>
+    conditionLabel(condition, {
+      stepName,
+      inputLabel: (key) => allInputs.find((input) => input.key === key)?.label ?? key,
+      fieldLabel: (stepId, jsonPath) => {
+        const step = orderedSteps.find((s) => s.id === stepId);
+        const entry = step?.apiBinding && catalog.find((e) => refKey(e) === refKey(step.apiBinding.catalogEntry));
+        return entry?.outputLabels?.[leafOf(jsonPath)];
+      }
+    });
+
+  /**
+   * 블록은 그 안에 든 스텝을 감싸는 상자로, 낱개 스텝은 카드로 그린다.
+   * 상자 이름표에는 흐름도와 같은 말(무엇을 기준으로 도는지·언제 도는지)을 쓰고,
+   * 진행 상태(회차·건너뜀)도 여기 붙는다.
+   */
+  const renderNodes = (nodes) =>
+    nodes.map((node) => {
+      const { step } = node;
+      // 옛 형식(스텝에 직접 붙은 조건)도 같은 상자로 감싸 보여준다
+      if (!isBlockStep(step)) {
+        if (!step.branchCondition || step.repeat) return renderStepCard(step);
+        return (
+          <div key={`branch-${step.id}`} className="step-frame branch">
+            <div className="step-frame-label">{conditionText(step.branchCondition)}</div>
+            {renderStepCard(step)}
+          </div>
+        );
+      }
+
+      const state = states.get(step.id);
+      const isRepeat = step.kind === 'REPEAT';
+      return (
+        <div key={step.id} className={`step-frame ${isRepeat ? 'repeat' : 'branch'} ${state?.status === 'SKIPPED' ? 'skipped' : ''}`}>
+          <div className="step-frame-label">
+            {isRepeat ? repeatLabel(step.repeat, stepName) : conditionText(step.branchCondition)}
+            {state?.iterations ? <span className="step-frame-progress"> · {state.iteration}/{state.iterations}회</span> : null}
+            {/* 반복 안의 분기는 회차마다 결과가 갈리므로 몇 번 돌고 몇 번 건너뛰었는지 함께 적는다 */}
+            {!isRepeat && state?.skippedTimes ? (
+              <span className="step-frame-progress">
+                {state.ranTimes ? ` · ${state.ranTimes}회 실행 · ${state.skippedTimes}회 건너뜀` : ' · 건너뜀'}
+              </span>
+            ) : null}
+          </div>
+          {renderNodes(node.children)}
+        </div>
+      );
+    });
+
+  const renderStepCard = (step) => {
+    const { typeLabel, category } = stepTypeMeta(step, (id) => {
+      const w = summaries.find((s) => s.id === id);
+      return w ? { domain: w.domain, task: w.task, name: w.name } : undefined;
+    });
+    // 결과 표 헤더에 쓸 필드 설명 — 스텝이 참조하는 카탈로그 항목의 outputLabels
+    const entry = step.apiBinding
+      ? catalog.find((e) => refKey(e) === refKey(step.apiBinding.catalogEntry))
+      : undefined;
+    const card = (
+      <StepCard
+        key={step.id}
+        step={step}
+        state={states.get(step.id)}
+        resultView={step.resultView}
+        typeLabel={typeLabel}
+        category={category}
+        outputLabels={entry?.outputLabels}
+        footer={midPrompt?.uid === step.id ? renderMidForm() : null}
+      />
+    );
+    if (!step.repeat) return card;
+    // 반복 안의 분기는 회차마다 따지므로 반복 상자 안쪽에 조건 상자가 들어간다
+    return (
+      <div key={step.id} className="step-frame repeat">
+        <div className="step-frame-label">{repeatLabel(step.repeat, stepName)}</div>
+        {step.branchCondition ? (
+          <div className="step-frame branch">
+            <div className="step-frame-label">{conditionText(step.branchCondition)}</div>
+            {card}
+          </div>
+        ) : (
+          card
+        )}
+      </div>
+    );
+  };
+
   if (!loaded) {
     return loadError ? <div className="error-banner">{loadError}</div> : <p className="muted">API 카탈로그 불러오는 중…</p>;
   }
@@ -204,30 +300,7 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
 
         <section className="panel">
           <h3>스텝</h3>
-          <div className="step-list">
-            {orderedSteps.map((step) => {
-              const { typeLabel, category } = stepTypeMeta(step, (id) => {
-                const w = summaries.find((s) => s.id === id);
-                return w ? { domain: w.domain, task: w.task, name: w.name } : undefined;
-              });
-              // 결과 표 헤더에 쓸 필드 설명 — 스텝이 참조하는 카탈로그 항목의 outputLabels
-              const entry = step.apiBinding
-                ? catalog.find((e) => refKey(e) === refKey(step.apiBinding.catalogEntry))
-                : undefined;
-              return (
-                <StepCard
-                  key={step.id}
-                  step={step}
-                  state={states.get(step.id)}
-                  resultView={step.resultView}
-                  typeLabel={typeLabel}
-                  category={category}
-                  outputLabels={entry?.outputLabels}
-                  footer={midPrompt?.uid === step.id ? renderMidForm() : null}
-                />
-              );
-            })}
-          </div>
+          <div className="step-list">{renderNodes(buildStepTree(orderedSteps))}</div>
         </section>
 
         {midPrompt && !orderedSteps.some((s) => s.id === midPrompt.uid) ? (

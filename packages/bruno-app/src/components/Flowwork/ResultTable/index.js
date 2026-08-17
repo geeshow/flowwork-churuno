@@ -14,6 +14,16 @@ const unwrap = (body) => {
   return body;
 };
 
+/**
+ * 표의 행 목록. 반복 스텝의 응답은 회차별 응답을 모은 배열이라 원소마다 { data: … }
+ * 껍질이 남아 있다 — 껍질을 벗기고, 회차마다 목록이 나왔으면 한 표로 이어 붙인다.
+ */
+const rowsOf = (root) =>
+  root.flatMap((row) => {
+    const inner = unwrap(row);
+    return Array.isArray(inner) ? inner : [inner];
+  });
+
 const getPath = (obj, path) => {
   return path.split('.').reduce((o, k) => {
     if (o == null || typeof o !== 'object') return undefined;
@@ -139,7 +149,7 @@ export function ResultTable({ data, columns, labels }) {
   const head = (c) => labels?.[c] ?? c;
 
   if (Array.isArray(root)) {
-    const rows = root;
+    const rows = rowsOf(root);
     const cols = columns.length ? columns : keysOf(rows);
     if (rows.length === 0) return <p className="muted result-empty">결과 없음 (빈 배열)</p>;
     return (
