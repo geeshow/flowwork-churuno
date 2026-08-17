@@ -14,7 +14,8 @@ flowwork 프로젝트(github.com/…/flowwork)의 서버를 bruno 웹 서버에 
 워크플로우/도메인 색상의 등록·수정은 "변경"과 "운영 반영" 두 단계만 노출한다:
 운영(main 체크아웃)은 읽기 전용이고, 쓰기는 source=edit(공용 편집 worktree)로만
 가능하며 저장 즉시 자동 기록(autocommit + push)된다. 변경 목록/작업 단위 운영
-반영/되돌리기는 /api/flowwork/edit/* (gitops.py)가 담당한다.
+반영/되돌리기는 /api/flowwork/edit/* (gitops.py)가 담당한다. 문서(Docs)만은 예외로
+운영에서도 바로 저장할 수 있다 — 동작이 아니라 설명이라 반영 절차를 둘 이유가 없다.
 
 실행 로직(값 리졸브·분기·스텝 순회)은 프론트(bruno-app components/Flowwork)가 담당한다.
 """
@@ -321,8 +322,19 @@ class WorkflowStepModel(BaseModel):
     id: str
     order: int
     name: str
+    # 블록 스텝 — "REPEAT"(반복) | "BRANCH"(분기). 안에 드는 스텝은 parentId로 이 블록을
+    # 가리킨다. 없으면 낱개 호출 스텝이다.
+    kind: Optional[str] = None
+    parentId: Optional[str] = None
     apiBinding: Optional[dict[str, Any]] = None
     workflowBinding: Optional[dict[str, Any]] = None
+    # 지연 스텝 — {"seconds": 5}. 앞 스텝과 뒤 스텝 사이를 쉬어 간다.
+    delayBinding: Optional[dict[str, Any]] = None
+    # 반복 — 목록만큼(kind=LIST: sourceStepId/itemsPath) 또는 정한 횟수만큼(kind=COUNT: count).
+    # maxIterations는 안전장치이고, 실행 엔진이 자체 상한(100회) 안에서만 쓴다.
+    repeat: Optional[dict[str, Any]] = None
+    # 참이면 앞 스텝과 동시에 출발한다 (연속으로 붙은 스텝끼리 한 묶음)
+    parallel: bool = False
     branchCondition: Optional[dict[str, Any]] = None
     stopOnFailure: bool = False
     resultView: Optional[dict[str, Any]] = None
@@ -398,6 +410,28 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
             gitops.autocommit(message, branch)
         except gitops.GitError as e:
             print(f"[flowwork] autocommit 실패: {e}")
+
+    # -- 문서(Docs)는 운영에서도 쓸 수 있다 ---------------------------------
+    # 워크플로우의 동작이 아니라 설명이라, 읽기 전용인 운영에서도 바로 고치고 기록한다.
+    # 운영에 쓴 문서는 편집 공간에도 같은 값으로 심는다 — 그러지 않으면 편집 쪽의 옛
+    # 문서가 "운영 미반영 변경"으로 남아, 운영 반영을 누르는 순간 방금 쓴 문서가 도로
+    # 지워진다. 편집 worktree가 없거나 그 파일이 없으면(아직 반영 전) 그냥 넘어간다.
+    def _record_docs(source: str, branch: Optional[str], path: Path, message: str, mirror) -> None:
+        if source == "edit":
+            _autocommit(message, branch)
+            return
+        if not (repo_dir / ".git").exists():
+            return
+        try:
+            gitops.commit_prod_path(path.relative_to(repo_dir).as_posix(), message)
+        except (gitops.GitError, ValueError) as e:
+            print(f"[flowwork] 운영 문서 기록 실패: {e}")
+            return
+        try:
+            if mirror() is not None:
+                _autocommit(message, branch)
+        except (HTTPException, gitops.GitError, OSError) as e:
+            print(f"[flowwork] 편집 공간에 문서 반영 실패: {e}")
 
     def _workflows_dir(source: str = "prod", branch: Optional[str] = None) -> Path:
         return _data_root(source, branch) / "workflows"
@@ -634,18 +668,32 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
         return {"docs": _read_task_docs(path / gitops.FOLDER_MARKER)}
 
+    def _write_task_docs(domain: str, task: str, docs: str, source: str, branch: Optional[str]) -> Optional[Path]:
+        """해당 소스의 업무 표식에 문서를 쓴다. 그 소스에 업무가 없으면 None."""
+        folder = _task_dir(domain, task, source, branch)
+        if not folder.is_dir():
+            return None
+        marker = folder / gitops.FOLDER_MARKER
+        marker.write_text(
+            json.dumps({"docs": docs}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        return marker
+
     @router.put("/tasks/{domain}/{task:path}/docs")
     def set_task_docs(
         domain: str, task: str, body: DocsBody, source: str = "edit", branch: Optional[str] = None
     ) -> dict:
-        _check_editable(source)
-        path = _task_dir(domain, task, source, branch)
-        if not path.is_dir():
+        marker = _write_task_docs(domain, task, body.docs, source, branch)
+        if marker is None:
             raise HTTPException(status_code=404, detail=f"업무를 찾을 수 없습니다: {domain}/{task}")
-        (path / gitops.FOLDER_MARKER).write_text(
-            json.dumps({"docs": body.docs}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        message = f"flowwork: 업무 '{domain}/{task}' 문서 저장"
+        _record_docs(
+            source,
+            branch,
+            marker,
+            message,
+            lambda: _write_task_docs(domain, task, body.docs, "edit", branch),
         )
-        _autocommit(f"flowwork: 업무 '{domain}/{task}' 문서 저장", branch)
         return {"status": "saved"}
 
     @router.put("/tasks/{domain}/{task:path}")
@@ -749,6 +797,37 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         data = json.loads(path.read_text(encoding="utf-8"))
         data["version"] = _file_version(path)
         return data
+
+    def _write_workflow_docs(
+        workflow_id: str, docs: str, source: str, branch: Optional[str]
+    ) -> Optional[tuple[Path, dict]]:
+        """해당 소스의 워크플로우 파일에서 문서만 갈아 끼운다. 그 소스에 없으면 None."""
+        path = _find_path_by_id(workflow_id, source, branch)
+        if path is None:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["docs"] = docs
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return path, data
+
+    @router.put("/workflows/{workflow_id}/docs")
+    def set_workflow_docs(
+        workflow_id: str, body: DocsBody, source: str = "edit", branch: Optional[str] = None
+    ) -> dict:
+        """문서만 저장 — 스텝 등 나머지는 건드리지 않으므로 운영에서도 열려 있다."""
+        written = _write_workflow_docs(workflow_id, body.docs, source, branch)
+        if written is None:
+            raise HTTPException(status_code=404, detail=f"워크플로우를 찾을 수 없습니다: {workflow_id}")
+        path, data = written
+        message = f"flowwork: '{data.get('name', workflow_id)}' 문서 저장"
+        _record_docs(
+            source,
+            branch,
+            path,
+            message,
+            lambda: _write_workflow_docs(workflow_id, body.docs, "edit", branch),
+        )
+        return {"status": "saved", "version": _file_version(path)}
 
     @router.put("/workflows/{workflow_id}")
     def save_workflow(

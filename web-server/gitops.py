@@ -10,6 +10,7 @@
   - 운영 반영 = 선택한 파일만 main에 반영(체리픽) + push (release_paths)
     — tip 간 비교라 반영된 파일은 변경 목록에서 자연히 사라진다
   - 되돌리기 = 편집 worktree의 파일을 main 버전으로 복원 + autocommit (revert_paths)
+  - 문서(Docs)만은 예외로 운영 트리에서 바로 쓰고 기록한다 (commit_prod_path)
 
 원격 push는 오프라인에서도 동작하도록 best-effort로 처리하고,
 BRUNO_WEB_GIT_PUSH=0 이면 원격 반영을 모두 생략한다.
@@ -114,6 +115,25 @@ def _push_best_effort(branch: str, cwd: Path) -> bool:
     if not GIT_PUSH:
         return False
     return _run("push", "-u", "origin", branch, cwd=cwd).returncode == 0
+
+
+def commit_prod_path(path: str, message: str) -> bool:
+    """운영 트리의 파일 하나를 그 자리에서 기록(커밋 + push)한다.
+
+    운영은 읽기 전용이지만 문서(Docs)만은 예외로 여기서 직접 쓴다 — 워크플로우의
+    동작이 아니라 설명이라 운영 반영 절차를 거칠 이유가 없다. 경로 하나만 stage·커밋
+    하므로 운영 트리에 다른 작업이 걸려 있어도 그것까지 딸려 들어가지 않는다.
+    """
+    _check_editable_path(path)
+    if not (REPO_DIR / ".git").exists():
+        raise GitError(f"데이터 디렉토리가 git 저장소가 아닙니다: {REPO_DIR}")
+    _git("add", "--", path, cwd=REPO_DIR)
+    if not _git("diff", "--cached", "--name-only", "--", path, cwd=REPO_DIR).strip():
+        return False
+    _git("commit", "-m", message, "--", path, cwd=REPO_DIR)
+    if GIT_PUSH:
+        _run("push", "origin", prod_branch(), cwd=REPO_DIR)
+    return True
 
 
 def autocommit(message: str, branch: Optional[str] = None) -> bool:

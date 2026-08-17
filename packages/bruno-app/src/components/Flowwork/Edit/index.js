@@ -3,6 +3,7 @@ import { IconPencil, IconPlus, IconTrash, IconUpload } from '@tabler/icons';
 import toast from 'react-hot-toast';
 
 import api from '../api';
+import ColorPrompt from '../ColorPrompt';
 import ConfirmButton from '../ConfirmButton';
 import FolderScreen from '../FolderScreen';
 import HomeGuide from '../HomeGuide';
@@ -35,6 +36,9 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
   // { kind: 'task' | 'workflow', ... } — 붙여넣기 쪽에서 무엇을 복사했는지 알아야 한다.
   const [clipboard, setClipboard] = useState(null);
   const [prompt, setPrompt] = useState(null);
+  // 도메인 색 고르기 — { domain, color }
+  const [colorPrompt, setColorPrompt] = useState(null);
+  const [colors, setColors] = useState({});
   const [fileMode, setFileMode] = useState(false);
   const bump = useCallback(() => setRefresh((n) => n + 1), []);
   const activeId = page.kind === 'run' ? page.id : undefined;
@@ -58,11 +62,12 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.editState(), api.editPending()])
-      .then(([s, p]) => {
+    Promise.all([api.editState(), api.editPending(), api.getDomainColors('edit')])
+      .then(([s, p, c]) => {
         if (!alive) return;
         setSt(s);
         setPending(p.files);
+        setColors(c);
         setError(null);
       })
       .catch((e) => alive && setError(e.message));
@@ -142,7 +147,16 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
               toast.success('저장되었습니다 — 운영 반영 전까지 편집 공간에만 보입니다');
               go({ kind: 'run', id: wf.id });
             }}
-            onCancel={() => go({ kind: 'home' })}
+            // 취소하면 고치던 작업 화면으로 돌아온다. 새로 만들던 중이면 아직 작업이
+            // 없으므로 만들려던 폴더로 (폴더도 없으면 편집 홈으로).
+            onCancel={() =>
+              go(
+                page.kind === 'editWf'
+                  ? { kind: 'run', id: page.id }
+                  : page.domain && page.task
+                    ? { kind: 'task', domain: page.domain, task: page.task }
+                    : { kind: 'home' }
+              )}
           />
         </div>
       </div>
@@ -188,6 +202,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
               domain,
               clipboard,
               prompt: setPrompt,
+              pickColor: () => setColorPrompt({ domain, color: colors[domain.normalize('NFC')] }),
               onError: setError,
               onDone: bump
             })}
@@ -264,6 +279,7 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
             )}
             onSaved={bump}
             onOpenExecution={onOpenExecution}
+            onOpenWorkflow={(id) => go({ kind: 'run', id })}
           />
         ) : (
           <EditHome st={st} files={files} loaded={pending != null} onAction={run} />
@@ -277,6 +293,17 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
             prompt.onSubmit(name);
           }}
           onCancel={() => setPrompt(null)}
+        />
+      ) : null}
+      {colorPrompt ? (
+        <ColorPrompt
+          title={`'${colorPrompt.domain}' 색상`}
+          initial={colorPrompt.color}
+          onSubmit={(color) => {
+            setColorPrompt(null);
+            run(() => api.setDomainColor(colorPrompt.domain, color));
+          }}
+          onCancel={() => setColorPrompt(null)}
         />
       ) : null}
     </div>
@@ -412,7 +439,7 @@ function workflowMenuItems({ workflow, setClipboard, go, prompt, onError, onDone
 
 // 도메인 "..." 메뉴 — 도메인 바로 아래(최상위) 업무를 만든다.
 // 하위 업무는 업무 메뉴의 New Folder로 만든다.
-function domainMenuItems({ domain, clipboard, prompt, onError, onDone }) {
+function domainMenuItems({ domain, clipboard, prompt, pickColor, onError, onDone }) {
   const askName = nameAsker({ prompt, onError, onDone });
 
   return [
@@ -427,6 +454,8 @@ function domainMenuItems({ domain, clipboard, prompt, onError, onDone }) {
           action: (name) => api.createTask(domain, name)
         })
     },
+    // 색은 도메인의 것이라 작업 수정 화면이 아니라 여기서 바꾼다
+    { id: 'color', label: '색상 변경', onClick: pickColor },
     ...(clipboard && clipboard.kind === 'task'
       ? [pasteItem(clipboard, { domain, task: '' }, domain, askName)]
       : [])

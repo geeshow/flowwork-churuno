@@ -6,6 +6,9 @@
  * 등록/수정/삭제는 항상 edit 소스로 보내고(서버가 prod 쓰기를 403으로 거부),
  * 편집 저장은 서버가 즉시 자동 기록(커밋+push)한다. 운영 반영/작업 삭제는
  * 작업(파일) 단위로 edit* 메서드를 쓴다.
+ *
+ * 예외는 문서(Docs)다 — 동작이 아니라 설명이라 prod 소스로도 저장할 수 있고,
+ * 서버가 운영에 바로 기록한다 (setWorkflowDocs / setTaskDocs).
  */
 import { serverBaseUrl } from '../../../web-ipc/server-api';
 
@@ -45,6 +48,9 @@ const put = (path, body) => request(path, { method: 'PUT', body: JSON.stringify(
 // source가 edit일 때만 ?source=edit 쿼리를 만든다 (prod는 빈 문자열)
 const src = (source) => (source === 'edit' ? '?source=edit' : '');
 
+// 쓰기 기본값은 서버 쪽이 edit이라, 운영에 쓰는 문서 저장은 소스를 명시해야 한다
+const writeSrc = (source) => `?source=${source === 'edit' ? 'edit' : 'prod'}`;
+
 // 업무는 하위 업무를 가질 수 있다 — '/'는 계층 구분이므로 마디마다 따로 인코딩한다
 const taskPath = (domain, task) =>
   [domain, ...task.split('/')].map(encodeURIComponent).join('/');
@@ -63,14 +69,18 @@ const api = {
 
   getTaskDocs: (domain, task, source) =>
     get(`/api/flowwork/tasks/${taskPath(domain, task)}/docs${src(source)}`).then((r) => r.docs),
-  setTaskDocs: (domain, task, docs) =>
-    put(`/api/flowwork/tasks/${taskPath(domain, task)}/docs?source=edit`, { docs }),
+  // 문서는 운영(prod)에서도 저장할 수 있다 — 서버가 main에 바로 기록한다
+  setTaskDocs: (domain, task, docs, source) =>
+    put(`/api/flowwork/tasks/${taskPath(domain, task)}/docs${writeSrc(source)}`, { docs }),
 
   listWorkflows: (source) => get(`/api/flowwork/workflows${src(source)}`).then((r) => r.workflows),
   getWorkflow: (id, source) => get(`/api/flowwork/workflows/${encodeURIComponent(id)}${src(source)}`),
   // 등록/수정/삭제는 편집 worktree에서만 가능 (서버가 prod 쓰기를 403으로 거부)
   saveWorkflow: (wf, { force = false } = {}) =>
     put(`/api/flowwork/workflows/${encodeURIComponent(wf.id)}${src('edit')}${force ? '&force=true' : ''}`, wf),
+  // 문서만 저장 — 나머지는 건드리지 않으므로 운영(prod)에서도 열려 있다
+  setWorkflowDocs: (id, docs, source) =>
+    put(`/api/flowwork/workflows/${encodeURIComponent(id)}/docs${writeSrc(source)}`, { docs }),
   deleteWorkflow: (id) =>
     request(`/api/flowwork/workflows/${encodeURIComponent(id)}${src('edit')}`, { method: 'DELETE' }),
 
