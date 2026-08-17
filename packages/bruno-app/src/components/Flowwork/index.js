@@ -25,14 +25,14 @@ import StyledWrapper from './StyledWrapper';
  *   #/flowwork/edit             편집 홈 (변경 목록 · 운영 반영/작업 삭제)
  *   #/flowwork/edit/t/<d>/<t>   업무 화면
  *   #/flowwork/edit/run/<id>    실행 화면 (편집 공간 기준)
- *   #/flowwork/edit/new[/<d>/<t>] 새 워크플로우
+ *   #/flowwork/edit/new/<d>/<t> 새 워크플로우 (언제나 업무 안에서 만든다)
  *   #/flowwork/edit/wf/<id>     워크플로우 수정
  */
 const parseEditPage = (segments) => {
   const [a, b, c, d] = segments;
   if (a === 't' && b && c) return { kind: 'task', domain: b, task: c, tab: d };
   if (a === 'run' && b) return { kind: 'run', id: b, tab: c };
-  if (a === 'new') return { kind: 'new', domain: b, task: c };
+  if (a === 'new' && b && c) return { kind: 'new', domain: b, task: c };
   if (a === 'wf' && b) return { kind: 'editWf', id: b };
   return { kind: 'home' };
 };
@@ -66,9 +66,7 @@ const editPageHash = (page) => {
     case 'run':
       return runHash(page.id, page.tab);
     case 'new':
-      return page.domain && page.task
-        ? `/new/${encodeURIComponent(page.domain)}/${encodeURIComponent(page.task)}`
-        : '/new';
+      return `/new/${encodeURIComponent(page.domain)}/${encodeURIComponent(page.task)}`;
     case 'editWf':
       return `/wf/${encodeURIComponent(page.id)}`;
     default:

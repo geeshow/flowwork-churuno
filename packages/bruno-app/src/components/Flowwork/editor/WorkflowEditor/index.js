@@ -2,19 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import api, { VersionConflictError } from '../../api';
 import ConfirmButton from '../../ConfirmButton';
-import { colorForDomain, isValidHex, PRESET_COLORS } from '../../domainPalette';
 import { conditionSource } from '../../engine/branch';
 import { isBlockStep } from '../../engine/runWorkflow';
 import Flowmap from '../../WorkflowScreen/Flowmap';
 import AddStepButton from '../AddStepButton';
+import AiSetupSuggest from '../AiSetupSuggest';
+import AiStepSuggest from '../AiStepSuggest';
 import BlockEditor from '../BlockEditor';
 import InputDefEditor from '../InputDefEditor';
+import { newStep } from '../stepFactory';
 import StepEditor, { normalizeStepForSave } from '../StepEditor';
-
-// 도메인/업무는 파일 경로 세그먼트 — 단어문자 + 한글 + 하이픈 + 공백(앞뒤 제외)만 허용.
-// 업무는 하위 업무를 가질 수 있어 '/'로 나뉜 마디마다 이 규칙을 적용한다.
-const SAFE_SEGMENT = /^[\w가-힣-](?:[\w가-힣 -]*[\w가-힣-])?$/;
-const SEGMENT_RULE = '영문/숫자/한글/-/_ 와 사이 공백';
 
 const emptyWorkflow = (domain = '', task = '') => ({
   id: crypto.randomUUID(),
@@ -25,38 +22,6 @@ const emptyWorkflow = (domain = '', task = '') => ({
   baseInputs: [],
   steps: []
 });
-
-const newStep = (kind, parentId) => {
-  const base = {
-    id: `step_${Math.random().toString(36).slice(2, 8)}`,
-    order: 0,
-    name: '', // API/업무를 선택하면 그 이름으로 자동 설정
-    ...(parentId ? { parentId } : {})
-  };
-  switch (kind) {
-    case 'REPEAT':
-      return { ...base, kind: 'REPEAT', name: '반복', repeat: { kind: 'COUNT', count: 3 } };
-    case 'BRANCH':
-      return {
-        ...base,
-        kind: 'BRANCH',
-        name: '분기',
-        branchCondition: { source: { kind: 'USER_INPUT', inputKey: '' }, operator: 'EQ', compareValue: '' }
-      };
-    case 'DELAY':
-      return { ...base, name: '대기', delayBinding: { seconds: 3 } };
-    case 'WORKFLOW':
-      return { ...base, workflowBinding: { ref: { id: '' }, inputMappings: {} } };
-    default:
-      return {
-        ...base,
-        apiBinding: {
-          catalogEntry: { department: '', collectionFile: '', itemPath: [], name: '' },
-          variableBindings: {}
-        }
-      };
-  }
-};
 
 // 블록은 자기 자신과 그 안에 든 스텝들을 한 덩어리로 다룬다 (옮기기·삭제)
 const subtreeOf = (steps, step) => {
@@ -122,18 +87,12 @@ const prevStepsFor = (steps, index) =>
  * 낙관적 잠금 충돌 시 덮어쓰기/다시 불러오기를 선택한다.
  */
 export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, onCancel }) {
-  // 위치(도메인·업무)와 도메인 색은 이 화면에서 고치지 않는다. 수정은 작업의 내용만
-  // 다루고, 옮기기·이름 바꾸기는 사이드바 메뉴가, 색은 도메인 메뉴가 맡는다.
-  // 새로 만들 때만, 그것도 폴더 밖에서 시작했을 때만 위치를 직접 정한다.
-  const locationLocked = mode === 'edit' || (!!initialDomain && !!initialTask);
-  const editingLocation = mode === 'new' && !locationLocked;
+  // 새 작업은 언제나 고른 도메인·업무 안에서 시작하므로 위치는 여기서 정하지 않는다.
+  // 옮기기·이름 바꾸기는 사이드바 작업 메뉴가, 도메인 색은 도메인 메뉴가 맡는다.
   const [wf, setWf] = useState(mode === 'new' ? emptyWorkflow(initialDomain, initialTask) : null);
   const [entries, setEntries] = useState([]);
   const [env, setEnv] = useState({});
   const [workflows, setWorkflows] = useState([]);
-  const [domainColors, setDomainColors] = useState({});
-  // 사용자가 직접 고른 색(도메인 색 오버라이드). 빈 문자열이면 도메인 기본색을 따른다.
-  const [pickedColor, setPickedColor] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
@@ -143,13 +102,12 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows('edit'), api.getDomainColors('edit')])
-      .then(([cat, envs, wfs, colors]) => {
+    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows('edit')])
+      .then(([cat, envs, wfs]) => {
         if (!alive) return;
         setEntries(cat.results);
         setEnv(envs);
         setWorkflows(wfs);
-        setDomainColors(colors);
       })
       .catch((e) => alive && setError(e.message));
     return () => {
@@ -172,26 +130,12 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
   const envKeys = useMemo(() => new Set(Object.keys(env)), [env]);
   const inputKeys = useMemo(() => (wf ? wf.baseInputs.map((i) => i.key).filter(Boolean) : []), [wf]);
 
-  const domainOptions = useMemo(
-    () => [...new Set(workflows.map((w) => w.domain))].sort((a, b) => a.localeCompare(b, 'ko')),
-    [workflows]
-  );
-  const taskOptions = useMemo(
-    () =>
-      [...new Set(workflows.filter((w) => !wf || w.domain === wf.domain).map((w) => w.task))].sort((a, b) =>
-        a.localeCompare(b, 'ko')),
-    [workflows, wf]
-  );
-
   if (error && !wf) return <div className="error-banner">{error}</div>;
   if (!wf) return <p className="muted">불러오는 중…</p>;
 
-  const identityReady = !!wf.domain.trim() && !!wf.task.trim() && !!wf.name.trim();
+  const identityReady = !!wf.name.trim();
   // 미리보기는 저장할 모양(고르지 않은 처리 방식은 뺀 것)으로 그린다
   const previewWorkflow = { ...wf, steps: wf.steps.map((s, idx) => ({ ...normalizeStepForSave(s), order: idx + 1 })) };
-
-  // 이 워크플로우 도메인의 색상 (사용자가 고른 색 > 저장된 도메인 색 > 결정적 기본색)
-  const domainColor = pickedColor || colorForDomain(wf.domain.normalize('NFC'), domainColors);
 
   const patch = (p) => setWf({ ...wf, ...p });
 
@@ -226,11 +170,18 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
     setWf({ ...wf, steps: wf.steps.filter((s) => !doomed.has(s.id)) });
   };
 
+  // AI 제안은 덮어쓰지 않는다 — 이미 적어 둔 입력값은 그대로 두고 없는 key만 더한다
+  const applySetupSuggestion = ({ name, description, baseInputs }) => {
+    const have = new Set(wf.baseInputs.map((i) => i.key));
+    setWf({
+      ...wf,
+      name: name || wf.name,
+      description: description || wf.description,
+      baseInputs: [...wf.baseInputs, ...baseInputs.filter((i) => !have.has(i.key))]
+    });
+  };
+
   function validate(w) {
-    if (!SAFE_SEGMENT.test(w.domain)) return `도메인은 ${SEGMENT_RULE}만 사용할 수 있습니다.`;
-    if (!w.task.split('/').every((segment) => SAFE_SEGMENT.test(segment))) {
-      return `업무는 ${SEGMENT_RULE}만 사용할 수 있습니다 (하위 업무는 '/'로 구분).`;
-    }
     if (!w.name.trim()) return '이름을 입력하세요.';
     // (도메인, 업무) 내 이름 중복 사전 검사 (서버도 409로 최종 검증)
     const dup = workflows.some(
@@ -275,10 +226,6 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
     setError(null);
     setConflict(null);
     try {
-      // 새 도메인을 여기서 만들었다면 그 도메인의 색도 함께 확정해 둔다
-      if (editingLocation && isValidHex(domainColor)) {
-        await api.setDomainColor(normalized.domain.normalize('NFC'), domainColor);
-      }
       await api.saveWorkflow(normalized, { force });
       onSaved(normalized);
     } catch (e) {
@@ -365,75 +312,12 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
       <section className="panel">
         <h3>기본 정보</h3>
         <div className="meta-grid">
-          {locationLocked ? (
-            /* 위치는 여기서 바꾸지 않는다 — 옮기기·이름 바꾸기는 사이드바 작업 메뉴에서 */
-            <div className="field wide">
-              <span className="field-label">위치</span>
-              <div className="field-fixed">{[wf.domain, ...wf.task.split('/')].join(' / ')}</div>
-            </div>
-          ) : (
-            <>
-              <label className="field">
-                <span className="field-label">도메인</span>
-                <input
-                  list="flowwork-domain-options"
-                  value={wf.domain}
-                  placeholder="예: 계좌 (선택 또는 입력)"
-                  onChange={(e) => {
-                    setPickedColor(''); // 도메인이 바뀌면 그 도메인의 색을 따르도록 오버라이드 해제
-                    patch({ domain: e.target.value });
-                  }}
-                />
-                <datalist id="flowwork-domain-options">
-                  {domainOptions.map((d) => (
-                    <option key={d} value={d} />
-                  ))}
-                </datalist>
-              </label>
-              <label className="field">
-                <span className="field-label">업무</span>
-                <input
-                  list="flowwork-task-options"
-                  value={wf.task}
-                  placeholder="예: 계좌개설 · 하위 업무는 개설/신규 (선택 또는 입력)"
-                  onChange={(e) => patch({ task: e.target.value })}
-                />
-                <datalist id="flowwork-task-options">
-                  {taskOptions.map((t) => (
-                    <option key={t} value={t} />
-                  ))}
-                </datalist>
-              </label>
-            </>
-          )}
-          {/* 색은 도메인의 것이라 새 도메인을 만들 때만 여기서 정하고, 이후 변경은 도메인 메뉴에서 */}
-          {editingLocation ? (
-            <div className="field wide">
-              <span className="field-label">
-                도메인 색상 <span className="hint">(작업 테두리·불릿에 사용 · 도메인 단위로 저장)</span>
-              </span>
-              <div className="color-picker">
-                {PRESET_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`color-swatch ${domainColor.toLowerCase() === c.toLowerCase() ? 'active' : ''}`}
-                    style={{ background: c }}
-                    title={c}
-                    onClick={() => setPickedColor(c)}
-                  />
-                ))}
-                <label className="color-custom" title="직접 선택">
-                  <input
-                    type="color"
-                    value={isValidHex(domainColor) ? domainColor : '#4c8dff'}
-                    onChange={(e) => setPickedColor(e.target.value)}
-                  />
-                  <span className="color-custom-face" style={{ background: domainColor }} />
-                </label>
-              </div>
-            </div>
-          ) : null}
+          {/* 위치는 여기서 정하지 않는다 — 새 작업은 고른 업무 안에서 시작하고,
+              옮기기·이름 바꾸기는 사이드바 작업 메뉴에서 한다 */}
+          <div className="field wide">
+            <span className="field-label">위치</span>
+            <div className="field-fixed">{[wf.domain, ...wf.task.split('/')].join(' / ')}</div>
+          </div>
           <label className="field wide">
             <span className="field-label">
               이름 <span className="hint">(도메인·업무 내에서 유일)</span>
@@ -480,6 +364,14 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
         <h3>
           기본 입력값 <span className="hint">(스텝보다 먼저 정의)</span>
         </h3>
+        <AiSetupSuggest
+          workflow={wf}
+          entries={entries}
+          workflows={workflows}
+          envKeys={[...envKeys]}
+          getWorkflow={(id) => api.getWorkflow(id, 'edit')}
+          onApply={applySetupSuggestion}
+        />
         <InputDefEditor
           inputs={wf.baseInputs}
           entries={entries}
@@ -494,8 +386,19 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
           <h3>스텝 ({wf.steps.length})</h3>
         </div>
 
+        {identityReady ? (
+          <AiStepSuggest
+            workflow={wf}
+            entries={entries}
+            workflows={workflows}
+            envKeys={[...envKeys]}
+            getWorkflow={(id) => api.getWorkflow(id, 'edit')}
+            onApply={(steps) => setWf({ ...wf, steps: [...wf.steps, ...steps] })}
+          />
+        ) : null}
+
         {!identityReady ? (
-          <p className="muted">먼저 도메인·업무·이름을 입력하면 스텝을 추가할 수 있습니다.</p>
+          <p className="muted">먼저 이름을 입력하면 스텝을 추가할 수 있습니다.</p>
         ) : wf.steps.length === 0 ? (
           <p className="muted">스텝이 없습니다. 아래 "스텝 추가"로 API를 선택하고 입력을 매핑하세요.</p>
         ) : null}

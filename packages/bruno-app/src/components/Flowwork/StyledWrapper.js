@@ -1862,6 +1862,104 @@ const StyledWrapper = styled.div`
     }
   }
 
+  /* AI 제안 — 버튼 한 줄과, 받아 온 초안을 사람이 읽고 적용하는 카드 */
+  .ai-suggest {
+    margin-top: 10px;
+  }
+  .ai-suggest-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+  }
+  /* 모델이 무엇을 되물어 확인했는지 — 기다리는 동안의 진행 상황이자, 뒤에는 근거의 자취 */
+  .ai-progress {
+    margin: 8px 0 0;
+    padding: 0 0 0 18px;
+    color: ${(props) => props.theme.colors.text.muted};
+    font-size: ${(props) => props.theme.font.size.sm};
+
+    li {
+      padding: 2px 0;
+    }
+  }
+  .ai-suggest-card {
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px dashed ${(props) => props.theme.border.border1};
+    border-radius: ${(props) => props.theme.border.radius.base};
+    background: ${(props) => props.theme.background.surface0};
+
+    h4 {
+      margin: 12px 0 6px;
+      font-size: ${(props) => props.theme.font.size.sm};
+    }
+    > p:last-of-type {
+      margin: 10px 0 0;
+    }
+  }
+  .ai-suggest-fields {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    margin: 0;
+
+    dt {
+      color: ${(props) => props.theme.colors.text.muted};
+      font-size: ${(props) => props.theme.font.size.sm};
+    }
+    dd {
+      margin: 0;
+    }
+  }
+  .ai-suggest-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+      padding: 5px 0;
+      border-top: 1px solid ${(props) => props.theme.border.border0};
+    }
+    li:first-child {
+      border-top: none;
+    }
+    code {
+      margin-right: 6px;
+    }
+    b {
+      font-weight: 500;
+    }
+  }
+  /* 종류·경고 꼬리표 — 목록 줄에서 무엇인지 한눈에 */
+  .ai-tag {
+    margin-right: 6px;
+    padding: 1px 6px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    border-radius: 10px;
+    font-size: ${(props) => props.theme.font.size.xs};
+    color: ${(props) => props.theme.colors.text.muted};
+
+    &.warn {
+      margin: 0 0 0 6px;
+      border-color: ${(props) => props.theme.colors.text.danger};
+      color: ${(props) => props.theme.colors.text.danger};
+    }
+  }
+  .ai-suggest-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
   .add-step-choices {
     display: flex;
     align-items: center;
