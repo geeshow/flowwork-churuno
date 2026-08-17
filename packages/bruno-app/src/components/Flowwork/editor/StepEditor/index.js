@@ -46,12 +46,15 @@ export function StepEditor({
   envKeys,
   inputKeys,
   prevSteps,
+  repeating,
   onChange,
   onRemove,
   onMove
 }) {
   const mode = stepMode(step);
   const apiBinding = step.apiBinding ?? EMPTY_API_BINDING;
+  // 반복 항목을 값으로 쓸 수 있는 자리 — 반복 블록 안에 있거나, 스텝 자체가 반복한다
+  const inLoop = repeating || !!step.repeat;
 
   // 스텝 종류 배지/분류 (실행 화면과 동일) — 지금 고른 방식만 보고 정한다
   const { typeLabel, category } = stepTypeMeta(normalizeStepForSave(step), (id) => {
@@ -203,7 +206,7 @@ export function StepEditor({
                   inputKeys={inputKeys}
                   envKeys={[...envKeys]}
                   prevStepIds={prevSteps}
-                  repeating={!!step.repeat}
+                  repeating={inLoop}
                   onChange={setBinding}
                 />
               </div>
@@ -328,7 +331,7 @@ export function StepEditor({
           prevStepIds={prevSteps}
           inputKeys={inputKeys}
           envKeys={[...envKeys]}
-          repeating={!!step.repeat}
+          repeating={inLoop}
           onChange={(branchCondition) => onChange({ ...step, branchCondition })}
         />
       </div>
