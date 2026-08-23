@@ -80,7 +80,8 @@ Flowwork는 두 개의 앱이 하나의 Git 저장소 위에서 돌아가는 웹
 | 영역 | 사용 기술 |
 |---|---|
 | 프론트엔드 | React 19 · Redux Toolkit · styled-components(테마) + Tailwind(레이아웃) · CodeMirror 5 · @tabler/icons |
-| 번들러 | Rsbuild 1 (Rspack) · Babel (React Compiler 플러그인) |
+| 데스크톱(원본 Bruno) | Electron 43 · electron-builder 26 — 웹 모드에서는 사용하지 않음 |
+| 번들러 | Rsbuild 1 (Rspack) · Babel 8 (React Compiler 플러그인) |
 | 웹 모드 shim | `packages/bruno-app/src/web-ipc/` — Electron의 `ipcRenderer`를 브라우저에서 대체, 부팅 캐스케이드 재현 |
 | 공유 패키지 | `@usebruno/common` · `requests` · `filestore`(`.bru`/`.yml`) · `converters` · `query` · `schema-types` · `graphql-docs` — rollup 4로 빌드 |
 | 백엔드 | Python 3.12 · FastAPI · uvicorn · httpx · PyYAML |
@@ -162,11 +163,6 @@ npm test --workspace=packages/bruno-app -- src/components/Flowwork
 - [ ] AI 브리지를 로컬 `claude` CLI에서 원격 AI 서비스로 교체 (API는 provider 중립으로 설계됨)
 - [ ] 배포 패키징(Docker) 및 운영 가이드
 - [ ] 포크 CI 정리 — 벤치마크·E2E 워크플로가 포크에서 일괄 실패 중
-
-**의존성**
-
-- [ ] Babel 7 → 8 (Dependabot #6) — `@babel/core` 8 통일과 `@rsbuild/plugin-babel`(Rsbuild 2 전용) 되돌림으로 검증 중
-- [ ] Electron 37 → 43 (Dependabot #7) — `electron-store` · `electron-util` · `electron-is-dev`가 ESM 전용이라 main 프로세스 이식 필요
 
 ---
 
