@@ -1,5 +1,6 @@
 import React from 'react';
-import { IconGitBranch, IconGitFork, IconWorld, IconLink } from '@tabler/icons';
+import { IconGitBranch, IconGitFork, IconWorld } from '@tabler/icons';
+import ApiChainIcon from 'components/Icons/ApiChainIcon';
 import StyledWrapper from './StyledWrapper';
 
 // 웹 모드 기준 소개 — 저장은 git 저장소(워크스페이스 브랜치)로 이뤄지고,
@@ -21,7 +22,7 @@ const highlights = [
     desc: 'Nothing to install. Open a link and your team sees the same workspace.'
   },
   {
-    icon: IconLink,
+    icon: ApiChainIcon,
     title: 'Ready for API Chain',
     desc: 'Requests promoted to main become the catalog that API Chain strings into multi-step tasks.'
   }

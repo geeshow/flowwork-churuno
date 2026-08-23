@@ -91,7 +91,7 @@ const StyledWrapper = styled.div`
       height: 40px;
       border-radius: ${(props) => props.theme.border.radius.base};
       background: ${(props) => props.theme.background.surface1};
-      color: ${(props) => props.theme.brand};
+      color: ${(props) => props.theme.text};
       flex-shrink: 0;
     }
     h4 {

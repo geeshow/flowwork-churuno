@@ -1,6 +1,7 @@
 import React from 'react';
-import { IconCheck, IconChevronDown, IconLink, IconLock, IconPin, IconPinned, IconPlus, IconDownload, IconSettings } from '@tabler/icons';
+import { IconCheck, IconChevronDown, IconLock, IconPin, IconPinned, IconPlus, IconDownload, IconSettings } from '@tabler/icons';
 import FlowworkLogo from 'components/Icons/FlowworkLogo';
+import ApiChainIcon from 'components/Icons/ApiChainIcon';
 import { forwardRef, useCallback, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
@@ -195,7 +196,7 @@ const AppTitleBar = () => {
             onClick={() => dispatch(setActiveApp('flowwork'))}
             data-testid="app-switch-flowwork"
           >
-            <IconLink size={16} stroke={1.5} />
+            <ApiChainIcon size={16} stroke={1.5} />
             <span className="flowwork-text">API Chain</span>
           </button>
           <button
