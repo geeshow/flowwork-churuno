@@ -1,5 +1,5 @@
 const Yup = require('yup');
-const Store = require('electron-store');
+const Store = require('../utils/electron-store');
 const { get, merge } = require('lodash');
 
 /**

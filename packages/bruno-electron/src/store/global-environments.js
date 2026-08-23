@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const Store = require('electron-store');
+const Store = require('../utils/electron-store');
 const { parseValueByDataType, valueToString } = require('@usebruno/common/utils');
 const { encryptStringSafe, decryptStringSafe } = require('../utils/encryption');
 const { environmentSchema } = require('@usebruno/schema');

@@ -1,4 +1,4 @@
-const Store = require('electron-store');
+const Store = require('../../utils/electron-store');
 const fs = require('fs');
 const path = require('path');
 const yup = require('yup');

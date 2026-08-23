@@ -1,4 +1,4 @@
-const Store = require('electron-store');
+const Store = require('../utils/electron-store');
 
 const DEFAULT_WINDOW_WIDTH = 1280;
 const DEFAULT_WINDOW_HEIGHT = 768;

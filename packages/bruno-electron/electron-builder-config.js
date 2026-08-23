@@ -3,7 +3,7 @@ require('dotenv').config({ path: process.env.DOTENV_PATH });
 const config = {
   appId: 'com.usebruno.app',
   productName: 'Bruno',
-  electronVersion: '37.6.1',
+  electronVersion: '43.4.0',
   directories: {
     buildResources: 'resources',
     output: 'out'
@@ -73,8 +73,11 @@ const config = {
       }
     ],
     category: 'Development',
+    // electron-builder 26 nests desktop-file keys under `entry`
     desktop: {
-      MimeType: 'x-scheme-handler/bruno;'
+      entry: {
+        MimeType: 'x-scheme-handler/bruno;'
+      }
     }
   },
   deb: {
@@ -101,8 +104,10 @@ const config = {
         arch: ['x64', 'arm64']
       }
     ],
-    sign: null,
-    publisherName: 'Bruno Software Inc'
+    // electron-builder 26 moved signtool settings under `signtoolOptions`
+    signtoolOptions: {
+      publisherName: 'Bruno Software Inc'
+    }
   },
   nsis: {
     include: 'resources/installer.nsh',
