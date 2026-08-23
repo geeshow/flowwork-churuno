@@ -15,6 +15,17 @@ updates:
       - dependency-name: "electron"
       - dependency-name: "electron-*"
       - dependency-name: "@electron/*"
+      # 메이저 올리려면 마이그레이션이 선행돼야 하는 것들 — 그대로 머지하면 빌드·앱이 깨진다.
+      # codemirror 6은 완전히 다른 패키지(에디터 전면 재작성), @rsbuild/plugin-babel 2는
+      # Rsbuild 2가 필요, prettier 3은 앱이 쓰는 standalone format이 비동기로 바뀐다.
+      - dependency-name: "codemirror"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "codemirror-*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@rsbuild/plugin-babel"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prettier"
+        update-types: ["version-update:semver-major"]
     groups:
       bruno-dependencies:
         patterns:
