@@ -25,8 +25,14 @@
       "@usebruno/common": ["packages/bruno-common/dist/index.d.ts"],
       "@usebruno/common/utils": ["packages/bruno-common/dist/utils/index.d.ts"],
       "@usebruno/common/*": ["packages/bruno-common/dist/*"],
-      "@opencollection/types": ["node_modules/@opencollection/types/dist/opencollection.d.ts"],
-      "@opencollection/types/*": ["node_modules/@opencollection/types/dist/*"]
+      "@opencollection/types": [
+        "node_modules/@opencollection/types/dist/opencollection.d.ts",
+        "packages/bruno-filestore/node_modules/@opencollection/types/dist/opencollection.d.ts"
+      ],
+      "@opencollection/types/*": [
+        "node_modules/@opencollection/types/dist/*",
+        "packages/bruno-filestore/node_modules/@opencollection/types/dist/*"
+      ]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.js", "src/**/*.d.ts"],
