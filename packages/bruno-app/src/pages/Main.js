@@ -10,7 +10,7 @@ import ErrorBoundary from './ErrorBoundary';
 
 import '../styles/globals.css';
 import 'codemirror/lib/codemirror.css';
-import 'graphiql/graphiql.min.css';
+import '../styles/graphiql-codemirror.css';
 import 'react-tooltip/dist/react-tooltip.css';
 import '@usebruno/graphql-docs/dist/esm/index.css';
 import '@fontsource/inter/100.css';
