@@ -1,4 +1,5 @@
-const { describe, it, expect, jest, beforeEach } = require('@jest/globals');
+// `jest` is injected by the test runner; Babel 8 keeps `const`, so redeclaring it would clash
+const { describe, it, expect, beforeEach } = require('@jest/globals');
 import { render, act } from '@testing-library/react';
 import React from 'react';
 import { useResizableColumns } from './index';
