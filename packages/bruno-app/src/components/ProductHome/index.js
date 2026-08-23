@@ -129,7 +129,7 @@ export default function ProductHome() {
           </p>
           <div className="hero-actions">
             <Button onClick={openApiChain} data-testid="product-home-open-api-chain">
-              <ApiChainIcon size={16} stroke={1.5} />
+              <ApiChainIcon size={16} />
               API Chain 열기
             </Button>
             <Button variant="outline" onClick={openBruno} data-testid="product-home-open-bruno">
@@ -141,7 +141,7 @@ export default function ProductHome() {
 
         <section className="product">
           <header>
-            <span className="product-icon"><ApiChainIcon size={22} stroke={1.5} /></span>
+            <span className="product-icon"><ApiChainIcon size={22} /></span>
             <div>
               <h2>API Chain</h2>
               <p>여러 API 호출을 순서대로 엮어 한 번에 실행합니다</p>

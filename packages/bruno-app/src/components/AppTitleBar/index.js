@@ -196,7 +196,7 @@ const AppTitleBar = () => {
             onClick={() => dispatch(setActiveApp('flowwork'))}
             data-testid="app-switch-flowwork"
           >
-            <ApiChainIcon size={16} stroke={1.5} />
+            <ApiChainIcon size={16} />
             <span className="flowwork-text">API Chain</span>
           </button>
           <button
