@@ -15,13 +15,13 @@ import {
   IconRepeat,
   IconShare,
   IconTerminal2,
-  IconTopologyStar3,
   IconWorld
 } from '@tabler/icons';
 
 import { setActiveApp } from 'providers/ReduxStore/slices/app';
 import Bruno from 'components/Bruno';
 import IconSparkles from 'components/Icons/IconSparkles';
+import FlowworkLogo from 'components/Icons/FlowworkLogo';
 import Button from 'ui/Button';
 import StyledWrapper from './StyledWrapper';
 
@@ -120,7 +120,7 @@ export default function ProductHome() {
     <StyledWrapper data-testid="product-home">
       <div className="page">
         <section className="hero">
-          <span className="hero-icon"><IconTopologyStar3 size={40} stroke={1.5} /></span>
+          <span className="hero-icon"><FlowworkLogo size={40} stroke={1.5} /></span>
           <h1>Flowwork</h1>
           <p className="tagline">API 컬렉션을 엮어 업무 흐름으로</p>
           <p className="lead">

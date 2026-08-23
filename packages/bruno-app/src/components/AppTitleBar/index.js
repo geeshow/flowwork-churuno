@@ -1,5 +1,6 @@
 import React from 'react';
-import { IconCheck, IconChevronDown, IconLink, IconLock, IconPin, IconPinned, IconPlus, IconDownload, IconSettings, IconTopologyStar3 } from '@tabler/icons';
+import { IconCheck, IconChevronDown, IconLink, IconLock, IconPin, IconPinned, IconPlus, IconDownload, IconSettings } from '@tabler/icons';
+import FlowworkLogo from 'components/Icons/FlowworkLogo';
 import { forwardRef, useCallback, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
@@ -182,7 +183,7 @@ const AppTitleBar = () => {
             onClick={handleBrandClick}
             data-testid="product-brand"
           >
-            <IconTopologyStar3 size={16} stroke={1.5} />
+            <FlowworkLogo size={16} stroke={1.5} />
             <span className="product-name">Flowwork</span>
           </button>
         </div>

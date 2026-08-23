@@ -25,7 +25,7 @@ const StyledWrapper = styled.div`
     padding-top: 16px;
 
     .hero-icon {
-      color: ${(props) => props.theme.brand};
+      color: ${(props) => props.theme.text};
     }
     h1 {
       margin: 0;

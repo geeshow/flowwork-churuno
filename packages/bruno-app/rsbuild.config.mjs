@@ -60,7 +60,13 @@ export default defineConfig({
     ]
   },
   html: {
-    title: 'Bruno'
+    title: 'Flowwork',
+    // Flowwork mark (public/favicon.*): SVG for browsers that take it, .ico for the rest.
+    // Declared as tags rather than html.favicon so both get the assetPrefix.
+    tags: [
+      { tag: 'link', attrs: { rel: 'icon', type: 'image/svg+xml', href: 'favicon.svg' } },
+      { tag: 'link', attrs: { rel: 'alternate icon', href: 'favicon.ico' } }
+    ]
   },
   output: {
     // A static host serves the app under a sub-path (GitHub Pages: /<repo>/).
