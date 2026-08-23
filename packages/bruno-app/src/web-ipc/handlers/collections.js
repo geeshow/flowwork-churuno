@@ -5,6 +5,8 @@ import { sanitizeName } from 'utils/common/regex';
 import { handle, emit } from '../core';
 import serverApi from '../server-api';
 import webState, { registerCollection, findCollectionForPath, getStableUid } from '../state';
+import { parseFileMeta } from '../file-meta';
+import { parseRequestFiles } from '../parse-pool';
 import {
   parseRequest,
   stringifyRequest,
@@ -86,19 +88,26 @@ const emitRequestFile = (collectionUid, pathname, content, changeType) => {
   emit('main:collection-tree-updated', changeType, payload);
 };
 
-const emitEnvironmentFile = (collectionUid, pathname, content) => {
+const parseEnvironmentFile = (pathname, content) => {
   try {
     const data = parseEnvironment(content, { format: formatForFile(pathname) });
     data.uid = getStableUid(pathname);
     data.name = basename(pathname).replace(/\.(bru|yml)$/, '');
     (data.variables || []).forEach((variable) => (variable.uid = uuid()));
-    emit('main:collection-tree-updated', 'addEnvironmentFile', {
-      meta: { collectionUid, pathname, name: basename(pathname) },
-      data
-    });
+    return data;
   } catch (error) {
     console.error(`[web-ipc] failed to parse environment ${pathname}`, error);
+    return null;
   }
+};
+
+const emitEnvironmentFile = (collectionUid, pathname, content) => {
+  const data = parseEnvironmentFile(pathname, content);
+  if (!data) return;
+  emit('main:collection-tree-updated', 'addEnvironmentFile', {
+    meta: { collectionUid, pathname, name: basename(pathname) },
+    data
+  });
 };
 
 const streamDirectory = async (collectionEntry, node, isRoot) => {
@@ -188,6 +197,145 @@ const streamDirectory = async (collectionEntry, node, isRoot) => {
   }
 };
 
+const stripRequestExt = (name) => name.replace(/\.(bru|yml)$/, '');
+
+// Mount = one round trip. The server returns the tree with every .bru/.yml
+// inlined (renderer:mount-collection used to issue one /api/fs/read per file,
+// 92s for 8000 requests). The renderer then gets the whole tree in a single
+// collectionLoadedFromTree dispatch — the same channel the desktop's file-cache
+// mount uses — first with cheap metadata so names and methods show at once,
+// then again once the workers have parsed the bodies.
+const buildMountTree = (collectionEntry, node) => {
+  const { uid: collectionUid, format } = collectionEntry;
+  const ignoredDirs = new Set(collectionEntry.brunoConfig?.ignore || []);
+  const environments = [];
+  const folderRoots = [];
+  const pending = [];
+  let root = null;
+
+  const requestItem = (child, isTransient) => {
+    const fileFormat = formatForFile(child.name);
+    const hasContent = typeof child.content === 'string';
+    const meta = hasContent
+      ? parseFileMeta(child.content, { format: fileFormat, fallbackName: stripRequestExt(child.name) })
+      : parseFileMeta('', { format: fileFormat, fallbackName: stripRequestExt(child.name) });
+    const item = {
+      uid: getStableUid(child.pathname),
+      ...meta,
+      filename: child.name,
+      pathname: child.pathname,
+      raw: null,
+      draft: null,
+      // without content the file is over the inline limit — stays partial until the tab loads it
+      partial: !hasContent,
+      loading: hasContent,
+      size: sizeInMB(child.size),
+      isTransient
+    };
+    if (hasContent) {
+      pending.push({ pathname: child.pathname, content: child.content, format: fileFormat, item });
+    }
+    return item;
+  };
+
+  const walk = (dirNode, isRoot, isTransient) => {
+    const items = [];
+    for (const child of dirNode.children || []) {
+      if (child.type === 'dir') {
+        if (ignoredDirs.has(child.name)) continue;
+        if (child.name.startsWith('.')) {
+          // <collection>/.transient holds unsaved requests that must survive a reload
+          if (isRoot && child.name === '.transient') {
+            items.push(...walk(child, false, true));
+          }
+          continue;
+        }
+        if (isRoot && child.name === 'environments') {
+          for (const envFile of child.children || []) {
+            if (envFile.type === 'file' && isParseableFile(envFile.name) && typeof envFile.content === 'string') {
+              const environment = parseEnvironmentFile(envFile.pathname, envFile.content);
+              if (environment) environments.push(environment);
+            }
+          }
+          continue;
+        }
+        const folderFile = (child.children || []).find(
+          (grandChild) => grandChild.type === 'file' && (grandChild.name === 'folder.bru' || grandChild.name === 'folder.yml')
+        );
+        let folderData = null;
+        if (folderFile && typeof folderFile.content === 'string') {
+          try {
+            folderData = parseFolder(folderFile.content, { format: formatForFile(folderFile.name) });
+          } catch (error) {
+            console.error(`[web-ipc] failed to parse ${folderFile.pathname}`, error);
+          }
+        }
+        const folder = {
+          uid: getStableUid(child.pathname),
+          name: folderData?.meta?.name || child.name,
+          filename: child.name,
+          pathname: child.pathname,
+          type: 'folder',
+          collapsed: true,
+          isTransient,
+          items: walk(child, false, isTransient)
+        };
+        if (folderData?.meta?.seq) folder.seq = folderData.meta.seq;
+        if (folderData) folderRoots.push({ pathname: folderFile.pathname, name: folderFile.name, data: folderData });
+        items.push(folder);
+      } else if (child.type === 'file') {
+        if (isRoot && child.name === (format === 'yml' ? 'opencollection.yml' : 'collection.bru')) {
+          if (typeof child.content === 'string') {
+            try {
+              root = { pathname: child.pathname, name: child.name, data: parseCollection(child.content, { format }) };
+            } catch (error) {
+              console.error(`[web-ipc] failed to parse collection root ${child.pathname}`, error);
+            }
+          }
+          continue;
+        }
+        if (isParseableFile(child.name) && !ROOT_FILES.has(child.name)) {
+          items.push(requestItem(child, isTransient));
+        }
+      }
+    }
+    return items;
+  };
+
+  const items = walk(node, true, false);
+  environments.sort((a, b) => a.name.localeCompare(b.name));
+  return { collectionUid, items, environments, root, folderRoots, pending };
+};
+
+// The store freezes what it receives, and the same item objects are updated
+// again as parse batches land — hand the reducer a snapshot, not the live tree.
+const emitMountTree = ({ collectionUid, items, environments }) => {
+  emit('main:collection-tree-loaded', { collectionUid, tree: structuredClone({ items, environments }) });
+};
+
+const applyParsedRequest = (entry, result) => {
+  const { item, pathname, content } = entry;
+  if (result.error) {
+    Object.assign(item, { loading: false, error: { message: result.error } });
+    return;
+  }
+  const data = result.data;
+  data.raw = content;
+  hydrateRequest(data, pathname);
+  Object.assign(item, {
+    name: data.name,
+    type: data.type,
+    seq: data.seq,
+    tags: data.tags,
+    request: data.request,
+    settings: data.settings,
+    examples: data.examples,
+    raw: content,
+    loading: false,
+    isTransient: item.isTransient || data.isTransient
+  });
+};
+
 const mountCollection = async ({ collectionUid, collectionPathname }) => {
   let entry = findCollectionForPath(collectionPathname);
   if (!entry) {
@@ -198,13 +346,43 @@ const mountCollection = async ({ collectionUid, collectionPathname }) => {
     });
   }
 
-  const tree = await serverApi.fsTree(collectionPathname);
-  // The tree (environments included) must be in the store before the mount
-  // resolves — the renderer restores the snapshot's selected environment and
-  // tabs right after mounting, and needs the items to match against.
-  await streamDirectory(entry, tree, true).catch((error) => {
+  emit('main:collection-loading-state-updated', { collectionUid: entry.uid, isLoading: true });
+  try {
+    const node = await serverApi.fsCollection(collectionPathname);
+    const tree = buildMountTree(entry, node);
+
+    // 1) names, seq and methods from the cheap meta pass — every item shows a spinner
+    emitMountTree(tree);
+    if (tree.root) {
+      emit('main:collection-tree-updated', 'addFile', {
+        meta: { collectionUid: entry.uid, pathname: tree.root.pathname, name: tree.root.name, collectionRoot: true },
+        data: tree.root.data
+      });
+    }
+    for (const folderRoot of tree.folderRoots) {
+      emit('main:collection-tree-updated', 'addFile', {
+        meta: { collectionUid: entry.uid, pathname: folderRoot.pathname, name: folderRoot.name, folderRoot: true },
+        data: folderRoot.data
+      });
+    }
+
+    // 2) full bodies from the worker pool, then the tree once more. Each tree
+    //    emit costs ~1s at 8000 items (snapshot + merge + sidebar render), so
+    //    there are no progress emits in between — the meta pass already shows
+    //    every item, spinners included.
+    const byPathname = new Map(tree.pending.map((job) => [job.pathname, job]));
+    await parseRequestFiles(tree.pending, (results) => {
+      for (const result of results) {
+        const job = byPathname.get(result.pathname);
+        if (job) applyParsedRequest(job, result);
+      }
+    });
+    emitMountTree(tree);
+  } catch (error) {
     console.error(`[web-ipc] failed to load collection tree for ${collectionPathname}`, error);
-  });
+  } finally {
+    emit('main:collection-loading-state-updated', { collectionUid: entry.uid, isLoading: false });
+  }
 
   return `${collectionPathname}/.transient`;
 };

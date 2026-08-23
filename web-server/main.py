@@ -485,6 +485,43 @@ def fs_tree(path: str = Query(...)):
     return build_tree(target)
 
 
+# 컬렉션을 열 때 파일마다 /api/fs/read를 부르면 8000개 기준 왕복만 수십 초다.
+# 트리와 함께 파싱 대상(.bru/.yml) 파일 내용을 한 번에 내려준다. 데스크톱이
+# 2.5MB 넘는 파일을 탭을 열 때까지 partial로 두는 것과 같은 기준으로, 큰 파일은
+# 내용 없이 크기만 실어 클라이언트가 지연 로드하게 한다.
+COLLECTION_INLINE_MAX_BYTES = int(2.5 * 1024 * 1024)
+COLLECTION_INLINE_SUFFIXES = (".bru", ".yml", ".yaml")
+
+
+def build_collection_tree(path: Path) -> dict:
+    node: dict[str, Any] = {"name": path.name, "pathname": str(path)}
+    if path.is_dir():
+        node["type"] = "dir"
+        node["children"] = [
+            build_collection_tree(child)
+            for child in sorted(path.iterdir())
+            if child.name not in IGNORED_DIRS
+        ]
+        return node
+    node["type"] = "file"
+    size = path.stat().st_size
+    node["size"] = size
+    if path.suffix in COLLECTION_INLINE_SUFFIXES and size <= COLLECTION_INLINE_MAX_BYTES:
+        try:
+            node["content"] = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            pass
+    return node
+
+
+@app.get("/api/fs/collection")
+def fs_collection(path: str = Query(...)):
+    target = safe_path(path)
+    if not target.is_dir():
+        raise HTTPException(status_code=404, detail=f"not a directory: {path}")
+    return build_collection_tree(target)
+
+
 @app.get("/api/fs/read")
 def fs_read(path: str = Query(...)):
     target = safe_path(path)

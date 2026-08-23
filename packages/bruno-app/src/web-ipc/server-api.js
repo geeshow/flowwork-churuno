@@ -60,6 +60,8 @@ const serverApi = {
     post(`/api/workspaces/${encodeURIComponent(name)}/ignore-changes`, { paths, ignored }),
   listCollections: (root) => get('/api/collections', root ? { root } : undefined),
   fsTree: (path) => get('/api/fs/tree', { path }),
+  // tree plus the contents of every .bru/.yml under it — one round trip per mount
+  fsCollection: (path) => get('/api/fs/collection', { path }),
   fsRead: (path) => get('/api/fs/read', { path }),
   fsExists: (path) => get('/api/fs/exists', { path }),
   fsWrite: (path, content) => post('/api/fs/write', { path, content }),
