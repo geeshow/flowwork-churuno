@@ -440,9 +440,42 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         return _data_root(source, branch) / "domains.json"
 
     # -- 카탈로그 ------------------------------------------------------------
-    def build_catalog() -> list[dict[str, Any]]:
+    # API가 수천 개면 전체를 읽고 파싱하는 데 수 초가 걸리는데, 실행·편집·흐름도 화면이
+    # 들어올 때마다 이걸 다시 했다. 운영 트리는 커밋으로만 바뀌므로 HEAD 커밋을 버전으로
+    # 삼아 같은 버전이면 파싱 결과를 그대로 재사용한다. git 저장소가 아니면(테스트 등)
+    # 파일 수와 최신 수정 시각으로 버전을 대신한다.
+    catalog_cache: dict[str, Any] = {"version": None, "entries": []}
+
+    def _catalog_version() -> str:
+        if (repo_dir / ".git").exists():
+            try:
+                return gitops._git("rev-parse", "HEAD", cwd=repo_dir).strip()
+            except gitops.GitError:
+                pass
+        latest = 0.0
+        count = 0
+        for path in repo_dir.rglob("*"):
+            if path.suffix not in (".bru", ".yml") or ".git" in path.parts:
+                continue
+            try:
+                latest = max(latest, path.stat().st_mtime)
+            except OSError:
+                continue
+            count += 1
+        return f"fs:{count}:{latest:.6f}"
+
+    def build_catalog(refresh: bool = False) -> list[dict[str, Any]]:
         if not repo_dir.is_dir():
             return []
+        version = _catalog_version()
+        if not refresh and catalog_cache["version"] == version:
+            return catalog_cache["entries"]
+        entries = _scan_catalog()
+        catalog_cache["version"] = version
+        catalog_cache["entries"] = entries
+        return entries
+
+    def _scan_catalog() -> list[dict[str, Any]]:
         entries: dict[str, dict[str, Any]] = {}
 
         def add_entry(department: str, item_path: list[str], parsed: dict[str, Any]) -> None:
@@ -518,8 +551,10 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         return list(entries.values())
 
     @router.get("/catalog/search")
-    def search_catalog(q: str = "", limit: int = 500) -> dict:
-        entries = build_catalog()
+    def search_catalog(q: str = "", limit: Optional[int] = None, refresh: bool = False) -> dict:
+        # limit 기본값이 500이던 때는 q가 비어 있어도 앞 500개만 돌아와, 그 뒤의 API를
+        # 쓰는 체인이 "카탈로그에서 찾을 수 없음"으로 실패했다. 기본은 전체다.
+        entries = build_catalog(refresh=refresh)
         if q:
             needle = q.lower()
             entries = [
@@ -530,7 +565,9 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
                 or needle in e["department"].lower()
                 or any(needle in p.lower() for p in e["itemPath"])
             ]
-        return {"results": entries[:limit], "catalog_version": None}
+        if limit is not None and limit >= 0:
+            entries = entries[:limit]
+        return {"results": entries, "catalog_version": catalog_cache["version"]}
 
     @router.get("/catalog/environments")
     def get_environments() -> dict:

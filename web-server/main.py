@@ -24,6 +24,7 @@ from typing import Any, Optional
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -69,6 +70,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# API 카탈로그처럼 수천 개 항목을 한 번에 내려주는 JSON은 압축하면 1/10 아래로 줄어든다.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 # ---------------------------------------------------------------------------
