@@ -1,4 +1,5 @@
-const { describe, it, expect, jest } = require('@jest/globals');
+// `jest` is injected by the test runner; Babel 8 keeps `const`, so redeclaring it would clash
+const { describe, it, expect } = require('@jest/globals');
 
 jest.mock('nanoid', () => {
   let counter = 0;

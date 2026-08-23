@@ -1,6 +1,10 @@
-const { describe, it, expect, jest, beforeEach, afterEach } = require('@jest/globals');
+// `jest` is injected by the test runner; Babel 8 keeps `const`, so redeclaring it would clash
+const { describe, it, expect, beforeEach, afterEach } = require('@jest/globals');
 
-const _mockedCodemirror = {
+// The factory is hoisted above every import and runs on the first require of
+// 'codemirror', so the mock object has to be built inside it — a top-level
+// `const` would still be in its temporal dead zone at that point.
+jest.mock('codemirror', () => ({
   commands: {},
   getCursor: jest.fn(),
   getLine: jest.fn(),
@@ -9,11 +13,8 @@ const _mockedCodemirror = {
   on: jest.fn(),
   off: jest.fn(),
   state: {}
-};
-
-jest.mock('codemirror', () => {
-  return _mockedCodemirror;
-});
+}));
+const mockCodemirrorModule = require('codemirror');
 
 // Import the functions to test
 import {
@@ -27,7 +28,7 @@ describe('Bruno Autocomplete', () => {
   let mockedCodemirror;
 
   beforeEach(() => {
-    mockedCodemirror = _mockedCodemirror;
+    mockedCodemirror = mockCodemirrorModule;
   });
 
   afterEach(() => {
