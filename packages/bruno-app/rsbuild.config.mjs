@@ -5,6 +5,9 @@ import { pluginStyledComponents } from '@rsbuild/plugin-styled-components';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { pluginNodePolyfill } from '@rsbuild/plugin-node-polyfill';
 import { pluginRemoteImages } from './plugins/remote-images/index.mjs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 const remoteImageDomains = (process.env.BRUNO_REMOTE_IMAGE_DOMAINS || 'd3icksk7srk4uh.cloudfront.net')
   .split(',')
@@ -20,7 +23,9 @@ export default defineConfig({
     pluginBabel({
       include: /\.(?:js|jsx|tsx)$/,
       babelLoaderOptions(opts) {
-        opts.plugins?.unshift('babel-plugin-react-compiler');
+        // Resolve from this file, not the process cwd — the plugin may be nested
+        // under packages/bruno-app/node_modules while the dev server runs from the repo root.
+        opts.plugins?.unshift(require.resolve('babel-plugin-react-compiler'));
       }
     }),
     pluginRemoteImages({
