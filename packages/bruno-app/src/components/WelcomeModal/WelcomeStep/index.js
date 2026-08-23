@@ -1,32 +1,29 @@
 import React from 'react';
-import {
-  IconFolder as IconFolderTabler,
-  IconGitFork,
-  IconLock,
-  IconRocket
-} from '@tabler/icons';
+import { IconGitBranch, IconGitFork, IconWorld, IconLink } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
 
+// 웹 모드 기준 소개 — 저장은 git 저장소(워크스페이스 브랜치)로 이뤄지고,
+// 저장 위치를 따로 고르는 단계는 없다.
 const highlights = [
   {
-    icon: IconFolderTabler,
-    title: 'Filesystem only',
-    desc: 'Collections are plain files on your disk. No cloud sync, no proprietary lock-in.'
+    icon: IconGitBranch,
+    title: 'Stored in Git',
+    desc: 'Collections live in a Git repository. Your workspace is a branch and every save becomes a commit — nothing to configure.'
   },
   {
     icon: IconGitFork,
     title: 'Git-friendly',
-    desc: 'Every request is a readable file. Commit, branch, review, and collaborate using the tools you already know.'
+    desc: 'Every request is a readable file. Review changes and promote the ones you trust to main.'
   },
   {
-    icon: IconLock,
-    title: 'Privacy-focused',
-    desc: 'No account, no login. Bruno works entirely offline, your API keys never leave your machine.'
+    icon: IconWorld,
+    title: 'Runs in the browser',
+    desc: 'Nothing to install. Open a link and your team sees the same workspace.'
   },
   {
-    icon: IconRocket,
-    title: 'Fast and lightweight',
-    desc: 'Built to be snappy. No bloated runtimes, just a fast, focused tool for exploring and testing APIs.'
+    icon: IconLink,
+    title: 'Ready for API Chain',
+    desc: 'Requests promoted to main become the catalog that API Chain strings into multi-step tasks.'
   }
 ];
 
