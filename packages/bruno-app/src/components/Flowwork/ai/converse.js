@@ -8,6 +8,7 @@
 import { aiGenerateText } from 'utils/ai';
 
 import { catalogDetail, catalogLine, matches, resolveEntry, stepLine, workflowLine } from './catalog';
+import { rankEntries } from './relevance';
 
 // 질의를 주고받는 차례 — 이 뒤에는 반드시 답을 내게 한다.
 // 한 차례가 곧 CLI 호출 한 번(수십 초)이라 짧게 잡는다.
@@ -85,11 +86,17 @@ export async function askModel({ system, prompt, model, requestId }) {
 /** 모델이 부를 수 있는 질의들 — 답은 모두 이 자리(카탈로그·저장된 작업)에서만 나온다. */
 export function toolbox({ entries, workflows, envKeys, getWorkflow }) {
   return {
-    api_search: (arg) =>
-      entries
-        .filter((e) => matches([e.name, ...e.itemPath, e.url].join(' '), arg))
-        .slice(0, MAX_LINES)
-        .map(catalogLine),
+    // 점수 순이다 — 걸리는 것을 카탈로그 순서대로 자르면 API가 수천 개일 때
+    // 정작 관련 높은 것이 상한 밖에 남는다. 낱말로는 안 걸리는 글(구두점, 한 글자)은
+    // 통째로 부분 일치로 다시 찾는다.
+    api_search: (arg) => {
+      const words = String(arg ?? '').split(/[\s/,·]+/).filter((word) => word.length >= 2);
+      const scored = rankEntries(entries, words, MAX_LINES).map(({ entry }) => entry);
+      const found = scored.length > 0
+        ? scored
+        : entries.filter((e) => matches([e.name, ...e.itemPath, e.url].join(' '), arg)).slice(0, MAX_LINES);
+      return found.map(catalogLine);
+    },
 
     // 이름으로도, 'core/계좌/계좌 폐쇄' 같은 경로로도 물어 오므로 마지막 마디까지 본다
     api_detail: (arg) => {

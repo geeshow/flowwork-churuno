@@ -62,6 +62,20 @@ describe('rankEntries', () => {
   it('한 글자 낱말은 아무것도 걸지 않는다 — 어디에나 걸려 순위를 흐린다', () => {
     expect(rankEntries([users, accounts], ['조'])).toEqual([]);
   });
+
+  it('점수가 같으면 업무와 같은 부서가 앞선다', () => {
+    const other = entry({ id: 'other', department: 'payments', name: '계좌 이체' });
+    const mine = entry({ id: 'mine', department: 'core', name: '계좌 조회' });
+
+    expect(rankEntries([other, mine], ['계좌'], 20, { department: 'core' }).map((row) => row.entry.id)).toEqual(['mine', 'other']);
+    expect(rankEntries([other, mine], ['계좌'], 20, { department: 'payments' }).map((row) => row.entry.id)).toEqual(['other', 'mine']);
+  });
+
+  it('기본 상한은 20개다', () => {
+    const many = Array.from({ length: 30 }, (_, i) => entry({ id: `e${i}`, name: `계좌 ${i}` }));
+
+    expect(rankEntries(many, ['계좌'])).toHaveLength(20);
+  });
 });
 
 describe('rankWorkflows', () => {
@@ -112,5 +126,17 @@ describe('producersFor', () => {
     const found = producersFor([owner, closer], [closer], []);
 
     expect(found[0].entry.id).toBe('owner');
+  });
+
+  it('변수 하나의 공급자는 다섯까지만, 같은 부서·같은 폴더 순으로 남긴다', () => {
+    const target = entry({ id: 'target', department: 'core', itemPath: ['계좌'], variables: ['id'] });
+    const far = Array.from({ length: 10 }, (_, i) =>
+      entry({ id: `far${i}`, department: 'payments', itemPath: ['정산'], name: `정산 ${i}`, outputFields: ['id'] }));
+    const sameDept = entry({ id: 'dept', department: 'core', itemPath: ['사용자'], name: '사용자', outputFields: ['id'] });
+    const sameFolder = entry({ id: 'folder', department: 'core', itemPath: ['계좌'], name: '계좌', outputFields: ['id'] });
+    const found = producersFor([...far, sameDept, sameFolder, target], [target], []);
+
+    expect(found).toHaveLength(5);
+    expect(found.slice(0, 2).map((row) => row.entry.id)).toEqual(['folder', 'dept']);
   });
 });

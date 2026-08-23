@@ -47,20 +47,30 @@ function score(fields, keywords) {
   return { score: total, hits, where: [...where] };
 }
 
-const ranked = (items, toFields, keywords, limit) =>
+// 점수가 같은 것끼리는 업무와 같은 부서가 앞선다 — API가 수천 개면 "계좌" 한
+// 낱말에 수백 개가 같은 점수로 걸리는데, 그중 다른 부서 것이 먼저 나오면
+// 상한에 잘려 정작 쓸 것이 목록에 없다
+const ranked = (items, toFields, keywords, limit, prefer) =>
   items
     .map((item) => ({ item, ...score(toFields(item), keywords) }))
     .filter((row) => row.score > 0)
-    .sort((a, b) => b.score - a.score || a.hits.length - b.hits.length)
+    .sort((a, b) =>
+      b.score - a.score
+      || prefer(b.item) - prefer(a.item)
+      || a.hits.length - b.hits.length)
     .slice(0, limit);
 
-/** 낱말에 걸린 API — 점수 높은 것부터. */
-export const rankEntries = (entries, keywords, limit = 12) =>
-  ranked(entries, entryFields, keywords, limit).map(({ item, ...rest }) => ({ entry: item, ...rest }));
+const sameDepartment = (department) =>
+  department ? (entry) => (normalize(entry.department) === normalize(department) ? 1 : 0) : () => 0;
+
+/** 낱말에 걸린 API — 점수 높은 것부터, 같은 점수면 `department`와 같은 부서부터. */
+export const rankEntries = (entries, keywords, limit = 20, { department } = {}) =>
+  ranked(entries, entryFields, keywords, limit, sameDepartment(department))
+    .map(({ item, ...rest }) => ({ entry: item, ...rest }));
 
 /** 낱말에 걸린 기존 작업 — 통째로 불러 쓸 후보. */
 export const rankWorkflows = (workflows, keywords, limit = 8) =>
-  ranked(workflows, workflowFields, keywords, limit).map(({ item, ...rest }) => ({ workflow: item, ...rest }));
+  ranked(workflows, workflowFields, keywords, limit, () => 0).map(({ item, ...rest }) => ({ workflow: item, ...rest }));
 
 /** 검색창에 친 글로 찾기 — 순위 없이, 걸리는 것만. */
 export const findEntries = (entries, text, limit = 20) =>
@@ -86,6 +96,16 @@ const leafOf = (field) => String(field).split('.').pop();
  * 이미 고른 API도 공급자로 남긴다 — 고르는 순간 목록에서 사라지면 잘못 골랐을 때
  * 되돌릴 자리가 없고, 값을 누가 대는지도 그림에서 지워진다.
  */
+// 변수 하나에 공급자가 이보다 많으면 잘라 낸다. `id`·`name`처럼 흔한 출력 필드는
+// API 수천 개가 내놓으므로, 다 적으면 계획 프롬프트가 그 목록으로 가득 찬다.
+const MAX_PRODUCERS_PER_VARIABLE = 5;
+
+// 고른 API와 같은 부서, 그다음 같은 첫 폴더의 공급자가 먼저다 — 같은 값이라도
+// 가까운 곳에서 내놓는 API가 실제로 함께 쓰이는 것일 가능성이 높다
+const closenessTo = (target) => (source) =>
+  (normalize(source.department) === normalize(target.department) ? 2 : 0)
+  + (source.itemPath?.[0] && normalize(source.itemPath[0]) === normalize(target.itemPath?.[0]) ? 1 : 0);
+
 export function producersFor(entries, picked, envKeys = []) {
   const fromEnv = new Set(envKeys);
   const producedBy = new Map();
@@ -100,10 +120,14 @@ export function producersFor(entries, picked, envKeys = []) {
 
   const out = new Map();
   for (const target of picked) {
+    const closeness = closenessTo(target);
     for (const variable of target.variables ?? []) {
       if (fromEnv.has(variable)) continue;
-      for (const source of producedBy.get(variable) ?? []) {
-        if (source.id === target.id) continue;
+      const sources = (producedBy.get(variable) ?? [])
+        .filter((source) => source.id !== target.id)
+        .sort((a, b) => closeness(b) - closeness(a))
+        .slice(0, MAX_PRODUCERS_PER_VARIABLE);
+      for (const source of sources) {
         if (!out.has(source.id)) out.set(source.id, { entry: source, supplies: [] });
         out.get(source.id).supplies.push({ variable, forName: target.name });
       }

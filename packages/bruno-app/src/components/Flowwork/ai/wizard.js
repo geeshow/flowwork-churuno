@@ -143,7 +143,7 @@ export async function suggestApis(workflow, entries, workflows) {
   return {
     keywords,
     error,
-    apis: rankEntries(entries, keywords),
+    apis: rankEntries(entries, keywords, 20, { department: workflow.domain }),
     workflows: rankWorkflows(workflows, keywords)
   };
 }
