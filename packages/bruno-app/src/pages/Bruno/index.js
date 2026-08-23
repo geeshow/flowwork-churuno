@@ -8,6 +8,7 @@ import AiChatPopout from 'components/AiChatSidebar/Popout';
 import Sidebar from 'components/Sidebar';
 import Flowwork from 'components/Flowwork';
 import ProductHome from 'components/ProductHome';
+import ServerConnectBanner from 'components/ServerConnectBanner';
 import StatusBar from 'components/StatusBar';
 import PreferencesPageOverlay from 'components/Preferences/PageOverlay';
 import AppTitleBar from 'components/AppTitleBar';
@@ -126,18 +127,7 @@ export default function Main() {
         </Portal>
       ) : null}
       {unreachableServerUrl ? (
-        <Portal>
-          <div className="fixed bottom-0 left-0 right-0 z-10 bg-amber-100 border border-amber-400 text-amber-700 px-4 py-3" role="alert" data-testid="server-unreachable-banner">
-            <strong className="font-bold">실행 서버에 연결할 수 없습니다</strong>
-            <div>
-              {unreachableServerUrl} 에서 응답이 없습니다. 이 화면은 둘러볼 수 있지만 API 호출·저장은 되지 않습니다.
-              저장소의 <code>web-server</code>를 실행한 뒤(기본 포트 8008) 새로고침하세요.
-            </div>
-            <button className="absolute right-2 top-0 text-xl" onClick={() => setUnreachableServerUrl(null)}>
-              &times;
-            </button>
-          </div>
-        </Portal>
+        <ServerConnectBanner serverUrl={unreachableServerUrl} onDismiss={() => setUnreachableServerUrl(null)} />
       ) : null}
       <div
         ref={mainSectionRef}

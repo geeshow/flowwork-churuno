@@ -1,19 +1,65 @@
 /**
  * HTTP client for the Python web server (web-server/main.py).
  *
- * When the app is served by the Python server itself the API is same-origin;
- * when running on the rsbuild dev server the API lives on port 8008 by default.
- * A static deployment (GitHub Pages) has no server of its own, so the build
- * bakes one in through BRUNO_WEB_SERVER_URL — typically the reader's own
- * http://localhost:8008. `window.__BRUNO_WEB_SERVER_URL__` overrides all three.
+ * Where the server lives, in order of precedence:
+ *   1. `window.__BRUNO_WEB_SERVER_URL__` (set by the host page)
+ *   2. `?server=<url>` on the page URL — stored, then the param is dropped
+ *   3. the address the user saved in this browser (localStorage)
+ *   4. BRUNO_WEB_SERVER_URL baked in at build time (static deployments)
+ *   5. the rsbuild dev server's convention: same host, port 8008
+ *   6. same origin — the Python server serving the app itself
+ * A static deployment (GitHub Pages) has no server of its own and the proxy /
+ * AI server may run anywhere, so 2–3 let the reader point the app at theirs.
  */
+
+const SERVER_URL_KEY = 'bruno-web:server-url';
+
+const trimSlash = (url) => String(url).trim().replace(/\/+$/, '');
+
+const readStoredServerUrl = () => {
+  try {
+    return window.localStorage.getItem(SERVER_URL_KEY) || '';
+  } catch (_error) {
+    return '';
+  }
+};
+
+/** Persist the server address for this browser and reload so every module picks it up. */
+export const setServerBaseUrl = (url) => {
+  const value = trimSlash(url);
+  if (value) {
+    window.localStorage.setItem(SERVER_URL_KEY, value);
+  } else {
+    window.localStorage.removeItem(SERVER_URL_KEY);
+  }
+  window.location.reload();
+};
+
+const takeServerUrlFromQuery = () => {
+  const params = new URLSearchParams(window.location.search);
+  const url = params.get('server');
+  if (!url) return '';
+  params.delete('server');
+  const query = params.toString();
+  window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+  try {
+    window.localStorage.setItem(SERVER_URL_KEY, trimSlash(url));
+  } catch (_error) {
+    // private mode without storage — still use it for this page load
+  }
+  return trimSlash(url);
+};
 
 const resolveBaseUrl = () => {
   if (window.__BRUNO_WEB_SERVER_URL__) {
-    return window.__BRUNO_WEB_SERVER_URL__.replace(/\/$/, '');
+    return trimSlash(window.__BRUNO_WEB_SERVER_URL__);
   }
+  const fromQuery = takeServerUrlFromQuery();
+  if (fromQuery) return fromQuery;
+  const stored = readStoredServerUrl();
+  if (stored) return stored;
   if (process.env.BRUNO_WEB_SERVER_URL) {
-    return process.env.BRUNO_WEB_SERVER_URL.replace(/\/$/, '');
+    return trimSlash(process.env.BRUNO_WEB_SERVER_URL);
   }
   const port = window.location.port;
   if (port && port !== '8008') {
