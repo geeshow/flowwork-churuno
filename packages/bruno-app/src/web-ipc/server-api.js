@@ -3,12 +3,17 @@
  *
  * When the app is served by the Python server itself the API is same-origin;
  * when running on the rsbuild dev server the API lives on port 8008 by default.
- * `window.__BRUNO_WEB_SERVER_URL__` overrides both.
+ * A static deployment (GitHub Pages) has no server of its own, so the build
+ * bakes one in through BRUNO_WEB_SERVER_URL — typically the reader's own
+ * http://localhost:8008. `window.__BRUNO_WEB_SERVER_URL__` overrides all three.
  */
 
 const resolveBaseUrl = () => {
   if (window.__BRUNO_WEB_SERVER_URL__) {
     return window.__BRUNO_WEB_SERVER_URL__.replace(/\/$/, '');
+  }
+  if (process.env.BRUNO_WEB_SERVER_URL) {
+    return process.env.BRUNO_WEB_SERVER_URL.replace(/\/$/, '');
   }
   const port = window.location.port;
   if (port && port !== '8008') {

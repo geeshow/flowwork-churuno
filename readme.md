@@ -129,6 +129,11 @@ python main.py
 브라우저에서 <http://localhost:8008> 을 엽니다.
 개발 중에는 `npm run dev:web`(rsbuild dev, <http://localhost:3000>)을 쓰면 shim이 `localhost:8008`의 API를 호출합니다.
 
+**GitHub Pages** — <https://geeshow.github.io/flowwork-churuno/> 에 `main`의 웹 번들이 자동 배포됩니다(`.github/workflows/pages.yml`).
+정적 호스팅이라 실행 서버는 포함되지 않습니다: 배포된 앱은 **보는 사람의 로컬 `web-server`(http://localhost:8008)** 를 API로 쓰고,
+서버가 없으면 제품 소개 화면과 안내 배너만 보여 줍니다. 다른 서버를 쓰려면 빌드 시 `BRUNO_WEB_SERVER_URL`을 바꾸거나
+페이지에서 `window.__BRUNO_WEB_SERVER_URL__`을 지정합니다.
+
 `web-server/repo`에 API 컬렉션 저장소를 클론해 두면 `workspace/*` 브랜치마다 워크스페이스가 생깁니다.
 환경 변수(`BRUNO_WEB_*`)와 Git 워크스페이스·편집 브랜치 동작은 [`web-server/README.md`](web-server/README.md)에 정리돼 있습니다.
 

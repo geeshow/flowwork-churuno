@@ -1,7 +1,7 @@
 import merge from 'lodash/merge';
 import jsyaml from 'js-yaml';
 import { handle, emit } from '../core';
-import serverApi from '../server-api';
+import serverApi, { serverBaseUrl } from '../server-api';
 import webState, { registerCollection, getStableUid } from '../state';
 import { parseCollection } from '../filestore';
 import { getGlobalEnvironments } from './global-environments';
@@ -165,7 +165,24 @@ const registerBootHandlers = () => {
     emit('main:load-preferences', getPreferences());
     emit('main:git-version', null);
 
-    const { workspaces = [], scratchRoot } = await serverApi.listWorkspaces().catch(() => ({}));
+    // No server at all (static hosting, or web-server not started): boot with
+    // nothing open and tell the user where the app expected it, instead of
+    // leaving the "Loading…" spinner up forever.
+    let workspaceListing = null;
+    try {
+      workspaceListing = await serverApi.listWorkspaces();
+    } catch (error) {
+      const reachable = await serverApi.fsRoot().then(() => true).catch(() => false);
+      if (!reachable) {
+        console.warn(`[web-ipc] execution server unreachable at ${serverBaseUrl || window.location.origin}`, error);
+        emit('main:workspaces-ready');
+        emit('main:app-loaded', { isRunningInRosetta: false });
+        emit('main:web:server-unreachable', { serverUrl: serverBaseUrl || window.location.origin });
+        return;
+      }
+    }
+
+    const { workspaces = [], scratchRoot } = workspaceListing || {};
     webState.scratchRoot = scratchRoot || null;
 
     const allEntries = [];

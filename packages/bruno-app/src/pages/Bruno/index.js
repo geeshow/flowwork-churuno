@@ -14,7 +14,8 @@ import AppTitleBar from 'components/AppTitleBar';
 import ApiSpecPanel from 'components/ApiSpecPanel';
 import TabPanelErrorBoundary from 'components/RequestTabPanel/TabPanelErrorBoundary';
 // import ErrorCapture from 'components/ErrorCapture';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { setActiveApp } from 'providers/ReduxStore/slices/app';
 import { isElectron } from 'utils/common/platform';
 import StyledWrapper from './StyledWrapper';
 import 'swagger-ui-react/swagger-ui.css';
@@ -70,6 +71,9 @@ export default function Main() {
   });
   const mainSectionRef = useRef(null);
   const [showRosettaBanner, setShowRosettaBanner] = useState(false);
+  // 웹 모드: 실행 서버(web-server)에 붙지 못한 채 뜬 경우 그 주소를 알려 준다
+  const [unreachableServerUrl, setUnreachableServerUrl] = useState(null);
+  const dispatch = useDispatch();
 
   // Initialize event listeners
   useGrpcEventListeners();
@@ -92,9 +96,15 @@ export default function Main() {
       }
       setShowRosettaBanner(init.isRunningInRosetta);
     });
+    // 서버 없이 뜬 정적 배포(GitHub Pages 등) — 빈 워크스페이스 대신 제품 소개로 연다
+    const removeServerUnreachableListener = ipcRenderer.on('main:web:server-unreachable', ({ serverUrl }) => {
+      setUnreachableServerUrl(serverUrl);
+      dispatch(setActiveApp('home'));
+    });
 
     return () => {
       removeAppLoadedListener();
+      removeServerUnreachableListener();
     };
   }, []);
 
@@ -110,6 +120,20 @@ export default function Main() {
               It looks like Bruno was launched as the Intel (x64) build under Rosetta on your Apple Silicon Mac. This can cause reduced performance and unexpected behavior.
             </div>
             <button className="absolute right-2 top-0 text-xl" onClick={() => setShowRosettaBanner(!showRosettaBanner)}>
+              &times;
+            </button>
+          </div>
+        </Portal>
+      ) : null}
+      {unreachableServerUrl ? (
+        <Portal>
+          <div className="fixed bottom-0 left-0 right-0 z-10 bg-amber-100 border border-amber-400 text-amber-700 px-4 py-3" role="alert" data-testid="server-unreachable-banner">
+            <strong className="font-bold">실행 서버에 연결할 수 없습니다</strong>
+            <div>
+              {unreachableServerUrl} 에서 응답이 없습니다. 이 화면은 둘러볼 수 있지만 API 호출·저장은 되지 않습니다.
+              저장소의 <code>web-server</code>를 실행한 뒤(기본 포트 8008) 새로고침하세요.
+            </div>
+            <button className="absolute right-2 top-0 text-xl" onClick={() => setUnreachableServerUrl(null)}>
               &times;
             </button>
           </div>

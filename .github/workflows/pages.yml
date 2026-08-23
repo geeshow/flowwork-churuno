@@ -1,0 +1,49 @@
+name: GitHub Pages
+
+# 웹앱 번들(packages/bruno-app/dist)을 GitHub Pages에 올린다. 정적 호스팅이라
+# 실행 서버는 같이 가지 않는다 — 배포된 앱은 보는 사람의 로컬 web-server
+# (http://localhost:8008)를 API로 쓰고, 서버가 없으면 제품 소개만 보여 준다.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node and dependencies
+        uses: ./.github/actions/common/setup-node-deps
+
+      - name: Build web bundle
+        env:
+          BRUNO_WEB_SERVER_URL: http://localhost:8008
+          # 프로젝트 페이지는 https://<owner>.github.io/<repo>/ 아래에 실린다
+          BRUNO_WEB_ASSET_PREFIX: /${{ github.event.repository.name }}/
+        run: npm run build:web
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/bruno-app/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

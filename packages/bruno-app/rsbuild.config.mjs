@@ -35,6 +35,10 @@ export default defineConfig({
   ],
   source: {
     tsconfigPath: './jsconfig.json', // Specifies the path to the JavaScript/TypeScript configuration file,
+    define: {
+      // API server for static deployments — see web-ipc/server-api.js
+      'process.env.BRUNO_WEB_SERVER_URL': JSON.stringify(process.env.BRUNO_WEB_SERVER_URL || '')
+    },
     // @usebruno/filestore's worker/redaction modules import node builtins that
     // the web build never executes — resolve them to inert browser stubs.
     alias: {
@@ -57,6 +61,10 @@ export default defineConfig({
   },
   html: {
     title: 'Bruno'
+  },
+  output: {
+    // A static host serves the app under a sub-path (GitHub Pages: /<repo>/).
+    assetPrefix: process.env.BRUNO_WEB_ASSET_PREFIX || '/'
   },
   server: {
     // 3000 is rsbuild's own default; reading PORT lets a harness that assigns a
