@@ -105,6 +105,9 @@
   },
   "overrides": {
     "@babel/core": "$@babel/core",
+    "@rsbuild/plugin-babel": {
+      "@babel/core": "^7.26.0"
+    },
     "axios": "1.16.0",
     "rollup": "3.30.0",
     "pbkdf2": "3.1.5",
