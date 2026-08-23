@@ -1,4 +1,4 @@
-const Store = require('electron-store');
+const Store = require('../utils/electron-store');
 const { encryptString, decryptString } = require('../utils/encryption');
 
 class AiKeyStore {

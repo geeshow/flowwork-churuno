@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('node:child_process');
-const isDev = require('electron-is-dev');
+const isDev = require('./utils/is-dev');
 const os = require('os');
 const { initializeShellEnv, waitForShellEnv } = require('./store/shell-env-state');
 const { percentageToZoomLevel } = require('@usebruno/common');
@@ -16,7 +16,7 @@ if (isDev) {
 
 const { format } = require('url');
 const { BrowserWindow, app, session, Menu, globalShortcut, ipcMain, nativeTheme, shell } = require('electron');
-const { setContentSecurityPolicy } = require('electron-util');
+const { setContentSecurityPolicy } = require('./utils/content-security-policy');
 
 if (isDev && process.env.ELECTRON_USER_DATA_PATH) {
   console.debug('`ELECTRON_USER_DATA_PATH` found, modifying `userData` path: \n'

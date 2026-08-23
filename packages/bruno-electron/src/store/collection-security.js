@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const Store = require('electron-store');
+const Store = require('../utils/electron-store');
 
 class CollectionSecurityStore {
   constructor() {

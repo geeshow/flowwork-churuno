@@ -2,7 +2,7 @@ const { ipcMain } = require('electron');
 const pty = require('@lydell/node-pty');
 const os = require('os');
 const path = require('path');
-const isDev = require('electron-is-dev');
+const isDev = require('../utils/is-dev');
 
 class TerminalManager {
   constructor() {

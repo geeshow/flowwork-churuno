@@ -1,4 +1,4 @@
-const Store = require('electron-store');
+const Store = require('../utils/electron-store');
 const { cookies: cookiesModule } = require('@usebruno/requests');
 const { cookieJar } = cookiesModule;
 const { Cookie } = require('tough-cookie');

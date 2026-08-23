@@ -1,6 +1,6 @@
 const path = require('node:path');
 const _ = require('lodash');
-const Store = require('electron-store');
+const Store = require('../utils/electron-store');
 const { isDirectory } = require('../utils/filesystem');
 
 class LastOpenedCollections {

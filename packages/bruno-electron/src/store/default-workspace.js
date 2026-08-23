@@ -290,7 +290,7 @@ class DefaultWorkspaceManager {
   }
 
   async migrateFromPreferences(workspacePath, workspaceConfig) {
-    const Store = require('electron-store');
+    const Store = require('../utils/electron-store');
     const preferencesStore = new Store({ name: 'preferences' });
 
     try {
@@ -394,7 +394,7 @@ class DefaultWorkspaceManager {
       return false;
     }
 
-    const Store = require('electron-store');
+    const Store = require('../utils/electron-store');
     const preferencesStore = new Store({ name: 'preferences' });
     const lastOpenedCollections = preferencesStore.get('lastOpenedCollections', []);
     const globalEnvironments = globalEnvironmentsStore.getGlobalEnvironments();
