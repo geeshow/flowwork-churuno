@@ -894,15 +894,14 @@ describe('getActiveTabFromSnapshot', () => {
 
 describe('hydrateCollectionTabs', () => {
   beforeEach(() => {
-    global.window = {
-      ipcRenderer: {
-        invoke: jest.fn().mockResolvedValue(null)
-      }
+    // jsdom's window can't be replaced (jest 30 makes it non-writable) — only add the mock
+    global.window.ipcRenderer = {
+      invoke: jest.fn().mockResolvedValue(null)
     };
   });
 
   afterEach(() => {
-    delete global.window;
+    delete global.window.ipcRenderer;
   });
 
   it('does not restore tabs when snapshot has no tab state', async () => {
