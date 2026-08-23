@@ -85,11 +85,7 @@ test.describe('Welcome Modal', () => {
       await expect(welcomeModal.getByText('Choose your theme')).toBeVisible();
       await welcomeModal.getByRole('button', { name: 'Next' }).click();
 
-      // Step 3: Collection location
-      await expect(welcomeModal.getByText('Where should we store your collections?')).toBeVisible();
-      await welcomeModal.getByRole('button', { name: 'Next' }).click();
-
-      // Step 4: Actions
+      // Step 3: Actions (no storage step — collections live in the git workspace)
       await expect(welcomeModal.getByText('Ready to go!')).toBeVisible();
     } finally {
       if (app) {

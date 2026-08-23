@@ -1,23 +1,17 @@
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import get from 'lodash/get';
-import toast from 'react-hot-toast';
 import Bruno from 'components/Bruno';
 import Button from 'ui/Button';
 import { useTheme } from 'providers/Theme';
-import { savePreferences } from 'providers/ReduxStore/slices/app';
 import WelcomeStep from './WelcomeStep';
 import ThemeStep from './ThemeStep';
-import StorageStep from './StorageStep';
 import GetStartedStep from './GetStartedStep';
 import StyledWrapper from './StyledWrapper';
 
-const TOTAL_STEPS = 4;
+// 저장 위치 단계는 없다 — 컬렉션은 git 저장소(워크스페이스 브랜치)에 저장되므로
+// 사용자가 폴더를 고를 일이 없다.
+const TOTAL_STEPS = 3;
 
 const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onStartRequest }) => {
-  const dispatch = useDispatch();
-  const preferences = useSelector((state) => state.app.preferences);
-  const defaultLocation = get(preferences, 'general.defaultLocation', '');
   const {
     storedTheme,
     setStoredTheme,
@@ -28,38 +22,14 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onSta
   } = useTheme();
 
   const [step, setStep] = useState(1);
-  const [collectionLocation, setCollectionLocation] = useState(defaultLocation);
-
-  const persistPreferences = () => {
-    if (collectionLocation && collectionLocation !== defaultLocation) {
-      const updatedPreferences = {
-        ...preferences,
-        general: {
-          ...preferences.general,
-          defaultLocation: collectionLocation
-        }
-      };
-      return dispatch(savePreferences(updatedPreferences)).catch(() => {
-        toast.error('Failed to save preferences');
-      });
-    }
-    return Promise.resolve();
-  };
-
-  const handleSaveAndDismiss = () => {
-    persistPreferences().finally(() => {
-      onDismiss();
-    });
-  };
 
   const handleActionAndDismiss = (action) => () => {
-    persistPreferences().finally(() => {
-      onDismiss();
-      action();
-    });
+    onDismiss();
+    action();
   };
 
   const goTo = (s) => setStep(s);
+  const isLastStep = step === TOTAL_STEPS;
 
   const steps = [
     <WelcomeStep key="welcome" />,
@@ -72,11 +42,6 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onSta
       themeVariantDark={themeVariantDark}
       setThemeVariantDark={setThemeVariantDark}
     />,
-    <StorageStep
-      key="storage"
-      collectionLocation={collectionLocation}
-      onLocationChange={setCollectionLocation}
-    />,
     <GetStartedStep
       key="getstarted"
       onCreateCollection={handleActionAndDismiss(onCreateCollection)}
@@ -84,8 +49,6 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onSta
       onStartRequest={handleActionAndDismiss(onStartRequest)}
     />
   ];
-
-  const isLastStep = step === TOTAL_STEPS;
 
   return (
     <StyledWrapper data-testid="welcome-modal">
@@ -95,7 +58,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onSta
             <Bruno width={48} />
           </div>
           <h1 className="welcome-heading">
-            {step === 1 ? 'Welcome to Bruno' : step === 4 ? 'Ready to go!' : 'Set up Bruno'}
+            {step === 1 ? 'Welcome to Bruno' : isLastStep ? 'Ready to go!' : 'Set up Bruno'}
           </h1>
           {step === 1 && (
             <p className="welcome-tagline">
@@ -121,7 +84,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onSta
           </div>
 
           <div className="footer-buttons">
-            <Button type="button" color="secondary" variant="ghost" onClick={handleSaveAndDismiss}>
+            <Button type="button" color="secondary" variant="ghost" onClick={onDismiss}>
               Skip
             </Button>
             {step > 1 && (
@@ -135,7 +98,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onSta
               </Button>
             )}
             {isLastStep && (
-              <Button type="button" color="secondary" onClick={handleSaveAndDismiss}>
+              <Button type="button" color="secondary" onClick={onDismiss}>
                 I'll explore on my own
               </Button>
             )}
