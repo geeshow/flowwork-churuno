@@ -47,7 +47,7 @@ const DeleteWorkspace = ({ onClose, workspace }) => {
         </div>
         <div className="mt-4 text-red-500">
           브랜치 <code className="font-semibold">{workspace?.branch || workspace?.name}</code>이(가) 로컬과
-          원격(origin)에서 모두 삭제됩니다. 컬렉션과 워크플로우도 함께 사라지며 되돌릴 수 없습니다.
+          원격(origin)에서 모두 삭제됩니다. 컬렉션과 API Chain도 함께 사라지며 되돌릴 수 없습니다.
         </div>
       </Modal>
     </Portal>

@@ -762,7 +762,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         if remaining:
             raise HTTPException(
                 status_code=409,
-                detail=f"워크플로우 {len(remaining)}건이 남아 있습니다. 먼저 삭제한 뒤 다시 시도하세요.",
+                detail=f"API Chain {len(remaining)}건이 남아 있습니다. 먼저 삭제한 뒤 다시 시도하세요.",
             )
         shutil.rmtree(path)
         _autocommit(f"flowwork: 업무 '{domain}/{task}' 삭제", branch)
@@ -793,7 +793,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
     def get_workflow(workflow_id: str, source: str = "prod", branch: Optional[str] = None) -> dict:
         path = _find_path_by_id(workflow_id, source, branch)
         if path is None:
-            raise HTTPException(status_code=404, detail=f"워크플로우를 찾을 수 없습니다: {workflow_id}")
+            raise HTTPException(status_code=404, detail=f"API Chain을 찾을 수 없습니다: {workflow_id}")
         data = json.loads(path.read_text(encoding="utf-8"))
         data["version"] = _file_version(path)
         return data
@@ -817,7 +817,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         """문서만 저장 — 스텝 등 나머지는 건드리지 않으므로 운영에서도 열려 있다."""
         written = _write_workflow_docs(workflow_id, body.docs, source, branch)
         if written is None:
-            raise HTTPException(status_code=404, detail=f"워크플로우를 찾을 수 없습니다: {workflow_id}")
+            raise HTTPException(status_code=404, detail=f"API Chain을 찾을 수 없습니다: {workflow_id}")
         path, data = written
         message = f"flowwork: '{data.get('name', workflow_id)}' 문서 저장"
         _record_docs(
@@ -863,13 +863,13 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
             if old_path is None:
                 raise HTTPException(
                     status_code=409,
-                    detail={"code": "version_conflict", "message": "다른 사용자가 이 워크플로우를 삭제했습니다.", "current_version": None},
+                    detail={"code": "version_conflict", "message": "다른 사용자가 이 API Chain을 삭제했습니다.", "current_version": None},
                 )
             current = _file_version(old_path)
             if current != wf.version:
                 raise HTTPException(
                     status_code=409,
-                    detail={"code": "version_conflict", "message": "다른 사용자가 이 워크플로우를 먼저 저장했습니다.", "current_version": current},
+                    detail={"code": "version_conflict", "message": "다른 사용자가 이 API Chain을 먼저 저장했습니다.", "current_version": current},
                 )
 
         new_path.parent.mkdir(parents=True, exist_ok=True)
@@ -891,9 +891,9 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         _check_editable(source)
         path = _find_path_by_id(workflow_id, source, branch)
         if path is None:
-            raise HTTPException(status_code=404, detail=f"워크플로우를 찾을 수 없습니다: {workflow_id}")
+            raise HTTPException(status_code=404, detail=f"API Chain을 찾을 수 없습니다: {workflow_id}")
         path.unlink()
-        _autocommit(f"flowwork: 워크플로우 '{workflow_id}' 삭제", branch)
+        _autocommit(f"flowwork: API Chain '{workflow_id}' 삭제", branch)
         return {"status": "deleted"}
 
     # -- 편집(git) — "변경"과 "운영 반영" 두 개념만 노출한다 -------------------

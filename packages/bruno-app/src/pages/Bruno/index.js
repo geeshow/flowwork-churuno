@@ -7,6 +7,7 @@ import AiChatSidebar from 'components/AiChatSidebar';
 import AiChatPopout from 'components/AiChatSidebar/Popout';
 import Sidebar from 'components/Sidebar';
 import Flowwork from 'components/Flowwork';
+import ProductHome from 'components/ProductHome';
 import StatusBar from 'components/StatusBar';
 import PreferencesPageOverlay from 'components/Preferences/PageOverlay';
 import AppTitleBar from 'components/AppTitleBar';
@@ -122,7 +123,9 @@ export default function Main() {
           height: isConsoleOpen ? `calc(100vh - 60px - ${isConsoleOpen ? '300px' : '0px'})` : 'calc(100vh - 60px)'
         }}
       >
-        {activeApp === 'flowwork' ? (
+        {activeApp === 'home' ? (
+          <ProductHome />
+        ) : activeApp === 'flowwork' ? (
           <Flowwork />
         ) : (
           <StyledWrapper className={className} style={{ height: '100%', zIndex: 1 }}>

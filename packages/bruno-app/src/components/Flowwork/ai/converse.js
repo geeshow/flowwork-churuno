@@ -33,7 +33,7 @@ const USER_QUESTION_GUIDE = `사람에게 되묻기: {"askUser": [{"id": "q1", "
 
 const systemPrompt = ({ allowUserQuestions }) =>
   [
-    '당신은 API 워크플로우 설계를 돕는 조수입니다.',
+    '당신은 API API Chain 설계를 돕는 조수입니다.',
     '',
     '한 번에 답하지 말고, 필요한 것을 먼저 물어 확인한 뒤 답합니다.',
     '매 차례 JSON 하나만 출력합니다 — 설명 문장이나 코드펜스(```)를 덧붙이지 마세요.',

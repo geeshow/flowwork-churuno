@@ -7,6 +7,7 @@
  *   #/ws/<workspace>/c/<collection>           collection settings
  *   #/ws/<workspace>/c/<collection>/<path>    folder (group) or request file
  *   #/flowwork/...                            flowwork app (routes owned by components/Flowwork)
+ *   #/home                                    product intro page (ProductHome)
  *
  * Segments are the on-disk names, URL-encoded. Opening a link switches the
  * workspace, mounts the collection and opens the matching tab; focusing things
@@ -39,6 +40,9 @@ const parseHash = (hash) => {
   if (segments[0] === 'flowwork') {
     return { flowwork: true };
   }
+  if (segments[0] === 'home') {
+    return { home: true };
+  }
   if (segments[0] !== 'ws' || !segments[1]) {
     return null;
   }
@@ -55,6 +59,9 @@ const parseHash = (hash) => {
 const buildHashFromState = (state) => {
   if (state.app.activeApp === 'flowwork') {
     return null;
+  }
+  if (state.app.activeApp === 'home') {
+    return '#/home';
   }
   const { workspaces, activeWorkspaceUid } = state.workspaces;
   const workspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
@@ -129,8 +136,8 @@ const useWebRouteSync = () => {
       return;
     }
 
-    if (route.flowwork) {
-      dispatch(setActiveApp('flowwork'));
+    if (route.flowwork || route.home) {
+      dispatch(setActiveApp(route.home ? 'home' : 'flowwork'));
       setPendingHash('');
       return;
     }

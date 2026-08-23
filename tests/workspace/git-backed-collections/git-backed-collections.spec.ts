@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import yaml from 'js-yaml';
 import { test, expect, closeElectronApp } from '../../../playwright';
-import { switchWorkspace, createCollection, waitForReadyPage } from '../../utils/page';
+import { switchWorkspace, createCollection, waitForReadyPage, openWorkspaceOverview } from '../../utils/page';
 
 type CollectionEntry = { name?: string; path?: string; remote?: string };
 type WorkspaceConfig = { collections?: CollectionEntry[] };
@@ -45,7 +45,7 @@ test.describe('Git-backed collections', () => {
       await switchWorkspace(page, FIXTURE_WS_NAME);
 
       await test.step('Navigate to workspace overview', async () => {
-        await page.locator('.titlebar-left .home-button').click();
+        await openWorkspaceOverview(page);
       });
 
       const card = page.locator('.collection-card').filter({ hasText: 'SampleColl' });
@@ -94,7 +94,7 @@ test.describe('Git-backed collections', () => {
       const card = page.locator('.collection-card').filter({ hasText: 'SampleColl' });
 
       await test.step('Connect the collection to Git first', async () => {
-        await page.locator('.titlebar-left .home-button').click();
+        await openWorkspaceOverview(page);
         await card.locator('.collection-menu').click();
         await page.locator('.dropdown-item').filter({ hasText: 'Connect to Git' }).click();
 
@@ -143,7 +143,7 @@ test.describe('Git-backed collections', () => {
       await switchWorkspace(page, FIXTURE_WS_NAME);
 
       await test.step('Open Connect to Git modal', async () => {
-        await page.locator('.titlebar-left .home-button').click();
+        await openWorkspaceOverview(page);
         const card = page.locator('.collection-card').filter({ hasText: 'SampleColl' });
         await card.locator('.collection-menu').click();
         await page.locator('.dropdown-item').filter({ hasText: 'Connect to Git' }).click();
@@ -195,7 +195,7 @@ test.describe('Git-backed collections', () => {
       });
 
       await test.step('Open the collection menu in the workspace overview', async () => {
-        await page.locator('.titlebar-left .home-button').click();
+        await openWorkspaceOverview(page);
         const card = page.locator('.collection-card').filter({ hasText: 'DefaultColl' });
         await card.waitFor({ state: 'visible', timeout: 5000 });
         await card.locator('.collection-menu').click();

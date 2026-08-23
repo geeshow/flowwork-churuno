@@ -87,7 +87,7 @@ const CloneWorkspace = ({ onClose, workspace }) => {
           <div className="text-xs opacity-70 leading-5 mt-3">
             <span className="font-semibold">{workspace.branch || workspace.name}</span> 브랜치를 기준으로 새 브랜치{' '}
             <code className="font-semibold">workspace/{formik.values.name.trim() || '<이름>'}</code>
-            이(가) 생성됩니다 — 현재 컬렉션과 워크플로우를 그대로 가져갑니다.
+            이(가) 생성됩니다 — 현재 컬렉션과 API Chain을 그대로 가져갑니다.
           </div>
         </form>
       </Modal>

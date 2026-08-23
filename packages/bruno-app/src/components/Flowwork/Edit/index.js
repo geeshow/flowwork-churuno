@@ -498,7 +498,7 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
     {
       id: 'clone',
       label: 'Clone',
-      title: '업무와 그 안의 워크플로우·하위 업무를 통째로 복제합니다',
+      title: '업무와 그 안의 API Chain·하위 업무를 통째로 복제합니다',
       onClick: () =>
         askName({
           title: `'${leaf}' 복제`,
@@ -547,7 +547,7 @@ function taskMenuItems({ domain, task, clipboard, setClipboard, go, prompt, onEr
       id: 'delete',
       label: 'Delete',
       danger: true,
-      title: '워크플로우가 없는 업무만 삭제할 수 있습니다',
+      title: 'API Chain이 없는 업무만 삭제할 수 있습니다',
       onClick: () =>
         api
           .deleteTask(domain, task)
@@ -619,7 +619,7 @@ function EditHome({ st, files, loaded, onAction }) {
           <p className="muted">불러오는 중…</p>
         ) : files.length === 0 ? (
           <p className="muted">
-            운영에 반영할 변경이 없습니다. 왼쪽 메뉴에서 워크플로우를 수정하거나 새로 만드세요 — 저장하면 여기에
+            운영에 반영할 변경이 없습니다. 왼쪽 메뉴에서 API Chain을 수정하거나 새로 만드세요 — 저장하면 여기에
             나타납니다.
           </p>
         ) : (

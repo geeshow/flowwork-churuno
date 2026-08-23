@@ -314,7 +314,7 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
                 실행 완료 — <strong>{result.overallStatus}</strong>
               </span>
               <button className="link" onClick={() => onOpenExecution(result.executionId)}>
-                워크플로우 이력에서 열기 →
+                API Chain 이력에서 열기 →
               </button>
             </div>
             <div className="share-row">

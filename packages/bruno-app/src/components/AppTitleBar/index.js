@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconCheck, IconChevronDown, IconHome, IconLock, IconPin, IconPinned, IconPlus, IconDownload, IconSettings } from '@tabler/icons';
+import { IconCheck, IconChevronDown, IconLink, IconLock, IconPin, IconPinned, IconPlus, IconDownload, IconSettings, IconTopologyStar3 } from '@tabler/icons';
 import { forwardRef, useCallback, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
@@ -9,7 +9,6 @@ import { setLocalStorageValue, SIDEBAR_COLLAPSED_KEY } from 'utils/common/localS
 import { closeConsole, openConsole } from 'providers/ReduxStore/slices/logs';
 import { switchWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
 import { sortWorkspaces, toggleWorkspacePin } from 'utils/workspaces';
-import { focusTab } from 'providers/ReduxStore/slices/tabs';
 
 import Bruno from 'components/Bruno';
 import MenuDropdown from 'ui/MenuDropdown';
@@ -66,17 +65,8 @@ const AppTitleBar = () => {
     );
   });
 
-  const handleHomeClick = () => {
-    // flowwork는 해시 라우팅을 쓴다 — 해시를 홈으로 바꾸면 Flowwork가 hashchange로 화면을 맞춘다
-    if (activeApp === 'flowwork') {
-      window.location.hash = '#/flowwork';
-      return;
-    }
-    const scratchCollectionUid = activeWorkspace?.scratchCollectionUid;
-    if (scratchCollectionUid) {
-      dispatch(focusTab({ uid: `${scratchCollectionUid}-overview` }));
-    }
-  };
+  // 제품명은 제품 소개 홈으로 간다 (activeApp 'home' — 웹에서는 #/home 해시로 미러링)
+  const handleBrandClick = () => dispatch(setActiveApp('home'));
 
   const handleWorkspaceSwitch = (workspaceUid) => {
     if (workspaceUid === activeWorkspaceUid) return;
@@ -187,19 +177,25 @@ const AppTitleBar = () => {
 
       <div className="titlebar-content">
         <div className="titlebar-left">
-          <ActionIcon onClick={handleHomeClick} label="Home" size="lg" className="home-button">
-            <IconHome size={16} stroke={1.5} />
-          </ActionIcon>
+          <button
+            className={`product-brand ${activeApp === 'home' ? 'active' : ''}`}
+            onClick={handleBrandClick}
+            data-testid="product-brand"
+          >
+            <IconTopologyStar3 size={16} stroke={1.5} />
+            <span className="product-name">Flowwork</span>
+          </button>
         </div>
 
-        {/* Center section: flowwork / Bruno app switcher */}
+        {/* Center section: API Chain / Bruno app switcher */}
         <div className="titlebar-center">
           <button
             className={`app-switch ${activeApp === 'flowwork' ? 'active' : ''}`}
             onClick={() => dispatch(setActiveApp('flowwork'))}
             data-testid="app-switch-flowwork"
           >
-            <span className="flowwork-text">flowwork</span>
+            <IconLink size={16} stroke={1.5} />
+            <span className="flowwork-text">API Chain</span>
           </button>
           <button
             className={`app-switch ${activeApp === 'bruno' ? 'active' : ''}`}

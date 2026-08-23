@@ -276,7 +276,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
   return (
     <div className="editor">
       <div className="editor-head">
-        <h2>{mode === 'new' ? '새 워크플로우' : '워크플로우 편집'}</h2>
+        <h2>{mode === 'new' ? '새 API Chain' : 'API Chain 편집'}</h2>
         <div className="editor-actions">
           <button className="link" onClick={onCancel}>
             취소
@@ -310,9 +310,9 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
         <section className="panel save-conflict">
           <h3>⚠ 저장 충돌</h3>
           {conflict.deleted ? (
-            <p className="muted">다른 사용자가 이 워크플로우를 삭제했습니다. 내 내용으로 다시 저장(복원)하거나 편집을 취소하세요.</p>
+            <p className="muted">다른 사용자가 이 API Chain을 삭제했습니다. 내 내용으로 다시 저장(복원)하거나 편집을 취소하세요.</p>
           ) : (
-            <p className="muted">다른 사용자가 이 워크플로우를 먼저 저장했습니다. 서버 최신 내용을 불러오거나 내 수정으로 덮어쓰세요.</p>
+            <p className="muted">다른 사용자가 이 API Chain을 먼저 저장했습니다. 서버 최신 내용을 불러오거나 내 수정으로 덮어쓰세요.</p>
           )}
           <div className="save-conflict-actions">
             {!conflict.deleted ? (

@@ -81,7 +81,7 @@ function compareTaskPaths(a, b) {
  * refreshKey가 바뀌면 목록을 다시 불러온다 (저장/삭제 후 갱신용).
  */
 export function WorkflowLayout({
-  title = '워크플로우',
+  title = 'API Chain',
   workspace,
   source = 'prod',
   refreshKey,

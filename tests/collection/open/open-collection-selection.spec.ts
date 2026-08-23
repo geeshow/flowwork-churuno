@@ -1,7 +1,7 @@
 import { test, expect, ElectronApplication, Page } from '../../../playwright';
 import * as path from 'path';
 import * as fs from 'fs';
-import { buildCommonLocators, closeAllCollections, toggleOpenCollectionItem, closeOpenCollectionModal } from '../../utils/page';
+import { buildCommonLocators, closeAllCollections, toggleOpenCollectionItem, closeOpenCollectionModal, openWorkspaceOverview } from '../../utils/page';
 
 const writeCollection = (dir: string, name: string) => {
   fs.mkdirSync(dir, { recursive: true });
@@ -371,7 +371,7 @@ test.describe('Open Collection - selection flow', () => {
     await mockPickerCancelWithFlag(electronApp);
 
     // Navigate to the workspace overview
-    await page.locator('.titlebar-left .home-button').click();
+    await openWorkspaceOverview(page);
     await page.getByRole('button', { name: 'Open Collection' }).click();
 
     await expect.poll(() => wasPickerOpened(electronApp)).toBe(true);

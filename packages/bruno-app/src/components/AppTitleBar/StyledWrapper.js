@@ -27,7 +27,6 @@ const Wrapper = styled.div`
   /* Remove drag region from interactive elements */
   .workspace-name-container,
   .dropdown-item,
-  .home-button,
   .dropdown,
   button {
     -webkit-app-region: no-drag;
@@ -45,6 +44,31 @@ const Wrapper = styled.div`
   /* When in full screen, no traffic lights so remove margin-left */
   &.fullscreen .titlebar-left {
     margin-left: 0px;
+  }
+
+  /* Product name — opens the product intro page */
+  .product-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border: none;
+    border-radius: ${(props) => props.theme.border.radius.base};
+    background: transparent;
+    color: ${(props) => props.theme.text};
+    cursor: pointer;
+
+    &:hover,
+    &.active {
+      background: ${(props) => props.theme.background.surface1};
+    }
+
+    .product-name {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
   }
 
   /* Workspace Name Dropdown Trigger */
@@ -92,6 +116,7 @@ const Wrapper = styled.div`
       display: flex;
       align-items: center;
       gap: 6px;
+      color: ${(props) => props.theme.text};
       padding: 3px 10px;
       border: none;
       border-radius: ${(props) => props.theme.border.radius.base};

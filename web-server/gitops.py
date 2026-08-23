@@ -243,7 +243,7 @@ def _is_editable_path(path: str) -> bool:
 
 def _check_editable_path(path: str) -> str:
     if not _is_editable_path(path):
-        raise GitError(f"워크플로우 데이터 밖의 경로는 처리할 수 없습니다: {path!r}")
+        raise GitError(f"API Chain 데이터 밖의 경로는 처리할 수 없습니다: {path!r}")
     return path
 
 

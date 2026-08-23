@@ -321,9 +321,9 @@ async function runApiStep(step, workflow, ctx, deps, runtime, uid) {
 /** 다른 업무(워크플로우) 연결 스텝 — 하위 워크플로우를 재귀 실행. */
 async function runWorkflowStep(step, ctx, deps, onStepUpdate, runtime, uid) {
   const wb = step.workflowBinding;
-  if (!deps.getWorkflow) throw new Error('워크플로우 연결이 지원되지 않습니다 (getWorkflow 미설정).');
+  if (!deps.getWorkflow) throw new Error('API Chain 연결이 지원되지 않습니다 (getWorkflow 미설정).');
   if (runtime.callStack.has(wb.ref.id)) {
-    throw new Error(`워크플로우 순환 참조: ${wb.ref.id}`);
+    throw new Error(`API Chain 순환 참조: ${wb.ref.id}`);
   }
 
   // 부모 컨텍스트 → 하위 워크플로우 입력값 매핑

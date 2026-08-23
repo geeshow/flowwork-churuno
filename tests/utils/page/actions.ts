@@ -471,6 +471,19 @@ const deleteRequest = async (page, requestName: string, collectionName: string) 
 };
 
 /**
+ * Navigate to the workspace overview via the collection header's workspace switcher.
+ * The title bar has no home button — its "Flowwork" brand opens the product intro page instead.
+ * @param page - The page object
+ */
+const openWorkspaceOverview = async (page: Page) => {
+  await test.step('Open workspace overview', async () => {
+    await page.getByTestId('workspace-switcher-name').click();
+    // first item of the switcher is the current workspace (listed under the "Workspace" label)
+    await page.locator('.tippy-box .dropdown-item').first().click();
+  });
+};
+
+/**
  * Delete a collection permanently from disk via the workspace overview page
  * @param page - The page object
  * @param collectionName - The name of the collection to delete
@@ -479,7 +492,7 @@ const deleteRequest = async (page, requestName: string, collectionName: string) 
 const deleteCollectionFromOverview = async (page: Page, collectionName: string) => {
   await test.step(`Delete collection "${collectionName}" from workspace overview`, async () => {
     // Navigate to workspace overview
-    await page.locator('.home-button').click();
+    await openWorkspaceOverview(page);
     const overviewTab = page.locator('.request-tab').filter({ hasText: 'Overview' });
     await overviewTab.click();
 
@@ -2562,7 +2575,8 @@ export {
   requestPaneOverflowTabItem,
   renameWsMessage,
   elementIsInsideDropdown,
-  openSystemProxyPanel
+  openSystemProxyPanel,
+  openWorkspaceOverview
 };
 
 export type { SandboxMode, EnvironmentType, EnvironmentVariable, ImportCollectionOptions, CreateRequestOptions, CreateUntitledRequestOptions, CreateTransientRequestOptions, AssertionInput };

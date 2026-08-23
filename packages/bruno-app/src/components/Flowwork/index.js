@@ -196,7 +196,7 @@ export default function Flowwork() {
       <button
         className="small"
         onClick={() => setRoute({ view: 'edit', page: { kind: 'home' } })}
-        title="워크플로우 등록/수정 — 저장 즉시 기록, 원하는 작업만 운영 반영"
+        title="API Chain 등록/수정 — 저장 즉시 기록, 원하는 작업만 운영 반영"
       >
         편집 모드
       </button>
@@ -231,12 +231,12 @@ export default function Flowwork() {
           ) : (
             <section className="home-guide">
               <div className="guide-hero">
-                <h2>워크플로우</h2>
+                <h2>API Chain</h2>
                 <p className="muted">
                   Bruno에 저장된 API들을 순서대로 엮어 여러 단계 업무를 한 번에 실행하는 도구입니다. 왼쪽에서
                   폴더를 펼쳐 작업을 선택하면 실행할 수 있습니다.
                 </p>
-                <p className="muted">워크플로우 등록/수정과 동작 원리 안내는 왼쪽 위 "편집 모드"에 있습니다.</p>
+                <p className="muted">API Chain 등록/수정과 동작 원리 안내는 왼쪽 위 "편집 모드"에 있습니다.</p>
               </div>
             </section>
           )}

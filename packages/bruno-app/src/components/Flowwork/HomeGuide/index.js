@@ -20,7 +20,7 @@ const PIPELINE_STEPS = [
   },
   {
     icon: '🧩',
-    title: '워크플로우 스텝',
+    title: 'API Chain 스텝',
     desc: '카탈로그에서 API를 골라 스텝으로 쌓고, 요청의 {{변수}}에 값을 매핑합니다'
   },
   {
@@ -35,7 +35,7 @@ const VALUE_SOURCES = ['기본 입력값 (사용자 입력)', '이전 스텝 응
 // 반영 단계 — 번호·색이 아래 SVG의 배지와 1:1로 대응한다
 const BRANCH_STEPS = [
   { lane: 'main', text: 'Bruno main 브랜치의 API 목록(.bru 컬렉션)이 자동으로 카탈로그로 연결됩니다' },
-  { lane: 'feature', text: '편집 공간에서 카탈로그의 API를 연결해 워크플로우를 추가/수정합니다 — 저장하면 바로 기록됩니다' },
+  { lane: 'feature', text: '편집 공간에서 카탈로그의 API를 연결해 API Chain을 추가/수정합니다 — 저장하면 바로 기록됩니다' },
   { lane: 'feature', text: '위 변경 목록에서 작업 단위로 확인하고, 필요 없으면 작업 삭제합니다 (작업 내용을 지우고 운영 버전으로 복원)' },
   { lane: 'main', text: '운영 반영은 작업 단위 — 준비된 작업만 골라 반영하면 사용 모드(운영 화면)에 나타납니다' }
 ];
@@ -54,7 +54,7 @@ function ProcessGraph() {
       className="guide-git"
       viewBox="0 0 680 240"
       role="img"
-      aria-label="Bruno main의 API 목록을 연결해 편집 공간에서 워크플로우를 추가/수정하고, 변경 목록에서 작업 단위로 운영에 반영하는 과정"
+      aria-label="Bruno main의 API 목록을 연결해 편집 공간에서 API Chain을 추가/수정하고, 변경 목록에서 작업 단위로 운영에 반영하는 과정"
     >
       <text className="git-label" x="8" y="49">운영 (main)</text>
       <text className="git-label" x="8" y="194">편집 공간</text>
@@ -98,7 +98,7 @@ export function HomeGuide() {
       <div className="panel guide-panel">
         <h3>Bruno API와 어떻게 연결되나요?</h3>
         <p className="muted">
-          Bruno 컬렉션의 요청이 곧 워크플로우가 쓸 수 있는 API 재료입니다 — 따로 등록하지 않아도 됩니다.
+          Bruno 컬렉션의 요청이 곧 API Chain이 쓸 수 있는 API 재료입니다 — 따로 등록하지 않아도 됩니다.
         </p>
         <div className="guide-pipeline">
           {PIPELINE_STEPS.map((s, i) => (
@@ -144,8 +144,8 @@ export function HomeGuide() {
         <p className="muted">
           <strong>작업 삭제는 어떻게 되나요?</strong> 변경 목록의 작업 삭제는{' '}
           <strong>편집 공간에서 작업한 내용을 삭제하고 운영(main) 버전으로 복원</strong>합니다. 운영에 있던
-          워크플로우를 수정한 경우에는 수정 내용이 삭제되어 운영과 같은 내용으로 돌아가고, 새로 추가한
-          워크플로우는 운영에 없으므로 통째로 삭제됩니다.{' '}
+          API Chain을 수정한 경우에는 수정 내용이 삭제되어 운영과 같은 내용으로 돌아가고, 새로 추가한
+          API Chain은 운영에 없으므로 통째로 삭제됩니다.{' '}
           <strong className="error-text">삭제된 작업 내용은 복구할 수 없으니</strong> 누르기 전에 확인하세요.
           운영 데이터에는 아무 영향이 없습니다.
         </p>

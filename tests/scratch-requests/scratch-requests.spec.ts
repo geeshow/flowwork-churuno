@@ -1,5 +1,5 @@
 import { test, expect, Page } from '../../playwright';
-import { fillRequestUrl, sendRequest, clickResponseAction, createCollection, closeAllCollections, closeAllTabs } from '../utils/page';
+import { fillRequestUrl, sendRequest, clickResponseAction, createCollection, closeAllCollections, closeAllTabs, openWorkspaceOverview } from '../utils/page';
 import { buildCommonLocators } from '../utils/page/locators';
 
 test.describe.serial('Scratch Requests', () => {
@@ -50,9 +50,8 @@ test.describe.serial('Scratch Requests', () => {
    */
   const goToWorkspaceOverview = async (page: Page) => {
     await test.step('Navigate to workspace overview', async () => {
-      // Click the home icon in the title bar to go to workspace overview
-      const homeButton = page.locator('.titlebar-left .home-button');
-      await homeButton.click();
+      // the title bar has no home button — use the collection header's workspace switcher
+      await openWorkspaceOverview(page);
       await page.waitForTimeout(300);
     });
   };
