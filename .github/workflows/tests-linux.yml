@@ -95,7 +95,7 @@ jobs:
           shard: ${{ matrix.shard }}/${{ matrix.shardTotal }}
 
       - name: Upload blob report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: blob-report-linux-${{ matrix.shard }}
@@ -128,7 +128,7 @@ jobs:
         run: npx playwright merge-reports --config=playwright.merge.config.ts ./all-blob-reports
 
       - name: Upload merged Playwright report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-linux
           path: playwright-report/
