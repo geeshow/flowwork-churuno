@@ -1,11 +1,8 @@
 name: Flaky Test Detector
 
+# Electron 데스크톱 앱을 대상으로 한다 — 웹 모드 제품에선 레거시라 자동 실행하지 않고 수동(workflow_dispatch)으로만 남긴다.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'tests/**/*.spec.ts'
-
+  workflow_dispatch:
 permissions:
   contents: read
   pull-requests: write

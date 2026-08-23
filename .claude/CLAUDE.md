@@ -11,7 +11,8 @@ npm run dev              # Run electron + react concurrently
 npm run dev:watch        # Same, with hot-reload of the electron main process
 npm run storybook        # Component dev (bruno-app)
 npm run lint:fix         # ESLint fix
-npm test --workspaces    # Unit tests (Jest) across all packages
+npm test                 # Unit tests (Jest) across all packages — bruno-electron is excluded (legacy)
+npm run test:electron    # bruno-electron unit tests, only when touching the desktop code
 ```
 
 Full script list: root `package.json`. Setup: `nvm use && npm i --legacy-peer-deps && npm run setup` (Node **v22.12.0**, see `.nvmrc`).
@@ -50,7 +51,9 @@ npm run watch:common            # also watch:requests, watch:converters
 ## Testing
 
 - **Unit**: Jest, config per-package (`packages/*/jest.config.js`); bruno-app uses jsdom + `jest.setup.js`.
-- **E2E**: Playwright — fixtures, helpers, isolation rules, and pitfalls live in
+- **bruno-electron is legacy**: the product runs in web mode (`web-ipc` shim + `web-server/`), so the
+  Electron package has no `test` script, is skipped by CI unit tests and Dependabot, and is not maintained.
+- **E2E**: Playwright (Electron-based, legacy — manual runs only) — fixtures, helpers, isolation rules, and pitfalls live in
   `.claude/rules/testing.md`; use the `write-e2e-test` skill when adding specs.
 
 ## Coding Standards

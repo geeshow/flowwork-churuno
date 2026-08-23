@@ -80,14 +80,14 @@ Flowwork는 두 개의 앱이 하나의 Git 저장소 위에서 돌아가는 웹
 | 영역 | 사용 기술 |
 |---|---|
 | 프론트엔드 | React 19 · Redux Toolkit · styled-components(테마) + Tailwind(레이아웃) · CodeMirror 5 · @tabler/icons |
-| 데스크톱(원본 Bruno) | Electron 43 · electron-builder 26 — 웹 모드에서는 사용하지 않음 |
+| 데스크톱(원본 Bruno, **레거시**) | Electron 43 · electron-builder 26 — 웹 모드에서 사용하지 않아 기본 `npm test`·CI·Dependabot에서 제외. 필요 시 `npm run test:electron` |
 | 번들러 | Rsbuild 1 (Rspack) · Babel 8 (React Compiler 플러그인) |
 | 웹 모드 shim | `packages/bruno-app/src/web-ipc/` — Electron의 `ipcRenderer`를 브라우저에서 대체, 부팅 캐스케이드 재현 |
 | 공유 패키지 | `@usebruno/common` · `requests` · `filestore`(`.bru`/`.yml`) · `converters` · `query` · `schema-types` · `graphql-docs` — rollup 4로 빌드 |
 | 백엔드 | Python 3.12 · FastAPI · uvicorn · httpx · PyYAML |
 | 저장소/협업 | Git worktree 기반 워크스페이스(`workspace/*`), 편집 브랜치(`develop`), 파일 단위 체리픽으로 운영 반영 |
 | AI | `claude` CLI를 Bearer 토큰 REST(`/api/ai/status|generate|stream`)로 노출하는 로컬 브리지 — provider 중립 API |
-| 테스트 | Jest 30 (단위) · Playwright (E2E, Electron) · ESLint 9 |
+| 테스트 | Jest 30 (단위, `npm test`) · ESLint 9 · Playwright(기존 E2E는 Electron 기반이라 레거시 — 웹용 E2E는 남은 작업) |
 | 런타임 | Node 22.12 (`.nvmrc`) · Python 3.12 |
 
 ### 저장소 구조
@@ -98,7 +98,7 @@ packages/
     src/components/Flowwork/   API Chain — editor/ · engine/ · ai/ · Edit/ · WorkflowRunner/ …
     src/components/ProductHome/ 제품 홈
     src/web-ipc/               브라우저 shim (boot · collections · network · ai)
-  bruno-electron/       데스크톱 앱 (원본 Bruno, 웹 모드에서는 사용하지 않음)
+  bruno-electron/       데스크톱 앱 (원본 Bruno) — 레거시, 기본 테스트·CI 제외
   bruno-common|requests|filestore|converters|query|schema-types|graphql-docs|js|cli …
 web-server/
   main.py               파일 API · HTTP 실행 · 정적 서빙 · Mock API
@@ -106,7 +106,7 @@ web-server/
   gitops.py             편집 브랜치 worktree · 변경 목록 · 운영 반영(체리픽)
   api_release.py        Bruno 워크스페이스 → main 반영
   ai.py                 AI 브리지
-tests/, playwright/     E2E
+tests/, playwright/     Electron 기반 E2E — 레거시 (수동 실행만)
 ```
 
 ---
@@ -162,7 +162,7 @@ npm test --workspace=packages/bruno-app -- src/components/Flowwork
 - [ ] **인증·권한** — 실행 서버에 인증이 없고 임의 URL로 프록시하므로 현재는 로컬/신뢰 네트워크 전용
 - [ ] AI 브리지를 로컬 `claude` CLI에서 원격 AI 서비스로 교체 (API는 provider 중립으로 설계됨)
 - [ ] 배포 패키징(Docker) 및 운영 가이드
-- [ ] 포크 CI 정리 — 벤치마크·E2E 워크플로가 포크에서 일괄 실패 중
+- [ ] Electron 패키지·Electron E2E 제거 — 웹용 Playwright E2E가 갖춰지면 `packages/bruno-electron`, `tests/`, `playwright/`를 지운다 (지금은 레거시로 남기고 기본 실행에서만 제외)
 
 ---
 

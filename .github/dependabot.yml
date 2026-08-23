@@ -10,6 +10,11 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # bruno-electron은 레거시(웹 모드 제품에서 사용하지 않음) — 업그레이드 PR을 받지 않는다
+    ignore:
+      - dependency-name: "electron"
+      - dependency-name: "electron-*"
+      - dependency-name: "@electron/*"
     groups:
       bruno-dependencies:
         patterns:
@@ -20,9 +25,6 @@ updates:
       fortawesome-dependencies:
         patterns:
           - "*fortawesome*"
-      electron-dependencies:
-        patterns:
-          - "*electron*"
       rollup-dependencies:
         patterns:
           - "*rollup*"

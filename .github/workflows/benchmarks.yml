@@ -1,14 +1,7 @@
 name: Benchmarks
+# Electron 데스크톱 앱을 대상으로 한다 — 웹 모드 제품에선 레거시라 자동 실행하지 않고 수동(workflow_dispatch)으로만 남긴다.
 on:
   workflow_dispatch:
-    inputs:
-      update-baseline:
-        description: 'Update baseline with current results instead of comparing'
-        type: boolean
-        default: false
-  pull_request:
-    branches: [main, 'release/v*']
-
 jobs:
   benchmark:
     name: Performance Benchmarks (${{ matrix.os }})
