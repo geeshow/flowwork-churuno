@@ -10,7 +10,7 @@ import each from 'lodash/each';
 import { findCollectionByUid, flattenItems, isItemARequest, hasRequestChanges, findEnvironmentInCollection } from 'utils/collections';
 import { addTab, focusTab, reorderTabs } from 'providers/ReduxStore/slices/tabs';
 import { saveMultipleRequests, saveMultipleCollections, saveMultipleFolders, saveEnvironment, reopenClosedTab } from 'providers/ReduxStore/slices/collections/actions';
-import { toggleSidebarCollapse, savePreferences } from 'providers/ReduxStore/slices/app';
+import { toggleSidebarCollapse, savePreferences, showPreferencesPage } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_COLLAPSED_KEY } from 'utils/common/localStorage';
 import { isEnvironmentValidationError } from 'utils/environments';
 import toast from 'react-hot-toast';
@@ -314,23 +314,14 @@ export const HotkeysProvider = (props) => {
   // Open preferences
   useEffect(() => {
     bindAction('openPreferences', (e) => {
-      const activeTab = find(tabs, (t) => t.uid === activeTabUid);
-      const collectionUid = activeTab?.collectionUid || activeWorkspace?.scratchCollectionUid;
-
-      dispatch(
-        addTab({
-          type: 'preferences',
-          uid: collectionUid ? `${collectionUid}-preferences` : 'preferences',
-          collectionUid
-        })
-      );
+      dispatch(showPreferencesPage());
       return false;
     });
 
     return () => {
       unbindAction('openPreferences');
     };
-  }, [activeTabUid, tabs, activeWorkspace, dispatch, userKeyBindings, keybindingsEnabled]);
+  }, [dispatch, userKeyBindings, keybindingsEnabled]);
 
   // Change layout orientation
   useEffect(() => {

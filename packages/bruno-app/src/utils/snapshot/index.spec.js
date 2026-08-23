@@ -513,15 +513,14 @@ describe('deserializeTab', () => {
     expect(firstTab.uid).not.toBe(secondTab.uid);
   });
 
-  it('restores preferences uid scoped to collection uid', () => {
+  it('drops preferences tabs written by builds where preferences was a tab', () => {
     const snapshotTab = {
       type: 'preferences',
       accessor: 'type',
       permanent: true
     };
 
-    const tab = deserializeTab(snapshotTab, collection);
-    expect(tab.uid).toBe('collection-uid-preferences');
+    expect(deserializeTab(snapshotTab, collection)).toBeNull();
   });
 
   it('restores global environment settings uid scoped to collection uid', () => {
@@ -537,13 +536,13 @@ describe('deserializeTab', () => {
 
   it('falls back to type-based uid restore for collection-scoped singleton tabs missing pathname', () => {
     const snapshotTab = {
-      type: 'preferences',
+      type: 'environment-settings',
       accessor: 'pathname',
       permanent: true
     };
 
     const tab = deserializeTab(snapshotTab, collection);
-    expect(tab.uid).toBe('collection-uid-preferences');
+    expect(tab.uid).toBe('collection-uid-environment-settings');
   });
 
   it('defaults folder settings request pane tab to headers', () => {

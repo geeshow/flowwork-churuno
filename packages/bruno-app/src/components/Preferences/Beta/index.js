@@ -47,13 +47,6 @@ const BETA_FEATURES = [
     docsUrl: 'https://link.usebruno.com/docs/ai'
   },
   {
-    id: BETA_FEATURE_IDS.FILE_CACHE,
-    label: 'File cache',
-    description:
-      'Speeds up how quickly your collections open by keeping a local cache on disk. Turn it on or clear it anytime from the Cache settings.',
-    action: { label: 'Go to Cache settings', tab: 'cache' }
-  },
-  {
     id: BETA_FEATURE_IDS.AKAMAI_EDGEGRID,
     label: 'Akamai EdgeGrid',
     description:

@@ -229,7 +229,6 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
     'collection-runner',
     'environment-settings',
     'global-environment-settings',
-    'preferences',
     'workspaceOverview',
     'workspaceEnvironments',
     'openapi-sync',

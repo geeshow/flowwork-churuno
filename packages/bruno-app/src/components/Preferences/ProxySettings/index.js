@@ -3,11 +3,11 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import debounce from 'lodash/debounce';
 import toast from 'react-hot-toast';
-import { savePreferences, refreshPacCache } from 'providers/ReduxStore/slices/app';
+import { savePreferences } from 'providers/ReduxStore/slices/app';
 
 import StyledWrapper from './StyledWrapper';
 import { useDispatch, useSelector } from 'react-redux';
-import { IconEye, IconEyeOff, IconRefresh } from '@tabler/icons';
+import { IconEye, IconEyeOff } from '@tabler/icons';
 import { useState } from 'react';
 
 const ProxySettings = ({ close }) => {
@@ -16,22 +16,7 @@ const ProxySettings = ({ close }) => {
 
   const proxySchema = Yup.object({
     disabled: Yup.boolean().optional(),
-    source: Yup.string().oneOf(['manual', 'pac']).required(),
-    pac: Yup.object({
-      source: Yup.string()
-        .optional()
-        .test('pac-url', 'Specify a valid PAC URL', (value) => {
-          if (!value) return true;
-          try {
-            const u = new URL(value);
-            return u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'file:';
-          } catch {
-            return false;
-          }
-        })
-        .max(2048)
-        .nullable()
-    }).optional(),
+    source: Yup.string().oneOf(['manual']).required(),
     config: Yup.object({
       protocol: Yup.string().required().oneOf(['http', 'https', 'socks4', 'socks5']),
       hostname: Yup.string().max(1024),
@@ -53,10 +38,7 @@ const ProxySettings = ({ close }) => {
   const formik = useFormik({
     initialValues: {
       disabled: preferences.proxy.disabled || false,
-      source: preferences.proxy.source || 'manual',
-      pac: {
-        source: preferences.proxy.pac?.source || ''
-      },
+      source: 'manual',
       config: {
         protocol: preferences.proxy.config?.protocol || 'http',
         hostname: preferences.proxy.config?.hostname || '',
@@ -102,29 +84,21 @@ const ProxySettings = ({ close }) => {
     []
   );
 
-  const handleRefreshPac = () => {
-    dispatch(refreshPacCache())
-      .then(() => toast.success('PAC cache refreshed'))
-      .catch(() => toast.error('Failed to refresh PAC cache'));
-  };
-
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [proxyMode, setProxyMode] = useState(() => {
-    if (preferences.proxy.disabled) return 'off';
-    if (preferences.proxy.source === 'pac') return 'pac';
+    // Configs saved by builds that still had PAC land here as source 'pac' — treat them as off.
+    if (preferences.proxy.disabled || preferences.proxy.source === 'pac') return 'off';
     return 'manual';
   });
 
   useEffect(() => {
     if (formik.dirty && formik.isValid) {
-      // Don't auto-save PAC mode until a URL or file is actually selected.
-      if (proxyMode === 'pac' && !formik.values.pac.source) return;
       debouncedSave(formik.values);
     }
     return () => {
       debouncedSave.flush();
     };
-  }, [formik.values, formik.dirty, formik.isValid, debouncedSave, proxyMode]);
+  }, [formik.values, formik.dirty, formik.isValid, debouncedSave]);
 
   return (
     <StyledWrapper>
@@ -163,21 +137,6 @@ const ProxySettings = ({ close }) => {
                 className="mr-1 cursor-pointer"
               />
               On
-            </label>
-            <label className="flex items-center ml-4 cursor-pointer" data-testid="pac-proxy-mode">
-              <input
-                type="radio"
-                name="mode"
-                value="pac"
-                checked={proxyMode === 'pac'}
-                onChange={(e) => {
-                  setProxyMode('pac');
-                  formik.setFieldValue('disabled', false);
-                  formik.setFieldValue('source', 'pac');
-                }}
-                className="mr-1 cursor-pointer"
-              />
-              PAC
             </label>
           </div>
         </div>
@@ -358,43 +317,6 @@ const ProxySettings = ({ close }) => {
               />
               {formik.touched.config?.bypassProxy && formik.errors.config?.bypassProxy ? (
                 <div className="ml-3 text-red-500">{formik.errors.config.bypassProxy}</div>
-              ) : null}
-            </div>
-          </>
-        ) : null}
-        {proxyMode === 'pac' ? (
-          <>
-            <div className="mb-3">
-              <div className="flex items-center">
-                <label className="settings-label">PAC</label>
-                <input
-                  id="pac.source"
-                  type="text"
-                  name="pac.source"
-                  className="block textbox pac-source-input"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  onChange={formik.handleChange}
-                  value={formik.values.pac.source || ''}
-                  placeholder="https://example.com/proxy.pac"
-                />
-                {formik.touched.pac?.source && formik.errors.pac?.source ? (
-                  <div className="ml-3 text-red-500">{formik.errors.pac.source}</div>
-                ) : null}
-              </div>
-              <p className="pac-hint">
-                Enter the URL to your PAC file
-              </p>
-              {formik.values.pac.source ? (
-                <span
-                  className="text-link cursor-pointer hover:underline flex flex-row items-center w-fit mt-2"
-                  onClick={handleRefreshPac}
-                >
-                  <IconRefresh size={14} strokeWidth={1.5} className="mr-1" />
-                  Refetch
-                </span>
               ) : null}
             </div>
           </>

@@ -1,34 +1,20 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import find from 'lodash/find';
-import { IconSettings, IconCookie, IconTool, IconSearch, IconPalette, IconBrandGithub } from '@tabler/icons';
+import { IconSettings, IconTool, IconSearch, IconPalette, IconBrandGithub } from '@tabler/icons';
 import Mousetrap from 'mousetrap';
 import { getKeyBindingsForActionAllOS } from 'providers/Hotkeys/keyMappings';
 import ToolHint from 'components/ToolHint';
-import Cookies from 'components/Cookies';
 import Notifications from 'components/Notifications';
-import Portal from 'components/Portal';
 import ThemeDropdown from './ThemeDropdown';
 import { openConsole } from 'providers/ReduxStore/slices/logs';
-import { addTab } from 'providers/ReduxStore/slices/tabs';
+import { showPreferencesPage } from 'providers/ReduxStore/slices/app';
 import { useApp } from 'providers/App';
 import StyledWrapper from './StyledWrapper';
 
 const StatusBar = () => {
   const dispatch = useDispatch();
-  const activeWorkspaceUid = useSelector((state) => state.workspaces.activeWorkspaceUid);
-  const workspaces = useSelector((state) => state.workspaces.workspaces);
-  const showHomePage = useSelector((state) => state.app.showHomePage);
-  const showManageWorkspacePage = useSelector((state) => state.app.showManageWorkspacePage);
-  const showApiSpecPage = useSelector((state) => state.app.showApiSpecPage);
-  const tabs = useSelector((state) => state.tabs.tabs);
-  const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
-  const activeTab = find(tabs, (t) => t.uid === activeTabUid);
   const logs = useSelector((state) => state.logs.logs);
-  const [cookiesOpen, setCookiesOpen] = useState(false);
   const { version } = useApp();
-
-  const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
 
   const errorCount = logs.filter((log) => log.type === 'error').length;
 
@@ -37,15 +23,7 @@ const StatusBar = () => {
   };
 
   const handlePreferencesClick = () => {
-    const collectionUid = activeTab?.collectionUid || activeWorkspace?.scratchCollectionUid;
-
-    dispatch(
-      addTab({
-        type: 'preferences',
-        uid: collectionUid ? `${collectionUid}-preferences` : 'preferences',
-        collectionUid: collectionUid
-      })
-    );
+    dispatch(showPreferencesPage());
   };
 
   const openGlobalSearch = () => {
@@ -57,21 +35,6 @@ const StatusBar = () => {
 
   return (
     <StyledWrapper>
-      {cookiesOpen && (
-        <Portal>
-          <Cookies
-            onClose={() => {
-              setCookiesOpen(false);
-              document.querySelector('[data-trigger="cookies"]').focus();
-            }}
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="cookies-title"
-            aria-describedby="cookies-description"
-          />
-        </Portal>
-      )}
-
       <div className="status-bar">
         <div className="status-bar-section">
           <div className="status-bar-group">
@@ -131,19 +94,6 @@ const StatusBar = () => {
               <div className="console-button-content">
                 <IconSearch size={16} strokeWidth={1.5} aria-hidden="true" />
                 <span className="console-label">Search</span>
-              </div>
-            </button>
-
-            <button
-              className="status-bar-button"
-              data-trigger="cookies"
-              onClick={() => setCookiesOpen(true)}
-              tabIndex={0}
-              aria-label="Open Cookies"
-            >
-              <div className="console-button-content">
-                <IconCookie size={16} strokeWidth={1.5} aria-hidden="true" />
-                <span className="console-label">Cookies</span>
               </div>
             </button>
 

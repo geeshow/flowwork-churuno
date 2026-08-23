@@ -1,12 +1,9 @@
 import { useEffect } from 'react';
 import {
-  updateCookies,
+  showPreferencesPage,
   updatePreferences,
   setGitVersion
 } from 'providers/ReduxStore/slices/app';
-import {
-  addTab
-} from 'providers/ReduxStore/slices/tabs';
 import {
   brunoConfigUpdateEvent,
   collectionAddDirectoryEvent,
@@ -300,31 +297,11 @@ const useIpcEvents = () => {
     );
 
     const removeShowPreferencesListener = ipcRenderer.on('main:open-preferences', () => {
-      const state = store.getState();
-      const activeWorkspaceUid = state.workspaces?.activeWorkspaceUid;
-      const workspaces = state.workspaces?.workspaces;
-      const tabs = state.tabs?.tabs;
-      const activeTabUid = state.tabs?.activeTabUid;
-      const activeTab = tabs?.find((t) => t.uid === activeTabUid);
-
-      const activeWorkspace = workspaces?.find((w) => w.uid === activeWorkspaceUid);
-      const collectionUid = activeTab?.collectionUid || activeWorkspace?.scratchCollectionUid;
-
-      dispatch(
-        addTab({
-          type: 'preferences',
-          uid: collectionUid ? `${collectionUid}-preferences` : 'preferences',
-          collectionUid
-        })
-      );
+      dispatch(showPreferencesPage());
     });
 
     const removePreferencesUpdatesListener = ipcRenderer.on('main:load-preferences', (val) => {
       dispatch(updatePreferences(val));
-    });
-
-    const removeCookieUpdateListener = ipcRenderer.on('main:cookies-update', (val) => {
-      dispatch(updateCookies(val));
     });
 
     const removeGlobalEnvironmentsUpdatesListener = ipcRenderer.on('main:load-global-environments', (val) => {
@@ -408,7 +385,6 @@ const useIpcEvents = () => {
       removeConfigUpdatesListener();
       removeShowPreferencesListener();
       removePreferencesUpdatesListener();
-      removeCookieUpdateListener();
       removeGlobalEnvironmentsUpdatesListener();
       removeSnapshotHydrationListener();
       removeCollectionOauth2CredentialsUpdatesListener();

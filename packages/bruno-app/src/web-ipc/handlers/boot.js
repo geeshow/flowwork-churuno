@@ -359,7 +359,6 @@ const registerBootHandlers = () => {
   handle('usebruno:sqlite', () => undefined);
   handle('renderer:theme-change', () => undefined);
   handle('renderer:notifications-opened', () => undefined);
-  handle('renderer:get-file-cache-size', () => 0);
   handle('renderer:clear-oauth2-cache', () => undefined);
 
   handle('renderer:window-is-fullscreen', () => false);

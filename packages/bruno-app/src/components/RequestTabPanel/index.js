@@ -38,7 +38,6 @@ import useKeybinding from 'hooks/useKeybinding';
 import { ScopedPersistenceProvider } from 'hooks/usePersistedState/PersistedScopeProvider';
 import ResponseExample from 'components/ResponseExample';
 import WorkspaceOverview from 'components/WorkspaceHome/WorkspaceOverview';
-import Preferences from 'components/Preferences';
 import EnvironmentSettings from 'components/Environments/EnvironmentSettings';
 import GlobalEnvironmentSettings from 'components/Environments/GlobalEnvironmentSettings';
 import OpenAPISyncTab from 'components/OpenAPISyncTab';
@@ -414,10 +413,6 @@ const RequestTabPanel = () => {
 
   if (focusedTab.type === 'global-environment-settings') {
     return <GlobalEnvironmentSettings />;
-  }
-
-  if (focusedTab.type === 'preferences') {
-    return <Preferences />;
   }
 
   if (focusedTab.type === 'changelog') {

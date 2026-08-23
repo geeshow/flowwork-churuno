@@ -34,6 +34,8 @@ const initialState = {
   showHomePage: false,
   showApiSpecPage: false,
   showManageWorkspacePage: false,
+  // Preferences renders as a page overlay shared by both apps (bruno and flowwork), not as a tab
+  showPreferencesPage: false,
   isEnvironmentSettingsModalOpen: false,
   isGlobalEnvironmentSettingsModalOpen: false,
   activePreferencesTab: 'general',
@@ -103,7 +105,6 @@ const initialState = {
     library: 'curl',
     shouldInterpolate: true
   },
-  cookies: [],
   taskQueue: [],
   gitOperationProgress: {},
   gitVersion: null,
@@ -208,6 +209,12 @@ export const appSlice = createSlice({
     hideManageWorkspacePage: (state) => {
       state.showManageWorkspacePage = false;
     },
+    showPreferencesPage: (state) => {
+      state.showPreferencesPage = true;
+    },
+    hidePreferencesPage: (state) => {
+      state.showPreferencesPage = false;
+    },
     showApiSpecPage: (state) => {
       state.showHomePage = false;
       state.showApiSpecPage = true;
@@ -220,9 +227,6 @@ export const appSlice = createSlice({
     },
     updateActivePreferencesTab: (state, action) => {
       state.activePreferencesTab = action.payload.tab;
-    },
-    updateCookies: (state, action) => {
-      state.cookies = action.payload;
     },
     insertTaskIntoQueue: (state, action) => {
       state.taskQueue.push(action.payload);
@@ -308,11 +312,12 @@ export const {
   hideHomePage,
   showManageWorkspacePage,
   hideManageWorkspacePage,
+  showPreferencesPage,
+  hidePreferencesPage,
   showApiSpecPage,
   hideApiSpecPage,
   updatePreferences,
   updateActivePreferencesTab,
-  updateCookies,
   insertTaskIntoQueue,
   removeTaskFromQueue,
   removeAllTasksFromQueue,
@@ -392,52 +397,6 @@ export const savePreferences = (preferences) => (dispatch, getState) => {
     });
 };
 
-export const deleteCookiesForDomain = (domain) => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:delete-cookies-for-domain', domain).then(resolve).catch(reject);
-  });
-};
-
-export const deleteCookie = (domain, path, cookieKey) => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:delete-cookie', domain, path, cookieKey).then(resolve).catch(reject);
-  });
-};
-
-export const addCookie = (domain, cookie) => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:add-cookie', domain, cookie).then(resolve).catch(reject);
-  });
-};
-
-export const modifyCookie = (domain, oldCookie, cookie) => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:modify-cookie', domain, oldCookie, cookie).then(resolve).catch(reject);
-  });
-};
-
-export const getParsedCookie = (cookieStr) => () => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:get-parsed-cookie', cookieStr).then(resolve).catch(reject);
-  });
-};
-
-export const createCookieString = (cookieObj) => () => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:create-cookie-string', cookieObj).then(resolve).catch(reject);
-  });
-};
-
 export const completeQuitFlow = () => (dispatch, getState) => {
   const { ipcRenderer } = window;
   // Wipe all `persisted::*` keys from localStorage before quitting
@@ -455,13 +414,6 @@ export const clearHttpHttpsAgentCache = () => () => {
   return new Promise((resolve, reject) => {
     const { ipcRenderer } = window;
     ipcRenderer.invoke('renderer:clear-http-https-agent-cache').then(resolve).catch(reject);
-  });
-};
-
-export const refreshPacCache = () => () => {
-  return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:refresh-pac-cache').then(resolve).catch(reject);
   });
 };
 

@@ -80,7 +80,6 @@ export const tabsSlice = createSlice({
         'collection-runner',
         'environment-settings',
         'global-environment-settings',
-        'preferences',
         'workspaceOverview',
         'workspaceEnvironments',
         'openapi-sync',
@@ -546,6 +545,7 @@ export const tabsSlice = createSlice({
         }
 
         const tab = deserializeTab(snapshotTab, collection);
+        if (!tab) return;
         ensureTabUid(tab);
 
         state.tabs.push(tab);

@@ -14,8 +14,6 @@ const General = () => {
 
   const preferencesSchema = Yup.object().shape({
     sslVerification: Yup.boolean(),
-    storeCookies: Yup.boolean(),
-    sendCookies: Yup.boolean(),
     timeout: Yup.mixed()
       .transform((value, originalValue) => {
         return originalValue === '' ? undefined : value;
@@ -45,21 +43,17 @@ const General = () => {
         return false;
       }
       return true;
-    }),
-    defaultLocation: Yup.string().max(1024)
+    })
   });
 
   const formik = useFormik({
     initialValues: {
       sslVerification: preferences.request.sslVerification,
       timeout: preferences.request.timeout,
-      storeCookies: get(preferences, 'request.storeCookies', true),
-      sendCookies: get(preferences, 'request.sendCookies', true),
       autoSave: {
         enabled: get(preferences, 'autoSave.enabled', false),
         interval: get(preferences, 'autoSave.interval', 1000)
-      },
-      defaultLocation: get(preferences, 'general.defaultLocation', '')
+      }
     },
     validationSchema: preferencesSchema,
     onSubmit: async (values) => {
@@ -79,16 +73,11 @@ const General = () => {
         request: {
           ...preferences.request,
           sslVerification: newPreferences.sslVerification,
-          timeout: newPreferences.timeout,
-          storeCookies: newPreferences.storeCookies,
-          sendCookies: newPreferences.sendCookies
+          timeout: newPreferences.timeout
         },
         autoSave: {
           enabled: newPreferences.autoSave.enabled,
           interval: newPreferences.autoSave.interval
-        },
-        general: {
-          defaultLocation: newPreferences.defaultLocation
         }
       }))
       .catch((err) => console.log(err) && toast.error('Failed to update preferences'));
@@ -133,32 +122,6 @@ const General = () => {
           />
           <label className="block ml-2 select-none" htmlFor="sslVerification">
             SSL/TLS Certificate Verification
-          </label>
-        </div>
-        <div className="flex items-center mt-2">
-          <input
-            id="storeCookies"
-            type="checkbox"
-            name="storeCookies"
-            checked={formik.values.storeCookies}
-            onChange={formik.handleChange}
-            className="mousetrap mr-0"
-          />
-          <label className="block ml-2 select-none" htmlFor="storeCookies">
-            Store Cookies automatically
-          </label>
-        </div>
-        <div className="flex items-center mt-2">
-          <input
-            id="sendCookies"
-            type="checkbox"
-            name="sendCookies"
-            checked={formik.values.sendCookies}
-            onChange={formik.handleChange}
-            className="mousetrap mr-0"
-          />
-          <label className="block ml-2 select-none" htmlFor="sendCookies">
-            Send Cookies automatically
           </label>
         </div>
         <div className="flex flex-col mt-6">
@@ -217,30 +180,6 @@ const General = () => {
         {formik.touched.autoSave?.interval && formik.errors.autoSave?.interval && (
           <div className="text-red-500">{formik.errors.autoSave.interval}</div>
         )}
-        <div className="flex flex-col mt-6">
-          <label className="block select-none default-location-label" htmlFor="defaultLocation">
-            Default Location
-          </label>
-          <p className="text-muted mt-1 text-xs">
-            Used as the default location for new workspaces and collections
-          </p>
-          <input
-            type="text"
-            name="defaultLocation"
-            id="defaultLocation"
-            className="block textbox mt-2 w-full default-location-input"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            onChange={formik.handleChange}
-            value={formik.values.defaultLocation || ''}
-            placeholder="Enter a default location"
-          />
-        </div>
-        {formik.touched.defaultLocation && formik.errors.defaultLocation ? (
-          <div className="text-red-500">{formik.errors.defaultLocation}</div>
-        ) : null}
       </form>
     </StyledWrapper>
   );

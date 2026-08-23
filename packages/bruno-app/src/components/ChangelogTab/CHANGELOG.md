@@ -135,7 +135,7 @@ Select Akamai EdgeGrid from the authentication type dropdown on a request, folde
 
 Bruno can now cache parsed collection data across sessions, significantly improving startup times for large collections and workspaces.
 
-[Enable File Cache](#preferences/cache)
+
 
 ### Better WebSocket Workflows
 

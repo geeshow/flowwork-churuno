@@ -12,7 +12,6 @@ const SINGLETON_TAB_TYPES = new Set([
   'collection-overview',
   'environment-settings',
   'global-environment-settings',
-  'preferences',
   'workspaceOverview',
   'workspaceEnvironments',
   'openapi-sync',
@@ -26,14 +25,16 @@ const NON_REPLACEABLE_SINGLETON_TAB_TYPES = new Set([
   'openapi-spec'
 ]);
 
-// mock-server tab types linger in snapshots written before the feature was removed
+// tab types written by older builds that no longer open as tabs — mock-server
+// (feature removed) and preferences (now a page overlay, not a tab)
 const IGNORED_TAB_TYPES = new Set([
   'v4-migration',
   'changelog',
   'mock-server',
   'mock-server-dashboard',
   'mocker',
-  'mock-response'
+  'mock-response',
+  'preferences'
 ]);
 
 export const WORKSPACE_TAB_UID_SUFFIX_BY_TYPE = {
@@ -609,6 +610,7 @@ const resolveResponseExampleTabState = ({ item, pathname, exampleName, exampleIn
 };
 
 export const deserializeTab = (snapshotTab, collection) => {
+  if (IGNORED_TAB_TYPES.has(snapshotTab?.type)) return null;
   const { accessor, pathname, exampleName, exampleIndex, exampleUid } = snapshotTab;
   const type = snapshotTab.type;
   const restoredRequestPaneTab = typeof snapshotTab.request?.tab === 'string' ? snapshotTab.request.tab : null;
@@ -629,8 +631,7 @@ export const deserializeTab = (snapshotTab, collection) => {
     scriptPaneTab: null
   };
 
-  const isCollectionScopedSingleton = type === 'preferences'
-    || type === 'environment-settings'
+  const isCollectionScopedSingleton = type === 'environment-settings'
     || type === 'global-environment-settings';
 
   const needsTypeBasedFallback = accessor === 'type' || (accessor === 'pathname' && !pathname && isCollectionScopedSingleton);
@@ -662,8 +663,6 @@ export const deserializeTab = (snapshotTab, collection) => {
 
     if (type === 'collection-settings') {
       tab.uid = collectionUidFromSnapshot || collection.uid;
-    } else if (type === 'preferences') {
-      tab.uid = `${collection.uid}-preferences`;
     } else if (type === 'environment-settings') {
       tab.uid = `${collection.uid}-environment-settings`;
     } else if (type === 'global-environment-settings') {

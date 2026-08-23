@@ -53,6 +53,11 @@ export default defineConfig({
   html: {
     title: 'Bruno'
   },
+  server: {
+    // 3000 is rsbuild's own default; reading PORT lets a harness that assigns a
+    // free port (preview tooling, CI) put the dev server where it expects it.
+    port: Number(process.env.PORT) || 3000
+  },
   tools: {
     rspack: {
       module: {

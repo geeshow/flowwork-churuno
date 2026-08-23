@@ -9,9 +9,7 @@ import {
   IconUserCircle,
   IconKeyboard,
   IconZoomQuestion,
-  IconSquareLetterB,
-  IconDatabase,
-  IconCertificate
+  IconSquareLetterB
 } from '@tabler/icons';
 
 import IconSparkles from 'components/Icons/IconSparkles';
@@ -24,14 +22,16 @@ import Keybindings from './Keybindings';
 import Beta from './Beta';
 import AI from './AI';
 
-import ClientCertSettings from './ClientCertSettings';
-
 import StyledWrapper from './StyledWrapper';
-import Cache from './Cache/index';
+
+// Tabs that existed in older builds; a stored selection may still point at one.
+const REMOVED_TABS = ['clientCert', 'cache'];
 
 const Preferences = () => {
   const dispatch = useDispatch();
-  const tab = useSelector((state) => state.app.activePreferencesTab);
+  const storedTab = useSelector((state) => state.app.activePreferencesTab);
+  // A previous session may have been on a removed tab — fall back instead of a blank panel.
+  const tab = REMOVED_TABS.includes(storedTab) ? 'general' : storedTab;
 
   const setTab = (tab) => {
     dispatch(updateActivePreferencesTab({ tab }));
@@ -76,14 +76,6 @@ const Preferences = () => {
       case 'support': {
         return <Support />;
       }
-
-      case 'cache': {
-        return <Cache />;
-      }
-
-      case 'clientCert': {
-        return <ClientCertSettings />;
-      }
     }
   };
 
@@ -107,10 +99,6 @@ const Preferences = () => {
             <IconUserCircle size={16} strokeWidth={1.5} />
             Proxy
           </div>
-          <div className={getTabClassname('clientCert')} role="tab" onClick={() => setTab('clientCert')}>
-            <IconCertificate size={16} strokeWidth={1.5} />
-            Client Certificates
-          </div>
           <div className={getTabClassname('keybindings')} role="tab" onClick={() => setTab('keybindings')}>
             <IconKeyboard size={16} strokeWidth={1.5} />
             Keybindings
@@ -118,10 +106,6 @@ const Preferences = () => {
           <div className={getTabClassname('ai')} role="tab" onClick={() => setTab('ai')}>
             <IconSparkles size={16} strokeWidth={1.5} />
             AI
-          </div>
-          <div className={getTabClassname('cache')} role="tab" onClick={() => setTab('cache')}>
-            <IconDatabase size={16} strokeWidth={1.5} />
-            Cache
           </div>
           <div className={getTabClassname('support')} role="tab" onClick={() => setTab('support')}>
             <IconZoomQuestion size={16} strokeWidth={1.5} />

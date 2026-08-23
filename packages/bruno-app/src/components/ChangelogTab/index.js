@@ -1,14 +1,12 @@
 import React from 'react';
 import { useDispatch } from 'react-redux';
 import Markdown from 'components/MarkDown';
-import { addTab } from 'providers/ReduxStore/slices/tabs';
-import { updateActivePreferencesTab } from 'providers/ReduxStore/slices/app';
+import { showPreferencesPage, updateActivePreferencesTab } from 'providers/ReduxStore/slices/app';
 import changelogContent from './CHANGELOG.md';
 import StyledWrapper from './StyledWrapper';
 
 const PREFERENCE_LINKS = {
-  '#preferences/ai': 'ai',
-  '#preferences/cache': 'cache'
+  '#preferences/ai': 'ai'
 };
 
 const content = changelogContent;
@@ -25,13 +23,7 @@ const ChangelogTab = ({ collectionUid }) => {
 
     event.preventDefault();
     dispatch(updateActivePreferencesTab({ tab: preferencesTab }));
-    dispatch(
-      addTab({
-        type: 'preferences',
-        uid: collectionUid ? `${collectionUid}-preferences` : 'preferences',
-        collectionUid
-      })
-    );
+    dispatch(showPreferencesPage());
   };
 
   return (

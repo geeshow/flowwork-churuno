@@ -62,14 +62,6 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
           </>
         );
       }
-      case 'preferences': {
-        return (
-          <>
-            <IconSettings size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Preferences</span>
-          </>
-        );
-      }
       case 'workspaceOverview': {
         return (
           <>

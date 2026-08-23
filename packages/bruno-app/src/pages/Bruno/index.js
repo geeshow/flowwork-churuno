@@ -8,6 +8,7 @@ import AiChatPopout from 'components/AiChatSidebar/Popout';
 import Sidebar from 'components/Sidebar';
 import Flowwork from 'components/Flowwork';
 import StatusBar from 'components/StatusBar';
+import PreferencesPageOverlay from 'components/Preferences/PageOverlay';
 import AppTitleBar from 'components/AppTitleBar';
 import ApiSpecPanel from 'components/ApiSpecPanel';
 import TabPanelErrorBoundary from 'components/RequestTabPanel/TabPanelErrorBoundary';
@@ -49,6 +50,7 @@ export default function Main() {
   const activeApp = useSelector((state) => state.app.activeApp);
   const showApiSpecPage = useSelector((state) => state.app.showApiSpecPage);
   const showManageWorkspacePage = useSelector((state) => state.app.showManageWorkspacePage);
+  const showPreferencesPage = useSelector((state) => state.app.showPreferencesPage);
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
   const saveTransientRequestModals = useSelector((state) => state.collections.saveTransientRequestModals);
 
@@ -153,6 +155,7 @@ export default function Main() {
 
       <Devtools mainSectionRef={mainSectionRef} />
       <StatusBar />
+      {showPreferencesPage ? <PreferencesPageOverlay /> : null}
       <TransientRequestModalsRenderer modals={saveTransientRequestModals} />
     </div>
     // </ErrorCapture>
