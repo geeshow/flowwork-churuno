@@ -18,14 +18,14 @@ jest.mock('utils/common/platform', () => ({
 global.requestAnimationFrame = jest.fn((cb) => cb());
 
 // Mock window.ipcRenderer
-global.window = {
-  ...global.window,
+// jsdom's window can't be replaced (jest 30 makes it non-writable) — add the mocks onto it
+Object.assign(global.window, {
   ipcRenderer: {
     openExternal: jest.fn()
   },
   addEventListener: jest.fn(),
   removeEventListener: jest.fn()
-};
+});
 
 describe('setupLinkAware', () => {
   let mockEditor;
@@ -95,18 +95,18 @@ describe('setupLinkAware', () => {
 
     LinkifyIt.mockImplementation(() => mockLinkify);
 
-    // Mock window and ipcRenderer
-    global.window = {
+    // Mock window listeners and ipcRenderer
+    Object.assign(global.window, {
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),
       ipcRenderer: {
         openExternal: jest.fn()
       }
-    };
+    });
   });
 
   afterEach(() => {
-    delete global.window;
+    delete global.window.ipcRenderer;
     delete global.requestAnimationFrame;
     global.setTimeout = originalTimeout;
     mockSetTimeout.mockRestore();
