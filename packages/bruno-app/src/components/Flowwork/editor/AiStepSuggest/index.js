@@ -2,49 +2,9 @@ import React from 'react';
 import IconSparkles from 'components/Icons/IconSparkles';
 
 import { stepsFromPlan, suggestSteps } from '../../ai';
+import AiPlanRows from '../AiPlanRows';
 import AiProgress from '../AiProgress';
 import useAiSuggestion from '../useAiSuggestion';
-
-const KIND_LABEL = {
-  API: 'API 호출',
-  WORKFLOW: '업무 연결',
-  DELAY: '지연',
-  REPEAT: '반복',
-  BRANCH: '분기'
-};
-
-const detailOf = (node) => {
-  switch (node.kind) {
-    case 'API':
-      return node.entry ? `${node.entry.department} > ${node.entry.itemPath.join(' > ')}` : '';
-    case 'WORKFLOW':
-      return node.linkedId;
-    case 'DELAY':
-      return `${Number(node.seconds) || 1}초`;
-    case 'REPEAT':
-      return node.repeat?.kind === 'COUNT' ? `${node.repeat.count}회` : '목록마다';
-    case 'BRANCH':
-      return `${node.condition?.operator ?? 'EQ'} ${node.condition?.compareValue ?? ''}`.trim();
-    default:
-      return '';
-  }
-};
-
-// 반복·분기 안에 든 스텝은 편집기와 같은 들여쓰기로 보여 준다
-function PlanRows({ plan, depth = 0 }) {
-  return plan.map((node) => (
-    <React.Fragment key={node.ref}>
-      <li style={{ marginLeft: depth * 16 }}>
-        <span className="ai-tag">{KIND_LABEL[node.kind]}</span>
-        <b>{node.name}</b>
-        {detailOf(node) ? <span className="muted hint"> {detailOf(node)}</span> : null}
-        {node.missing ? <span className="ai-tag warn">카탈로그에 없음 — 직접 고르세요</span> : null}
-        {node.why ? <div className="muted hint">{node.why}</div> : null}
-      </li>
-      <PlanRows plan={node.children} depth={depth + 1} />
-    </React.Fragment>
-  ));
-}
 
 /** 받아 온 과정 — 제안이 있을 때만 그려지므로 여기서는 값이 있다고 보고 읽는다. */
 function PlanCard({ suggestion, envKeys, onApply, onClose }) {
@@ -59,7 +19,7 @@ function PlanCard({ suggestion, envKeys, onApply, onClose }) {
         <p className="muted">제안할 스텝을 찾지 못했습니다. 이름·설명을 조금 더 적고 다시 시도해 보세요.</p>
       ) : (
         <ul className="ai-suggest-list">
-          <PlanRows plan={suggestion.plan} />
+          <AiPlanRows plan={suggestion.plan} />
         </ul>
       )}
       {suggestion.reason ? <p className="muted hint">{suggestion.reason}</p> : null}
@@ -99,7 +59,7 @@ export function AiStepSuggest({ workflow, entries, workflows, envKeys, getWorkfl
         <span className="muted hint">이어 갈 스텝 과정을 제안합니다</span>
       </div>
 
-      <AiProgress lines={progress} loading={loading} />
+      <AiProgress steps={progress} loading={loading} />
 
       {error ? <div className="error-banner">{error}</div> : null}
 

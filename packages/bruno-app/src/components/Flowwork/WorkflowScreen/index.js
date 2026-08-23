@@ -61,7 +61,6 @@ export function WorkflowScreen({
   onEdit,
   onDelete,
   onOpenExecution,
-  onOpenWorkflow,
   onSaved
 }) {
   const [wf, setWf] = useState(null);
@@ -141,7 +140,7 @@ export function WorkflowScreen({
             {tab === 'history' ? (
               <HistoryTab workflow={wf} refreshKey={refreshKey} />
             ) : tab === 'flowmap' ? (
-              <Flowmap workflow={wf} workflows={workflows} onOpenWorkflow={onOpenWorkflow} />
+              <Flowmap workflow={wf} workflows={workflows} />
             ) : tab === 'env' ? (
               <EnvTab workflow={wf} />
             ) : tab === 'docs' ? (

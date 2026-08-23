@@ -924,10 +924,28 @@ const StyledWrapper = styled.div`
     overflow: hidden;
 
     &.source,
-    &.result {
+    &.result,
+    &.envbar {
       border-style: dashed;
       background: transparent;
       box-shadow: none;
+    }
+    /* 맨 위 띠 — 이름과 변수 목록을 한 줄에 나란히 둔다 */
+    &.envbar {
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+
+      .flowmap-node-sub {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+    /* 입력값을 채워 주는 조회도 결국 API 호출이라 스텝과 같은 모양으로 세운다.
+       실행 순서에 끼지는 않으므로 칩만 순서 스텝의 '비동기'와 색을 갈라 놓는다. */
+    &.lookup .flowmap-chip {
+      border-color: ${(props) => props.theme.border.border2};
+      color: ${(props) => props.theme.colors.text.muted};
     }
     .step-type-badge {
       align-self: flex-start;
@@ -1958,6 +1976,170 @@ const StyledWrapper = styled.div`
     align-items: center;
     gap: 8px;
     margin-top: 12px;
+  }
+
+  /* AI 마법사 — 검색어 → 대상 고르기 → 목적 → 초안 */
+  .ai-wizard {
+    h4 {
+      margin: 14px 0 6px;
+      font-size: ${(props) => props.theme.font.size.sm};
+    }
+  }
+  /* 어디까지 왔는지 — 화살표로 이어진 공정처럼. 지나온 자리는 눌러서 돌아간다. */
+  .ai-wizard-stages {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+    font-size: ${(props) => props.theme.font.size.sm};
+
+    li {
+      display: flex;
+      align-items: center;
+    }
+    /* 단계 사이를 잇는 화살표 — 첫 칸 앞에는 붙이지 않는다 */
+    li + li::before {
+      content: '›';
+      margin: 0 2px;
+      color: ${(props) => props.theme.colors.text.muted};
+    }
+    button {
+      padding: 3px 12px;
+      border: 1px solid ${(props) => props.theme.border.border1};
+      border-radius: 14px;
+      color: ${(props) => props.theme.colors.text.muted};
+      background: ${(props) => props.theme.background.surface0};
+    }
+    button:not(:disabled):hover {
+      color: ${(props) => props.theme.text};
+      border-color: ${(props) => props.theme.textLink};
+    }
+    li.done button {
+      color: ${(props) => props.theme.text};
+    }
+    li.active button {
+      color: ${(props) => props.theme.text};
+      border-color: ${(props) => props.theme.textLink};
+      background: transparent;
+      font-weight: 600;
+      cursor: default;
+      opacity: 1;
+    }
+  }
+  .pick-keywords {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .pick-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    cursor: pointer;
+
+    input {
+      margin: 0;
+    }
+    /* 이미 고른 줄 — 빼기 단추가 체크 상자 자리에 들어앉는다 */
+    &.picked {
+      cursor: default;
+
+      .icon-btn {
+        align-self: center;
+        width: 16px;
+        height: 16px;
+        line-height: 1;
+      }
+      .pick-title {
+        color: ${(props) => props.theme.textLink};
+      }
+    }
+  }
+  .pick-title {
+    font-weight: 500;
+  }
+  .pick-search {
+    width: 100%;
+  }
+  .pick-choices {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .purpose-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 0;
+    cursor: pointer;
+  }
+  .ai-wizard-questions {
+    margin-top: 10px;
+
+    .field {
+      margin-bottom: 10px;
+    }
+  }
+  /* 초안 확인 — 흐름도가 좁은 판에 갇히지 않게 가로로 흐르게 둔다 */
+  .ai-wizard-draft {
+    margin-top: 10px;
+  }
+  .draft-flowmap {
+    margin-top: 10px;
+    overflow-x: auto;
+  }
+  /* 무엇을 고쳐 달라고 했는지 — 분석과 그 판에 함께 남긴다 */
+  .draft-asked {
+    margin: 0 0 8px;
+    font-size: ${(props) => props.theme.font.size.sm};
+  }
+  .draft-revise {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed ${(props) => props.theme.border.border1};
+  }
+  /* 보내기 단추는 글상자 안 오른쪽 아래에 — 여러 줄로 늘어나도 자리가 흔들리지 않는다 */
+  .draft-ask {
+    position: relative;
+    margin: 4px 0 8px;
+
+    textarea {
+      width: 100%;
+      padding-right: 40px;
+      resize: vertical;
+      font-family: inherit;
+    }
+  }
+  .draft-send {
+    position: absolute;
+    right: 8px;
+    bottom: 10px;
+    display: flex;
+    padding: 3px;
+    border-radius: ${(props) => props.theme.border.radius.base};
+    color: ${(props) => props.theme.colors.text.muted};
+
+    &:not(:disabled):hover {
+      color: ${(props) => props.theme.textLink};
+    }
+    &:disabled {
+      opacity: 0.4;
+    }
+  }
+  /* 진행 자취 — 걸음마다 무엇을 봤는지 한 덩이로 */
+  .ai-progress > li {
+    padding: 4px 0;
+
+    ul {
+      margin: 2px 0 0;
+      padding-left: 14px;
+    }
   }
 
   .add-step-choices {

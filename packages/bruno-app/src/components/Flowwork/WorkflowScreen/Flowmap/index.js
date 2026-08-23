@@ -6,6 +6,7 @@ import { conditionSource } from '../../engine/branch';
 import { buildStepTree, isBlockStep } from '../../engine/runWorkflow';
 import { refKey } from '../../engine/catalogLookup';
 import { conditionKey, conditionLabel, leafOf, repeatLabel, stepBadgeClass, stepTypeMeta } from '../../StepCard';
+import { workflowPopupUrl } from '../../shareUrl';
 import useOpenBrunoRequest from '../../useOpenBrunoRequest';
 
 const NODE_W = 190;
@@ -20,7 +21,14 @@ const PAD = 40;
 // 줄바꿈 화살표가 노드 밖으로 나가 꺾이는 거리
 const WRAP_TURN = 14;
 const SOURCE_GAP = 28;
-const LABEL_MAX = 22;
+// 환경변수는 어느 스텝이든 쓰는 값이라 선으로 이으면 그림을 세로로 가로지른다 —
+// 좁은 화면에서는 왼쪽 끝을 타고 내리는 정체 모를 점선이 된다. 그래서 맨 위에 폭
+// 전체로 깔아 두기만 하고, 쓰는 스텝 바로 위에 짧은 화살표만 꽂는다.
+const ENV_H = 42;
+const ENV_GAP = 22;
+const ENV_STUB = 16;
+const ENV_LABEL_H = 18;
+const LABEL_MAX = 30;
 // 스텝을 감싸는 테두리(반복·분기) — 노드 둘레 여백, 이름표 높이, 겹칠 때의 간격
 const FRAME_PAD = 10;
 const FRAME_TOP = 26;
@@ -51,6 +59,7 @@ function buildFrames(steps, byId, label) {
 
   // 1) 반복·분기 블록 — 안에 든 스텝들을 통째로 감싼다 (겹치면 바깥 블록이 한 겹 위)
   const blocks = steps.filter(isBlockStep);
+  const depths = new Map(steps.map((step) => [step.id, depthOf(steps, step)]));
   for (const block of blocks) {
     const members = descendantsOf(steps, block.id).filter((id) => byId.has(id));
     if (members.length === 0) continue;
@@ -63,14 +72,17 @@ function buildFrames(steps, byId, label) {
       const rowBoxes = boxes.filter((n) => n.row === row);
       const first = rowBoxes.reduce((min, n) => (n.x < min.x ? n : min), rowBoxes[0]);
       const last = rowBoxes.reduce((max, n) => (n.x > max.x ? n : max), rowBoxes[0]);
+      // 겹은 스텝 쪽에서 센다 — 스텝을 감싼 겹 가운데 이 블록 안쪽에 몇 겹이 더 있는지.
+      // 블록의 깊이를 그대로 쓰면 안쪽 블록이 바깥 블록보다 크게 그려진다.
+      const level = Math.max(...rowBoxes.map((n) => depths.get(n.id))) - 1 - depths.get(block.id);
       frames.push({
         key: `${block.kind}-${block.id}-${row}`,
         groupKey: `${block.kind}-${block.id}`,
         kind: block.kind === 'REPEAT' ? 'repeat' : 'branch',
         label: row === rows[0] ? blockLabel : `이어짐 — ${blockLabel}`,
-        level: depthOf(steps, block),
+        level,
         members: rowBoxes.map((n) => n.id),
-        ...frameRect(first, last, depthOf(steps, block))
+        ...frameRect(first, last, level)
       });
     }
   }
@@ -182,6 +194,11 @@ const DIP_STEP = 20;
 const FALLBACK_COLUMNS = 4;
 
 const shorten = (text) => (text.length > LABEL_MAX ? `${text.slice(0, LABEL_MAX - 1)}…` : text);
+
+// SVG는 글자 폭을 미리 재 주지 않는다. 그림 크기를 정할 때 이름표가 잘리지 않을 만큼은
+// 잡아야 하므로, 한글은 글자마다 거의 정사각이고 로마자는 그 절반쯤이라고 어림잡는다.
+const textWidth = (text, size) =>
+  [...text].reduce((sum, char) => sum + (char.charCodeAt(0) > 0x2e80 ? size : size * 0.55), 0);
 
 // 선 끝의 화살표 — 종류마다 색·모양이 달라 마커도 따로 쓴다 (마커는 선 색을 물려받지 않는다)
 const ARROW_MARKER = { seq: 'flowmap-arrow-seq', async: 'flowmap-arrow-async' };
@@ -342,8 +359,11 @@ function resultOf(steps, name) {
  * 스텝은 실행 순서대로 가로로 놓고(가는 화살표), 화면 폭을 넘기면 글줄처럼 다음 줄로
  * 넘긴다. 값이 오가는 관계는 아래로 흐르는 곡선으로 잇는다 — 순서선과 데이터선이
  * 같은 자리에서 겹치지 않게 하기 위해서다.
+ *
+ * 그림 안의 링크는 모두 새 창으로 연다. 이 화면을 갈아 치우면 짜던 것(아직 저장하지
+ * 않은 초안, 적어 둔 입력값)이 사라지기 때문이다.
  */
-export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
+export function Flowmap({ workflow, workflows }) {
   const steps = useMemo(() => [...workflow.steps].sort((a, b) => a.order - b.order), [workflow]);
   const openBrunoRequest = useOpenBrunoRequest();
   const [catalog, setCatalog] = useState([]);
@@ -379,8 +399,31 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
 
     const result = resultOf(steps, namer);
 
+    // 기본 입력값 가운데 다른 API를 조회해 채우는 것들 — 사람이 직접 적는 값과 달리
+    // 그 값에도 출처가 있다. 채워 주는 것도 결국 API 호출이므로 스텝과 같은 모양으로
+    // 세워, 어느 요청이 도는지 그림에서 바로 짚어 볼 수 있게 한다.
+    const lookups = new Map();
+    for (const input of workflow.baseInputs) {
+      const apiId = input.lookupApiId || input.sourceApiId;
+      if (!apiId) continue;
+      const row = lookups.get(apiId) ?? { entry: catalog.find((e) => e.id === apiId), fills: [] };
+      row.fills.push({ label: input.label || input.key, dependsOnKey: input.dependsOnKey });
+      lookups.set(apiId, row);
+    }
+
     const sources = [];
-    // 값의 출처(기본 입력값·환경변수·중간 입력)는 왼쪽 첫 칸에 세로로 쌓는다
+    // 값의 출처(입력 조회·기본 입력값·중간 입력)는 왼쪽 첫 칸에 세로로 쌓는다
+    for (const [apiId, { entry }] of lookups) {
+      sources.push({
+        id: `lookup:${apiId}`,
+        kind: 'lookup',
+        title: entry?.name ?? '(카탈로그에 없는 API)',
+        subtitle: entry ? [entry.department, ...entry.itemPath].join(' > ') : '',
+        badge: 'API',
+        chips: ['입력 조회'],
+        apiEntry: entry
+      });
+    }
     if (workflow.baseInputs.length > 0) {
       sources.push({
         id: 'inputs',
@@ -389,9 +432,10 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
         subtitle: workflow.baseInputs.map((i) => i.label || i.key).join(', ')
       });
     }
-    if (used.has('env')) {
-      sources.push({ id: 'env', kind: 'source', title: '환경변수', subtitle: '실행 환경에서 주입' });
-    }
+    // 환경변수는 세로 칸에 끼지 않는다 — 맨 위 띠로 따로 올린다
+    const envVars = used.has('env')
+      ? [...new Set(dataEdges.filter((e) => e.from === 'env').flatMap((e) => e.labels))]
+      : [];
     if (used.has('midinputs')) {
       const asked = steps.flatMap((step) => step.midInputs ?? []);
       sources.push({
@@ -417,15 +461,23 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
     const framesOf = (step) =>
       depthOf(steps, step) + (step.repeat ? 1 : 0) + (step.branchCondition ? 1 : 0);
     const rowFrames = new Map();
+    // 환경변수 화살표는 테두리보다 더 위에서 내려오므로 그 줄에 한 칸을 더 비워 둔다 —
+    // 자리를 잡아 두지 않으면 이름이 테두리 이름표와 겹쳐 둘 다 읽히지 않는다
+    const envTargets = new Set(dataEdges.filter((e) => e.from === 'env').map((e) => e.to));
+    const envRows = new Set();
     drawn.forEach((step, i) => {
       const row = rowOf(firstCell + i);
       rowFrames.set(row, Math.max(rowFrames.get(row) ?? 0, framesOf(step)));
+      if (envTargets.has(step.id)) envRows.add(row);
     });
 
+    // 환경변수 띠가 있으면 그만큼 아래에서 시작한다
+    const topPad = PAD + (envVars.length > 0 ? ENV_H + ENV_GAP : 0);
+
     const rowTops = [];
-    let rowY = PAD;
+    let rowY = topPad;
     for (let row = 0; row <= rowOf(firstCell + Math.max(0, drawn.length)); row += 1) {
-      rowY += frameHeadroom(rowFrames.get(row) ?? 0);
+      rowY += frameHeadroom(rowFrames.get(row) ?? 0) + (envRows.has(row) ? ENV_STUB + ENV_LABEL_H : 0);
       rowTops.push(rowY);
       rowY += (row === 0 ? Math.max(NODE_H, sourceHeight) : NODE_H) + ROW_GAP;
     }
@@ -433,7 +485,7 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
     const nodeList = sources.map((source, i) => ({
       ...source,
       x: PAD,
-      y: PAD + i * (NODE_H + SOURCE_GAP)
+      y: topPad + i * (NODE_H + SOURCE_GAP)
     }));
 
     const place = (cell) => ({
@@ -469,6 +521,33 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
         subtitle: result.fields.join(', ')
       });
       dataEdges.push({ from: result.stepId, to: 'result', kind: 'data', labels: [], details: [] });
+    }
+
+    // 조회로 채워지는 입력값 — API 하나가 채우는 값들은 한 선에 모아 얹는다
+    // (같은 두 칸 사이를 몇 겹으로 긋지 않게)
+    for (const [apiId, { fills }] of lookups) {
+      dataEdges.push({
+        from: `lookup:${apiId}`,
+        to: 'inputs',
+        kind: 'data',
+        labels: fills.map((f) => f.label),
+        details: fills.map((f) => `${f.label}${f.dependsOnKey ? ` ← ${f.dependsOnKey}로 조회` : ''}`)
+      });
+    }
+
+    // 환경변수 띠 — 다른 노드를 다 앉힌 뒤 그 폭에 맞춰 맨 위에 깐다
+    if (envVars.length > 0) {
+      const right = nodeList.reduce((max, n) => Math.max(max, n.x + NODE_W), PAD + NODE_W);
+      nodeList.push({
+        id: 'env',
+        kind: 'envbar',
+        x: PAD,
+        y: PAD,
+        width: right - PAD,
+        height: ENV_H,
+        title: '환경변수',
+        subtitle: `${envVars.join(', ')} — 실행 환경에서 주입`
+      });
     }
 
     const byId = new Map(nodeList.map((n) => [n.id, n]));
@@ -514,10 +593,11 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
         })
     });
 
-    // 테두리는 노드보다 밖으로 나가므로 그림 크기도 테두리까지 재야 잘리지 않는다
+    // 테두리는 노드보다 밖으로 나가고, 줄이지 않는 테두리 이름표는 테두리보다 더 나간다 —
+    // 그림 크기를 이름표까지 재야 긴 조건문이 오른쪽에서 잘리지 않는다
     const rightMost = Math.max(
-      nodeList.reduce((max, n) => Math.max(max, n.x + NODE_W), 0),
-      frames.reduce((max, f) => Math.max(max, f.x + f.width), 0)
+      nodeList.reduce((max, n) => Math.max(max, n.x + (n.width ?? NODE_W)), 0),
+      frames.reduce((max, f) => Math.max(max, f.x + Math.max(f.width, 8 + textWidth(f.label, 10))), 0)
     );
     const lowest = Math.max(
       nodeList.reduce((max, n) => Math.max(max, n.y + NODE_H), 0),
@@ -535,6 +615,8 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const sameRow = (from, to) => (from.row ?? 0) === (to.row ?? 0);
+  // 왼쪽 첫 칸에 세로로 쌓인 것들 — 스텝 줄과 달리 서로 다른 높이에서 오른쪽으로 흘러 나간다
+  const inSourceColumn = (node) => node.kind === 'source' || node.kind === 'lookup';
 
   /**
    * 선이 닿는 자리 — 감싸인 스텝은 테두리 바깥면에 붙인다. 같은 테두리 안끼리 잇는
@@ -555,9 +637,21 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
   // 한 줄 안에서는 깊이로, 줄을 건너뛸 때는 좌우 어긋남으로 선을 벌린다
   const fanOf = (edge) => edge.depth - DIP_BASE;
 
+  // 감싸는 테두리가 있으면 그 위가 스텝의 지붕이다 — 환경변수 화살표는 거기에 꽂는다
+  const roofOf = (node) => bounds.get(node.id)?.y ?? node.y;
+
   const path = (edge) => {
     const from = byId.get(edge.from);
     const to = byId.get(edge.to);
+
+    // 환경변수는 띠에서 스텝까지 선을 잇지 않는다 — 그 선이 그림을 세로로 가로지르기
+    // 때문이다. 쓰는 스텝 바로 위에 짧은 화살표만 꽂고, 무엇이 들어오는지는 글로 적는다
+    if (from.kind === 'envbar') {
+      const roof = roofOf(to);
+      const cx = to.x + NODE_W / 2;
+      return `M ${cx} ${roof - ENV_STUB} V ${roof}`;
+    }
+
     const box = anchors(from, to);
     const x1 = box.from.right;
     const x2 = box.to.left;
@@ -589,7 +683,7 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
     }
 
     if (edge.kind === 'seq' || edge.kind === 'async') return `M ${x1} ${y1} L ${x2} ${y2}`;
-    if (from.kind === 'source') return `M ${x1} ${y1} C ${x1 + 40} ${y1} ${x2 - 40} ${y2} ${x2} ${y2}`;
+    if (inSourceColumn(from)) return `M ${x1} ${y1} C ${x1 + 40} ${y1} ${x2 - 40} ${y2} ${x2} ${y2}`;
     const dip = y1 + edge.depth;
     return `M ${x1} ${y1} C ${x1 + 40} ${dip} ${x2 - 40} ${dip} ${x2} ${y2}`;
   };
@@ -597,6 +691,8 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
   const labelAt = (edge) => {
     const from = byId.get(edge.from);
     const to = byId.get(edge.to);
+    // 어느 스텝이 무슨 환경변수를 쓰는지는 그 스텝 지붕 위, 화살표 바로 머리에 적는다
+    if (from.kind === 'envbar') return { x: to.x + NODE_W / 2, y: roofOf(to) - ENV_STUB - 5 };
     const box = anchors(from, to);
     const middle = (box.from.right + box.to.left) / 2;
     if (edge.kind === 'async') {
@@ -608,7 +704,7 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
     if (!sameRow(from, to)) {
       return { x: from.x + NODE_W / 2 + fanOf(edge), y: box.from.bottom + 16 + fanOf(edge) };
     }
-    const y = from.kind === 'source'
+    const y = inSourceColumn(from)
       ? (from.y + to.y) / 2 + NODE_H / 2
       : from.y + NODE_H / 2 + edge.depth * 0.75;
     return { x: middle, y };
@@ -620,9 +716,9 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
       return (
         <button
           className="flowmap-node-title link"
-          title={`Bruno에서 '${node.apiEntry.name}' 요청 열기`}
+          title={`Bruno에서 '${node.apiEntry.name}' 요청 새 창으로 열기`}
           onClick={() =>
-            openBrunoRequest(node.apiEntry).then((opened) => {
+            openBrunoRequest(node.apiEntry, { popup: true }).then((opened) => {
               if (!opened) toast.error(`워크스페이스에서 '${node.apiEntry.name}' 요청을 찾지 못했습니다`);
             })}
         >
@@ -630,12 +726,12 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
         </button>
       );
     }
-    if (node.linkedWorkflowId && onOpenWorkflow && workflows.some((w) => w.id === node.linkedWorkflowId)) {
+    if (node.linkedWorkflowId && workflows.some((w) => w.id === node.linkedWorkflowId)) {
       return (
         <button
           className="flowmap-node-title link"
-          title="연결된 업무 열기"
-          onClick={() => onOpenWorkflow(node.linkedWorkflowId)}
+          title="연결된 업무 새 창으로 열기"
+          onClick={() => window.open(workflowPopupUrl(node.linkedWorkflowId), '_blank')}
         >
           {node.title}
         </button>
@@ -669,9 +765,9 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
         {frames.map((frame) => (
           <g key={frame.key} className={`flowmap-frame ${frame.kind}`}>
             <rect x={frame.x} y={frame.y} width={frame.width} height={frame.height} rx="10" />
+            {/* 테두리 이름표는 줄이지 않는다 — 위쪽이 비어 있어 넘쳐도 가릴 것이 없다 */}
             <text x={frame.x + 8} y={frame.y + 15}>
-              {shorten(frame.label)}
-              <title>{frame.label}</title>
+              {frame.label}
             </text>
           </g>
         ))}
@@ -689,7 +785,7 @@ export function Flowmap({ workflow, workflows, onOpenWorkflow }) {
         ))}
 
         {nodes.map((node) => (
-          <foreignObject key={node.id} x={node.x} y={node.y} width={NODE_W} height={NODE_H}>
+          <foreignObject key={node.id} x={node.x} y={node.y} width={node.width ?? NODE_W} height={node.height ?? NODE_H}>
             <div className={`flowmap-node ${node.kind}`}>
               <div className="flowmap-node-head">
                 {node.order ? <span className="flowmap-order">{node.order}</span> : null}

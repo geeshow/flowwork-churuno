@@ -32,18 +32,25 @@ const ICONS = {
 const TaskMenu = ({ items }) => {
   const [at, setAt] = useState(null);
   const triggerRef = useRef(null);
+  const popupRef = useRef(null);
 
   useEffect(() => {
     if (!at) return undefined;
     const close = () => setAt(null);
+    // 누른 자리가 이 메뉴 안이 아니면 닫는다. 잡는(capture) 단계에서 들어야 다른 메뉴의
+    // "..."을 눌렀을 때도 닫힌다 — 그 단추가 mousedown을 자기 줄에 닿지 않게 막기 때문이다.
+    const closeUnlessInside = (event) => {
+      if (popupRef.current?.contains(event.target) || triggerRef.current?.contains(event.target)) return;
+      setAt(null);
+    };
     // 스크롤하면 메뉴만 남고 항목은 떠나가므로 함께 닫는다
     window.addEventListener('scroll', close, true);
     window.addEventListener('resize', close);
-    document.addEventListener('mousedown', close);
+    document.addEventListener('mousedown', closeUnlessInside, true);
     return () => {
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('resize', close);
-      document.removeEventListener('mousedown', close);
+      document.removeEventListener('mousedown', closeUnlessInside, true);
     };
   }, [at]);
 
@@ -65,7 +72,12 @@ const TaskMenu = ({ items }) => {
         <IconDots size={14} strokeWidth={1.5} />
       </button>
       {at && (
-        <div className="task-menu-popup" style={{ top: at.top, left: at.left }} onMouseDown={(e) => e.stopPropagation()}>
+        <div
+          ref={popupRef}
+          className="task-menu-popup"
+          style={{ top: at.top, left: at.left }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {items.map((item) => {
             const Icon = ICONS[item.id];
             return (

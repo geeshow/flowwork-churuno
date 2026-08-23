@@ -2,15 +2,9 @@ import React from 'react';
 import IconSparkles from 'components/Icons/IconSparkles';
 
 import { inputsFromSuggestion, suggestSetup } from '../../ai';
+import AiInputRows from '../AiInputRows';
 import AiProgress from '../AiProgress';
 import useAiSuggestion from '../useAiSuggestion';
-
-const INPUT_KIND_LABEL = {
-  MANUAL: '직접 입력',
-  API_COMBO: 'API 콤보',
-  DEPENDENT_LOOKUP: '의존 조회',
-  DEPENDENT_COMBO: '의존 콤보'
-};
 
 const entryPath = (entry) => `${entry.department} > ${[...entry.itemPath, entry.name].join(' > ')}`;
 
@@ -39,14 +33,7 @@ function SetupCard({ suggestion, onApply, onClose }) {
         <p className="muted">시작할 때 받을 값이 없다고 봅니다.</p>
       ) : (
         <ul className="ai-suggest-list">
-          {suggestion.inputs.map((input) => (
-            <li key={input.key}>
-              <code>{input.key}</code> <b>{input.label}</b>
-              <span className="ai-tag">{INPUT_KIND_LABEL[input.kind] ?? '직접 입력'}</span>
-              {input.entry ? <span className="muted hint"> {entryPath(input.entry)}</span> : null}
-              {input.why ? <div className="muted hint">{input.why}</div> : null}
-            </li>
-          ))}
+          <AiInputRows inputs={suggestion.inputs} />
         </ul>
       )}
 
@@ -104,7 +91,7 @@ export function AiSetupSuggest({ workflow, entries, workflows, envKeys, getWorkf
         </span>
       </div>
 
-      <AiProgress lines={progress} loading={loading} />
+      <AiProgress steps={progress} loading={loading} />
 
       {error ? <div className="error-banner">{error}</div> : null}
 

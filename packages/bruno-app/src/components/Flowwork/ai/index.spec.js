@@ -100,6 +100,12 @@ describe('stepsFromPlan', () => {
     expect(delay.delayBinding).toEqual({ seconds: 2 });
     expect(delay.apiBinding).toBeUndefined();
   });
+
+  it('초 수를 delay 안에 넣어 와도 그대로 받는다', () => {
+    const [delay] = stepsFromPlan([node({ kind: 'DELAY', seconds: undefined, delay: { seconds: 5 } })]);
+
+    expect(delay.delayBinding).toEqual({ seconds: 5 });
+  });
 });
 
 describe('inputsFromSuggestion', () => {

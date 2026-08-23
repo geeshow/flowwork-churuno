@@ -34,6 +34,15 @@ export const testAiProvider = ({ providerId }) =>
 export const aiGenerateText = (params) =>
   callIpc('renderer:ai-generate-text', params);
 
+// requestId를 함께 보낸 생성 요청을 끊는다 — 몇 십 초씩 걸리는 호출을 기다리다 마음이
+// 바뀌었을 때, 끝날 때까지 붙잡혀 있지 않도록.
+export const cancelAiGenerateText = (requestId) => {
+  const { ipcRenderer } = window;
+  if (ipcRenderer && requestId) {
+    ipcRenderer.send('renderer:ai-generate-text-cancel', { requestId });
+  }
+};
+
 export const aiGenerateScript = (params) =>
   callIpc('renderer:ai-generate-script', params);
 

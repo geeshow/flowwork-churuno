@@ -279,7 +279,6 @@ export function EditPage({ page, go, onExit, onOpenExecution }) {
             )}
             onSaved={bump}
             onOpenExecution={onOpenExecution}
-            onOpenWorkflow={(id) => go({ kind: 'run', id })}
           />
         ) : (
           <EditHome st={st} files={files} loaded={pending != null} onAction={run} />

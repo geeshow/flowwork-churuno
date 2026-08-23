@@ -12,13 +12,23 @@ const IDLE = { loading: false, error: null, result: null, progress: [] };
 export function useAiSuggestion() {
   const [state, setState] = useState(IDLE);
 
+  // 받아 온 것을 그대로 돌려준다 — 다음 단계로 넘어가야 하는 쪽(마법사)이 기다릴 수 있게.
+  // 실패는 상태로만 알리고 여기서는 null이 되므로, 부르는 쪽이 따로 catch하지 않아도 된다.
   const run = (request) => {
     setState({ ...IDLE, loading: true });
-    const report = (line) => setState((prev) => ({ ...prev, progress: [...prev.progress, line] }));
-    Promise.resolve()
+    const report = (step) => setState((prev) => ({ ...prev, progress: [...prev.progress, step] }));
+    return Promise.resolve()
       .then(() => request(report))
-      .then((result) => setState((prev) => ({ ...prev, loading: false, result })))
-      .catch((e) => setState((prev) => ({ ...prev, loading: false, error: e.message })));
+      .then(
+        (result) => {
+          setState((prev) => ({ ...prev, loading: false, result }));
+          return result;
+        },
+        (e) => {
+          setState((prev) => ({ ...prev, loading: false, error: e.message }));
+          return null;
+        }
+      );
   };
 
   const clear = () => setState(IDLE);

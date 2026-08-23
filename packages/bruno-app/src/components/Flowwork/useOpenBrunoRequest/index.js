@@ -13,12 +13,16 @@ const dirName = (pathname) => pathname.split('/').pop();
  *
  * 주소만 바꾸면 웹 모드 라우팅(providers/App/useWebRouteSync)이 앱 전환과 탭 열기를
  * 맡는다. 찾지 못하면 false — 호출부가 사용자에게 알린다.
+ *
+ * popup으로 부르면 새 창에 띄운다. 아직 저장하지 않은 것을 짜는 중(새 워크플로우·AI
+ * 초안)에는 이 화면을 떠나는 순간 그것이 사라지므로, 잠깐 들여다보는 일에 지금 하던
+ * 일을 잃게 할 수는 없다.
  */
 export function useOpenBrunoRequest() {
   const dispatch = useDispatch();
   const store = useStore();
 
-  return async (entry) => {
+  return async (entry, { popup = false } = {}) => {
     const state = store.getState();
     const { workspaces, activeWorkspaceUid } = state.workspaces;
     const active = workspaces.find((w) => w.uid === activeWorkspaceUid);
@@ -47,7 +51,12 @@ export function useOpenBrunoRequest() {
       if (!item) continue;
 
       const route = [dirName(collection.pathname), ...segments].map(encodeURIComponent).join('/');
-      window.location.hash = `#/ws/${encodeURIComponent(workspace.name)}/c/${route}`;
+      const hash = `#/ws/${encodeURIComponent(workspace.name)}/c/${route}`;
+      if (popup) {
+        window.open(`${window.location.origin}${window.location.pathname}${hash}`, '_blank');
+      } else {
+        window.location.hash = hash;
+      }
       return true;
     }
     return false;

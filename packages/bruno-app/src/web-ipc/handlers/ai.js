@@ -35,6 +35,8 @@ const MODEL_LABEL = 'Claude CLI (local)';
 const activeStreams = new Map();
 // 자동완성은 키 입력마다 새 요청이 나가므로 requestId별로 취소할 수 있어야 한다
 const autocompleteRequests = new Map();
+// 단발 생성도 몇 십 초씩 걸려, 기다리다 그만두는 길이 있어야 한다
+const generateRequests = new Map();
 
 const getToken = () => localStorage.getItem(TOKEN_KEY) || '';
 
@@ -83,11 +85,12 @@ const bridgeError = async (response) => {
   return typeof detail === 'string' ? detail : JSON.stringify(detail);
 };
 
-const callGenerate = async ({ system, prompt, signal }) => {
+// model을 주면 그 모델로 돈다 — 판단이 거의 없는 짧은 호출은 더 싼 모델로 넘긴다
+const callGenerate = async ({ system, prompt, model, signal }) => {
   const response = await fetch(`${serverBaseUrl}/api/ai/generate`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ system, prompt }),
+    body: JSON.stringify({ system, prompt, model }),
     signal
   });
   if (!response.ok) {
@@ -180,14 +183,26 @@ const registerAiHandlers = () => {
   });
 
   handle('renderer:ai-generate-text', async (params) => {
-    const { system, prompt } = params || {};
+    const { system, prompt, model, requestId } = params || {};
     if (!prompt) return { error: 'prompt is required' };
+
+    const controller = new AbortController();
+    if (requestId) generateRequests.set(requestId, controller);
+
     try {
-      const text = await callGenerate({ system, prompt });
+      const text = await callGenerate({ system, prompt, model, signal: controller.signal });
       return { text };
     } catch (err) {
+      if (isAbortError(err)) return { cancelled: true };
       return { error: err.message || 'Failed to generate text' };
+    } finally {
+      if (requestId) generateRequests.delete(requestId);
     }
+  });
+
+  handle('renderer:ai-generate-text-cancel', ({ requestId } = {}) => {
+    generateRequests.get(requestId)?.abort();
+    generateRequests.delete(requestId);
   });
 
   handle('renderer:ai-generate-script', async (params) => {

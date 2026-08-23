@@ -1,45 +1,17 @@
 /**
  * 워크플로우를 짤 때 옆에서 거드는 AI — 작업(위치·이름·설명)을 읽고 무엇을 입력받을지
  * 제안하고(제안 1), 그다음 어떤 스텝을 이어 갈지 제안한다(제안 2).
+ * 처음부터 통째로 짜는 길은 ./wizard에 따로 있다.
  *
  * 한 번에 답하게 하지 않는다. 처음에는 이름 목록만 주고, 모델이 필요한 것을 스스로
- * 물어보게 한다(api_detail·workflow_detail·env_keys…). 물음에는 이 파일이 카탈로그와
- * 저장된 작업에서 찾아 답하고, 몇 차례 오간 뒤에 답을 내게 한다 — 무엇을 근거로 골랐는지
- * 남고, 그 API가 실제로 무슨 변수를 받는지 확인한 뒤에 제안하게 되기 때문이다.
- *
- * 제안은 언제나 "초안"이다. 답에 담긴 API·업무 참조는 반드시 목록에서 찾아 확인하고
- * (resolveEntry), 찾지 못한 것은 "직접 고르세요"로 표시해 넘긴다 — 지어낸 이름이
- * 편집기에 그대로 들어가지 않게 한다.
+ * 물어보게 한다(api_detail·workflow_detail·env_keys…) — 무엇을 근거로 골랐는지 남고,
+ * 그 API가 실제로 무슨 변수를 받는지 확인한 뒤에 제안하게 되기 때문이다.
  */
-import { aiGenerateText } from 'utils/ai';
+import { catalogLine, resolveEntry, section, workflowLine } from './catalog';
+import { converse, toolbox } from './converse';
+import { inputNodes, planNodes } from './plan';
 
-import { stepId } from '../editor/stepFactory';
-
-// 질의를 주고받는 차례 — 이 뒤에는 반드시 답을 내게 한다.
-// 한 차례가 곧 CLI 호출 한 번(수십 초)이라 짧게 잡는다.
-const MAX_ROUNDS = 2;
-// 한 차례에 물을 수 있는 개수
-const MAX_ASKS = 4;
-// 목록으로 되돌려 주는 줄 수 — 답이 길어지면 다음 차례 프롬프트만 무거워진다
-const MAX_LINES = 25;
-
-const SYSTEM = `당신은 API 워크플로우 설계를 돕는 조수입니다.
-
-한 번에 답하지 말고, 필요한 것을 먼저 물어 확인한 뒤 답합니다.
-매 차례 JSON 하나만 출력합니다 — 설명 문장이나 코드펜스(\`\`\`)를 덧붙이지 마세요.
-
-물어볼 때:  {"thought": "무엇을 확인하려는지 한 줄", "ask": [{"tool": "api_detail", "arg": "계좌 폐쇄"}]}
-답할 때:    {"answer": { ... }, "reason": "이렇게 고른 이유 한 줄"}
-
-쓸 수 있는 질의(tool):
-- api_search(낱말): 이름·경로·URL에 그 낱말이 든 API 목록
-- api_detail(이름): API 하나가 받는 변수와 내놓는 출력 필드
-- workflow_search(낱말): 이름·설명에 그 낱말이 든 작업 목록
-- workflow_detail(작업 id): 그 작업의 입력값과 스텝 구성 (본보기로 삼기 좋다)
-- env_keys(): 실행 환경이 알아서 채워 주는 변수 이름들
-
-한 차례에 ${MAX_ASKS}개까지 물을 수 있습니다. 목록에 없는 API·작업은 절대 지어내지 마세요.
-이름·라벨·설명은 한국어로 씁니다.`;
+export { inputsFromSuggestion, stepsFromPlan } from './plan';
 
 // 첫 차례에 주는 본보기 — 무엇을 어떤 차례로 물어야 하는지 짧게 보여 준다
 const FEW_SHOT = `## 물어보는 본보기 (형식만 참고하세요)
@@ -49,165 +21,7 @@ const FEW_SHOT = `## 물어보는 본보기 (형식만 참고하세요)
 답    → 변수: authToken, coreBaseUrl, accountNo, reason … / 입력값: app_user_id … / 환경: authToken, coreBaseUrl
 차례 3 → {"answer": {…}, "reason":"…"}`;
 
-const catalogLine = (entry) =>
-  [
-    `${entry.department}/${[...entry.itemPath, entry.name].join('/')}`,
-    `${entry.method} ${entry.url}`
-  ].join(' | ');
-
-const catalogDetail = (entry) =>
-  [
-    catalogLine(entry),
-    `  변수: ${entry.variables?.join(', ') || '없음'}`,
-    `  출력: ${(entry.outputFields ?? []).join(', ') || '없음'}`
-  ].join('\n');
-
-const workflowLine = (workflow) =>
-  `${workflow.domain}/${workflow.task}/${workflow.name} (id: ${workflow.id})${
-    workflow.description ? ` — ${workflow.description}` : ''
-  }`;
-
-const section = (title, lines) => `## ${title}\n${lines.length ? lines.join('\n') : '(없음)'}`;
-
-const normalize = (text) => String(text ?? '').normalize('NFC').trim().toLowerCase();
-
-const matches = (haystack, needle) => normalize(haystack).includes(normalize(needle));
-
-/** 모델이 JSON만 뱉지 않는 경우가 있어, 가장 바깥 중괄호만 떼어 읽는다. */
-function parseJson(text) {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) throw new Error('AI 응답을 읽지 못했습니다. 다시 시도하세요.');
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch (_error) {
-    throw new Error('AI 응답을 읽지 못했습니다. 다시 시도하세요.');
-  }
-}
-
-async function ask(prompt) {
-  const result = await aiGenerateText({ system: SYSTEM, prompt });
-  if (result?.error) {
-    const hint = /401|토큰|api key/i.test(result.error) ? ' — Preferences > AI에서 AI를 켜고 토큰을 넣으세요.' : '';
-    throw new Error(`${result.error}${hint}`);
-  }
-  if (!result?.text?.trim()) throw new Error('AI가 답하지 않았습니다. 잠시 후 다시 시도하세요.');
-  return parseJson(result.text);
-}
-
-/** 응답의 API 참조를 카탈로그의 실재하는 항목으로 확인한다 — 못 찾으면 null. */
-function resolveEntry(entries, ref) {
-  if (!ref?.name) return null;
-  const name = normalize(ref.name);
-  const path = normalize([ref.department, ...(ref.itemPath ?? [])].join('/'));
-  const byName = entries.filter((e) => normalize(e.name) === name);
-  if (byName.length === 1) return byName[0];
-  return byName.find((e) => normalize([e.department, ...e.itemPath].join('/')) === path) ?? byName[0] ?? null;
-}
-
-const catalogEntryOf = (entry) => ({
-  department: entry.department,
-  collectionFile: entry.collectionFile,
-  itemPath: entry.itemPath,
-  name: entry.name
-});
-
-// -- 모델의 질의에 답하기 ----------------------------------------------------
-
-const stepLine = (step, index) => {
-  const kind = step.kind ?? (step.workflowBinding ? '업무 연결' : step.delayBinding ? '지연' : 'API');
-  const api = step.apiBinding?.catalogEntry?.name;
-  return `  ${index + 1}. [${kind}] ${step.name}${api ? ` — ${api}` : ''}${step.parentId ? ' (블록 안)' : ''}`;
-};
-
-/** 모델이 부를 수 있는 질의들 — 답은 모두 이 자리(카탈로그·저장된 작업)에서만 나온다. */
-function toolbox({ entries, workflows, envKeys, getWorkflow }) {
-  return {
-    api_search: (arg) =>
-      entries
-        .filter((e) => matches([e.name, ...e.itemPath, e.url].join(' '), arg))
-        .slice(0, MAX_LINES)
-        .map(catalogLine),
-
-    // 이름으로도, 'core/계좌/계좌 폐쇄' 같은 경로로도 물어 오므로 마지막 마디까지 본다
-    api_detail: (arg) => {
-      const leaf = String(arg ?? '').split('/').pop().trim();
-      const entry = resolveEntry(entries, { name: arg }) ?? resolveEntry(entries, { name: leaf });
-      if (entry) return catalogDetail(entry).split('\n');
-      const near = entries.filter((e) => matches(e.name, leaf)).slice(0, MAX_LINES);
-      return near.length > 0
-        ? [`'${arg}'와 꼭 맞는 API는 없습니다. 비슷한 것:`, ...near.map(catalogLine)]
-        : [`'${arg}' 이름의 API는 없습니다.`];
-    },
-
-    workflow_search: (arg) =>
-      workflows
-        .filter((w) => matches([w.name, w.domain, w.task, w.description].join(' '), arg))
-        .slice(0, MAX_LINES)
-        .map(workflowLine),
-
-    workflow_detail: async (arg) => {
-      const summary = workflows.find((w) => w.id === arg || matches(w.name, arg));
-      if (!summary) return [`'${arg}' 작업을 찾지 못했습니다.`];
-      const full = await getWorkflow(summary.id).catch(() => null);
-      if (!full) return [workflowLine(summary)];
-      return [
-        workflowLine(summary),
-        `  입력값: ${full.baseInputs.map((i) => `${i.key}(${i.kind})`).join(', ') || '없음'}`,
-        '  스텝:',
-        ...full.steps.map(stepLine)
-      ];
-    },
-
-    env_keys: () => [[...envKeys].join(', ') || '없음']
-  };
-}
-
-async function answerAsks(asks, tools) {
-  const lines = [];
-  for (const { tool, arg } of asks) {
-    const run = tools[tool];
-    if (!run) {
-      lines.push(`${tool}(${arg ?? ''}) → 그런 질의는 없습니다.`);
-      continue;
-    }
-    const answer = await run(arg);
-    lines.push(`${tool}(${arg ?? ''}) →`, ...answer);
-  }
-  return lines;
-}
-
-/**
- * 질의 ↔ 답을 몇 차례 주고받은 뒤 답을 받아 온다.
- * 매 차례 지금까지 오간 것을 통째로 다시 보낸다 — 브리지가 단발 호출이라 대화가 남지 않는다.
- */
-async function converse({ intro, tools, onProgress }) {
-  const transcript = [];
-
-  for (let round = 1; round <= MAX_ROUNDS + 1; round += 1) {
-    const last = round > MAX_ROUNDS;
-    const closing = last
-      ? '## 이번 차례\n더 묻지 말고 answer를 내세요.'
-      : `## 이번 차례 (${round}/${MAX_ROUNDS})\n더 확인할 것이 있으면 ask를, 충분하면 answer를 내세요.`;
-
-    const reply = await ask([intro, ...transcript, closing].join('\n\n'));
-
-    const answer = reply.answer ?? (reply.ask ? null : reply);
-    if (answer) return { answer, reason: String(reply.reason ?? '').trim(), asked: [...transcript] };
-
-    const asks = reply.ask.slice(0, MAX_ASKS).filter((a) => a?.tool);
-    if (asks.length === 0) continue;
-
-    const thought = String(reply.thought ?? '').trim();
-    onProgress?.(`${round}차 확인 — ${asks.map((a) => `${a.tool}(${a.arg ?? ''})`).join(', ')}${thought ? ` · ${thought}` : ''}`);
-
-    transcript.push([`## 차례 ${round}에 물어본 것`, JSON.stringify(asks, null, 0), '## 그 답', ...(await answerAsks(asks, tools))].join('\n'));
-  }
-
-  throw new Error('AI가 끝내 답을 내지 못했습니다. 다시 시도하세요.');
-}
-
-// -- 제안 1: 분류·이름·입력값 ------------------------------------------------
+// -- 제안 1: 이름·설명·입력값 ------------------------------------------------
 
 const SETUP_SCHEMA = `{
   "name": "휴면 계좌 폐쇄",
@@ -260,11 +74,7 @@ valueType은 string·number·password 중 하나입니다.`,
   return {
     name: String(answer.name ?? '').trim(),
     description: String(answer.description ?? '').trim(),
-    inputs: (Array.isArray(answer.baseInputs) ? answer.baseInputs : []).flatMap((input) => {
-      const key = String(input.key ?? '').trim();
-      if (!key) return [];
-      return [{ ...input, key, label: String(input.label ?? '').trim() || key, entry: resolveEntry(entries, input.api) }];
-    }),
+    inputs: inputNodes(answer.baseInputs, entries),
     apis: (Array.isArray(answer.apis) ? answer.apis : []).flatMap((ref) => {
       const entry = resolveEntry(entries, ref);
       return entry ? [{ entry, why: String(ref.why ?? '').trim() }] : [];
@@ -274,41 +84,7 @@ valueType은 string·number·password 중 하나입니다.`,
   };
 }
 
-/** 제안된 입력값 → 편집기의 baseInputs. 참조한 API를 찾지 못했으면 직접 입력으로 내린다. */
-export function inputsFromSuggestion(inputs) {
-  return inputs.map(({ key, label, kind, valueType, dependsOnKey, valueField, displayFields, labelField, entry }) => {
-    const base = { key, label };
-    if (entry && kind === 'API_COMBO') {
-      return { ...base, kind, sourceApiId: entry.id, labelField: labelField || '', valueField: valueField || '' };
-    }
-    if (entry && kind === 'DEPENDENT_LOOKUP') {
-      return {
-        ...base,
-        kind,
-        dependsOnKey: dependsOnKey || '',
-        lookupApiId: entry.id,
-        displayFields: Array.isArray(displayFields) ? displayFields : [],
-        valueField: valueField || ''
-      };
-    }
-    if (entry && kind === 'DEPENDENT_COMBO') {
-      return {
-        ...base,
-        kind,
-        dependsOnKey: dependsOnKey || '',
-        lookupApiId: entry.id,
-        labelField: labelField || '',
-        valueField: valueField || ''
-      };
-    }
-    const type = ['string', 'number', 'password'].includes(valueType) ? valueType : 'string';
-    return { ...base, kind: 'MANUAL', valueType: type };
-  });
-}
-
 // -- 제안 2: 스텝 과정 -------------------------------------------------------
-
-const KINDS = new Set(['API', 'WORKFLOW', 'DELAY', 'REPEAT', 'BRANCH']);
 
 const STEPS_SCHEMA = `{
   "steps": [
@@ -380,128 +156,4 @@ ENV(envKey) · FIXED(value) 중 하나입니다. 연산자는 EQ·NE·GT·GTE·L
     reason,
     rounds: asked.length
   };
-}
-
-/** 응답의 스텝 나무 → 화면에 보여 줄 계획. 실재 여부(entry/workflowId)를 여기서 확정한다. */
-function planNodes(nodes, entries, known) {
-  return nodes.flatMap((node) => {
-    const kind = KINDS.has(node.kind) ? node.kind : 'API';
-    const entry = kind === 'API' ? resolveEntry(entries, node.api) : null;
-    const linkedId = kind === 'WORKFLOW' && known.has(node.workflowId) ? node.workflowId : '';
-    return [
-      {
-        ref: String(node.ref ?? ''),
-        kind,
-        name: String(node.name ?? '').trim() || entry?.name || '스텝',
-        why: String(node.why ?? '').trim(),
-        entry,
-        linkedId,
-        // 카탈로그·작업 목록에서 찾지 못한 참조 — 사람이 직접 골라야 한다
-        missing: (kind === 'API' && !entry) || (kind === 'WORKFLOW' && !linkedId),
-        bindings: node.bindings ?? node.inputs ?? {},
-        seconds: node.seconds,
-        repeat: node.repeat,
-        condition: node.condition,
-        children: Array.isArray(node.children) ? planNodes(node.children, entries, known) : []
-      }
-    ];
-  });
-}
-
-const flattenPlan = (plan) => plan.flatMap((node) => [node, ...flattenPlan(node.children)]);
-
-const OPERATORS = new Set(['EQ', 'NE', 'GT', 'GTE', 'LT', 'LTE', 'EXISTS', 'NOT_EXISTS', 'CONTAINS']);
-
-function valueSource(source, idByRef) {
-  switch (source?.kind) {
-    case 'USER_INPUT':
-      return source.inputKey ? { kind: 'USER_INPUT', inputKey: source.inputKey } : null;
-    case 'ENV':
-      return source.envKey ? { kind: 'ENV', envKey: source.envKey } : null;
-    case 'FIXED':
-      return { kind: 'FIXED', value: source.value ?? '' };
-    case 'LOOP_ITEM':
-      return { kind: 'LOOP_ITEM', itemPath: source.itemPath || '$' };
-    case 'PREV_RESPONSE': {
-      const stepId = idByRef.get(source.stepRef);
-      return stepId ? { kind: 'PREV_RESPONSE', stepId, jsonPath: source.jsonPath || '$' } : null;
-    }
-    default:
-      return null;
-  }
-}
-
-/**
- * 계획 → 편집기의 스텝 배열(평면 + parentId). 적용을 누를 때 한 번 부른다.
- * 환경 변수와 이름이 같은 변수는 카탈로그에서 직접 고를 때처럼 환경변수로 미리 이어 둔다.
- */
-export function stepsFromPlan(plan, envKeys = []) {
-  const idByRef = new Map(flattenPlan(plan).map((node) => [node.ref, stepId()]));
-  const fromEnv = new Set(envKeys);
-
-  const build = (nodes, parentId) =>
-    nodes.flatMap((node) => {
-      const id = idByRef.get(node.ref);
-      const base = { id, order: 0, name: node.name, ...(parentId ? { parentId } : {}) };
-      const bindings = Object.fromEntries(
-        Object.entries(node.bindings)
-          .map(([variable, source]) => [variable, valueSource(source, idByRef)])
-          .filter(([, source]) => source !== null)
-      );
-
-      switch (node.kind) {
-        case 'REPEAT': {
-          const repeat
-            = node.repeat?.kind === 'COUNT'
-              ? { kind: 'COUNT', count: Number(node.repeat.count) || 1 }
-              : {
-                  kind: 'LIST',
-                  sourceStepId: idByRef.get(node.repeat?.sourceRef) ?? '',
-                  itemsPath: node.repeat?.itemsPath || '$.data',
-                  maxIterations: Number(node.repeat?.maxIterations) || 10
-                };
-          return [{ ...base, kind: 'REPEAT', repeat }, ...build(node.children, id)];
-        }
-        case 'BRANCH': {
-          const source = valueSource(node.condition?.source, idByRef) ?? { kind: 'USER_INPUT', inputKey: '' };
-          const operator = OPERATORS.has(node.condition?.operator) ? node.condition.operator : 'EQ';
-          return [
-            {
-              ...base,
-              kind: 'BRANCH',
-              branchCondition: { source, operator, compareValue: node.condition?.compareValue ?? '' }
-            },
-            ...build(node.children, id)
-          ];
-        }
-        case 'DELAY':
-          return [{ ...base, delayBinding: { seconds: Number(node.seconds) || 1 } }];
-        case 'WORKFLOW':
-          return [{ ...base, workflowBinding: { ref: { id: node.linkedId }, inputMappings: bindings } }];
-        default:
-          return [
-            {
-              ...base,
-              apiBinding: {
-                catalogEntry: node.entry
-                  ? catalogEntryOf(node.entry)
-                  : { department: '', collectionFile: '', itemPath: [], name: '' },
-                variableBindings: {
-                  ...Object.fromEntries(
-                    (node.entry?.variables ?? [])
-                      .filter((variable) => fromEnv.has(variable))
-                      .map((variable) => [variable, { kind: 'ENV', envKey: variable }])
-                  ),
-                  ...bindings
-                }
-              },
-              ...(node.entry?.outputFields?.length
-                ? { resultView: { mode: 'TABLE', columns: node.entry.outputFields.slice(0, 5) } }
-                : {})
-            }
-          ];
-      }
-    });
-
-  return build(plan, null);
 }

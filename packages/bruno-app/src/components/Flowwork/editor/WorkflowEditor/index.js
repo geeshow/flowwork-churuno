@@ -4,10 +4,12 @@ import api, { VersionConflictError } from '../../api';
 import ConfirmButton from '../../ConfirmButton';
 import { conditionSource } from '../../engine/branch';
 import { isBlockStep } from '../../engine/runWorkflow';
+import { withoutDraftNote } from '../../ai/wizard';
 import Flowmap from '../../WorkflowScreen/Flowmap';
 import AddStepButton from '../AddStepButton';
 import AiSetupSuggest from '../AiSetupSuggest';
 import AiStepSuggest from '../AiStepSuggest';
+import AiWizard from '../AiWizard';
 import BlockEditor from '../BlockEditor';
 import InputDefEditor from '../InputDefEditor';
 import { newStep } from '../stepFactory';
@@ -73,6 +75,13 @@ function validateBlock(block, steps) {
   return null;
 }
 
+// 이 자리에서 끝나는 블록들 — 안쪽 블록부터. "안에 스텝 추가"는 블록에 든 마지막
+// 스텝 아래에 놓아야 새 스텝이 어디에 붙는지 보인다 (빈 블록이면 그 머리 바로 아래).
+const blocksEndingAt = (steps, index) =>
+  steps
+    .filter((s) => isBlockStep(s) && steps.indexOf(subtreeOf(steps, s).slice(-1)[0]) === index)
+    .sort((a, b) => depthOf(b, steps) - depthOf(a, steps));
+
 // 값을 가져다 쓸 수 있는 앞 스텝들 — 블록은 자기 응답이 없으므로 뺀다
 const prevStepsFor = (steps, index) =>
   steps
@@ -93,6 +102,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
   const [entries, setEntries] = useState([]);
   const [env, setEnv] = useState({});
   const [workflows, setWorkflows] = useState([]);
+  const [domainColors, setDomainColors] = useState({});
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
@@ -102,12 +112,13 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows('edit')])
-      .then(([cat, envs, wfs]) => {
+    Promise.all([api.searchCatalog(''), api.getEnvironments(), api.listWorkflows('edit'), api.getDomainColors('edit')])
+      .then(([cat, envs, wfs, colors]) => {
         if (!alive) return;
         setEntries(cat.results);
         setEnv(envs);
         setWorkflows(wfs);
+        setDomainColors(colors);
       })
       .catch((e) => alive && setError(e.message));
     return () => {
@@ -128,6 +139,8 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
   }, [mode, id]);
 
   const envKeys = useMemo(() => new Set(Object.keys(env)), [env]);
+  // 자식에게 넘기는 이름 목록 — 매번 새 배열을 만들면 그 안의 useMemo가 헛돈다
+  const envKeyList = useMemo(() => [...envKeys], [envKeys]);
   const inputKeys = useMemo(() => (wf ? wf.baseInputs.map((i) => i.key).filter(Boolean) : []), [wf]);
 
   if (error && !wf) return <div className="error-banner">{error}</div>;
@@ -180,6 +193,20 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
       baseInputs: [...wf.baseInputs, ...baseInputs.filter((i) => !have.has(i.key))]
     });
   };
+
+  // 마법사 초안은 편집기에 앉히기만 한다 — 처음부터 짜 주는 길이라 이미 적어 둔 것과
+  // 겹칠 일이 없고, 저장은 사람이 한 번 훑어본 뒤에 누르는 것이 맞다.
+  // docs는 어떻게 짜였는지를 적은 참고 글 — 사람이 쓴 문서 뒤에 붙이되, 여러 판을
+  // 오가며 다시 확정하면 앞서 붙인 것을 갈아 끼운다 (판마다 쌓이면 어느 것이 지금 것인지 모른다).
+  const confirmDraft = ({ name, description, baseInputs, steps, docs }) =>
+    setWf({
+      ...wf,
+      name: name || wf.name,
+      description: description || wf.description,
+      baseInputs,
+      steps,
+      docs: [withoutDraftNote(wf.docs), docs].filter(Boolean).join('\n\n')
+    });
 
   function validate(w) {
     if (!w.name.trim()) return '이름을 입력하세요.';
@@ -335,6 +362,18 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
         </div>
       </section>
 
+      {mode === 'new' ? (
+        <AiWizard
+          workflow={wf}
+          entries={entries}
+          workflows={workflows}
+          envKeys={envKeyList}
+          domainColors={domainColors}
+          getWorkflow={(wid) => api.getWorkflow(wid, 'edit')}
+          onConfirm={confirmDraft}
+        />
+      ) : null}
+
       <section className="panel">
         <div className="panel-head">
           <h3>
@@ -368,7 +407,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
           workflow={wf}
           entries={entries}
           workflows={workflows}
-          envKeys={[...envKeys]}
+          envKeys={envKeyList}
           getWorkflow={(id) => api.getWorkflow(id, 'edit')}
           onApply={applySetupSuggestion}
         />
@@ -376,7 +415,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
           inputs={wf.baseInputs}
           entries={entries}
           inputKeys={inputKeys}
-          envKeys={[...envKeys]}
+          envKeys={envKeyList}
           onChange={(baseInputs) => patch({ baseInputs })}
         />
       </section>
@@ -391,7 +430,7 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
             workflow={wf}
             entries={entries}
             workflows={workflows}
-            envKeys={[...envKeys]}
+            envKeys={envKeyList}
             getWorkflow={(id) => api.getWorkflow(id, 'edit')}
             onApply={(steps) => setWf({ ...wf, steps: [...wf.steps, ...steps] })}
           />
@@ -405,39 +444,52 @@ export function WorkflowEditor({ mode, id, initialDomain, initialTask, onSaved, 
 
         <div className="step-editor-list">
           {wf.steps.map((step, i) => (
-            <div key={step.id} className="step-editor-row" style={{ marginLeft: depthOf(step, wf.steps) * 24 }}>
-              {isBlockStep(step) ? (
-                <BlockEditor
-                  block={step}
-                  index={i}
-                  total={wf.steps.length}
-                  prevSteps={prevStepsFor(wf.steps, i)}
-                  inputKeys={inputKeys}
-                  envKeys={[...envKeys]}
-                  repeating={insideRepeat(step, wf.steps)}
-                  onChange={(s) => updateStep(i, s)}
-                  onRemove={() => removeStep(step)}
-                  onMove={(dir) => moveStep(i, dir)}
-                  onAddInside={(kind) => addStep(kind, step.id)}
-                />
-              ) : (
-                <StepEditor
-                  step={step}
-                  index={i}
-                  total={wf.steps.length}
-                  entries={entries}
-                  workflows={workflows}
-                  selfId={wf.id}
-                  envKeys={envKeys}
-                  inputKeys={inputKeys}
-                  prevSteps={prevStepsFor(wf.steps, i)}
-                  repeating={insideRepeat(step, wf.steps)}
-                  onChange={(s) => updateStep(i, s)}
-                  onRemove={() => removeStep(step)}
-                  onMove={(dir) => moveStep(i, dir)}
-                />
-              )}
-            </div>
+            <React.Fragment key={step.id}>
+              <div className="step-editor-row" style={{ marginLeft: depthOf(step, wf.steps) * 24 }}>
+                {isBlockStep(step) ? (
+                  <BlockEditor
+                    block={step}
+                    index={i}
+                    total={wf.steps.length}
+                    prevSteps={prevStepsFor(wf.steps, i)}
+                    inputKeys={inputKeys}
+                    envKeys={envKeyList}
+                    repeating={insideRepeat(step, wf.steps)}
+                    onChange={(s) => updateStep(i, s)}
+                    onRemove={() => removeStep(step)}
+                    onMove={(dir) => moveStep(i, dir)}
+                  />
+                ) : (
+                  <StepEditor
+                    step={step}
+                    index={i}
+                    total={wf.steps.length}
+                    entries={entries}
+                    workflows={workflows}
+                    selfId={wf.id}
+                    envKeys={envKeys}
+                    inputKeys={inputKeys}
+                    prevSteps={prevStepsFor(wf.steps, i)}
+                    repeating={insideRepeat(step, wf.steps)}
+                    onChange={(s) => updateStep(i, s)}
+                    onRemove={() => removeStep(step)}
+                    onMove={(dir) => moveStep(i, dir)}
+                  />
+                )}
+              </div>
+              {blocksEndingAt(wf.steps, i).map((block) => (
+                <div
+                  key={`add-in-${block.id}`}
+                  className="step-editor-row"
+                  style={{ marginLeft: (depthOf(block, wf.steps) + 1) * 24 }}
+                >
+                  <AddStepButton
+                    label={`+ 이 ${block.kind === 'REPEAT' ? '반복' : '분기'} 안에 스텝 추가`}
+                    onAdd={(kind) => addStep(kind, block.id)}
+                  />
+                </div>
+              ))}
+            </React.Fragment>
           ))}
         </div>
 

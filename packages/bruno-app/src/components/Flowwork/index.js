@@ -223,7 +223,6 @@ export default function Flowwork() {
               tab={route.tab ?? 'run'}
               onTabChange={(tab) => setRoute({ view: 'run', id: route.id, tab })}
               onOpenExecution={openExecution}
-              onOpenWorkflow={openWorkflow}
             />
           ) : route.view === 'execution' ? (
             <section className="execution-page">
