@@ -16,7 +16,7 @@ import ApiSpecPanel from 'components/ApiSpecPanel';
 import TabPanelErrorBoundary from 'components/RequestTabPanel/TabPanelErrorBoundary';
 // import ErrorCapture from 'components/ErrorCapture';
 import { useDispatch, useSelector, useStore } from 'react-redux';
-import { setActiveApp } from 'providers/ReduxStore/slices/app';
+import { setActiveApp, showManageWorkspacePage as showManageWorkspacePageAction } from 'providers/ReduxStore/slices/app';
 import { isElectron, isWebMode } from 'utils/common/platform';
 import StyledWrapper from './StyledWrapper';
 import 'swagger-ui-react/swagger-ui.css';
@@ -99,13 +99,27 @@ export default function Main() {
       setShowRosettaBanner(init.isRunningInRosetta);
 
       // 웹 모드: 부팅이 끝나고도 보여줄 탭이 없으면(워크스페이스 복원이 탭을
-      // 열지 못한 환경) Loading 스피너 대신 제품 홈을 연다. 해시가 특정 화면을
-      // 가리키면 라우트 동기화가 곧 탭을 열므로 건드리지 않는다.
+      // 열지 못한 환경) Loading 스피너에 머물지 않는다. 해시가 특정 화면을
+      // 가리키면 라우트 동기화가 곧 탭을 열므로 건드리지 않는다. git 저장소에
+      // main뿐이라 작업 워크스페이스가 하나도 없으면 브랜치를 만들 수 있는
+      // 워크스페이스 관리 화면으로, 그 외에는 제품 홈으로 보낸다.
       if (isWebMode()) {
         setTimeout(() => {
           const state = reduxStore.getState();
-          const hashTarget = window.location.hash.replace(/^#\/?/, '');
-          if (state.app.activeApp === 'bruno' && !state.tabs.tabs.length && !hashTarget) {
+          // 라우트 동기화가 부팅 직후 상태를 #/ws/<name>으로 미러링하므로, 탭을
+          // 열게 될 딥링크(#/ws/<name>/... 하위 경로)만 양보한다.
+          const hashSegments = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+          const deepLink = hashSegments[0] === 'ws' && hashSegments.length > 2;
+          if (state.app.activeApp !== 'bruno' || state.tabs.tabs.length || deepLink) {
+            return;
+          }
+          const workspaces = state.workspaces.workspaces || [];
+          const gitModeWithoutWorkspaces = workspaces.length > 0
+            && workspaces[0].branch
+            && workspaces.every((workspace) => workspace.type === 'default');
+          if (gitModeWithoutWorkspaces) {
+            dispatch(showManageWorkspacePageAction());
+          } else {
             dispatch(setActiveApp('home'));
           }
         }, 1500);
