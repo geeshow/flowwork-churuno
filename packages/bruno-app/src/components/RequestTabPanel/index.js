@@ -45,7 +45,7 @@ import OpenAPISpecTab from 'components/OpenAPISpecTab';
 import ChangelogTab from 'components/ChangelogTab';
 import CollapsedPanelIndicator from './CollapsedPanelIndicator';
 import { clampRequestHeightForResponse } from './paneSize';
-import { IconLoader2 } from '@tabler/icons';
+import NoTabsOpen from './NoTabsOpen';
 
 const MIN_LEFT_PANE_WIDTH = 350;
 const MIN_RIGHT_PANE_WIDTH = 490;
@@ -403,12 +403,7 @@ const RequestTabPanel = () => {
   }
 
   if (!activeTabUid || !focusedTab) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
-        <IconLoader2 className="animate-spin" size={24} strokeWidth={1.5} />
-        <span>Loading...</span>
-      </div>
-    );
+    return <NoTabsOpen />;
   }
 
   if (focusedTab.type === 'global-environment-settings') {

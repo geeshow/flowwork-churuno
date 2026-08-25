@@ -15,9 +15,9 @@ import AppTitleBar from 'components/AppTitleBar';
 import ApiSpecPanel from 'components/ApiSpecPanel';
 import TabPanelErrorBoundary from 'components/RequestTabPanel/TabPanelErrorBoundary';
 // import ErrorCapture from 'components/ErrorCapture';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import { setActiveApp } from 'providers/ReduxStore/slices/app';
-import { isElectron } from 'utils/common/platform';
+import { isElectron, isWebMode } from 'utils/common/platform';
 import StyledWrapper from './StyledWrapper';
 import 'swagger-ui-react/swagger-ui.css';
 import Devtools from 'components/Devtools';
@@ -74,6 +74,7 @@ export default function Main() {
   const [showRosettaBanner, setShowRosettaBanner] = useState(false);
   // 웹 모드: 실행 서버(web-server)에 붙지 못한 채 뜬 경우 그 주소를 알려 준다
   const [serverBootError, setServerBootError] = useState(null);
+  const reduxStore = useStore();
   const dispatch = useDispatch();
 
   // Initialize event listeners
@@ -96,6 +97,19 @@ export default function Main() {
         mainSectionRef.current.setAttribute('data-app-state', 'loaded');
       }
       setShowRosettaBanner(init.isRunningInRosetta);
+
+      // 웹 모드: 부팅이 끝나고도 보여줄 탭이 없으면(워크스페이스 복원이 탭을
+      // 열지 못한 환경) Loading 스피너 대신 제품 홈을 연다. 해시가 특정 화면을
+      // 가리키면 라우트 동기화가 곧 탭을 열므로 건드리지 않는다.
+      if (isWebMode()) {
+        setTimeout(() => {
+          const state = reduxStore.getState();
+          const hashTarget = window.location.hash.replace(/^#\/?/, '');
+          if (state.app.activeApp === 'bruno' && !state.tabs.tabs.length && !hashTarget) {
+            dispatch(setActiveApp('home'));
+          }
+        }, 1500);
+      }
     });
     // 서버 없이 뜬 정적 배포(GitHub Pages 등) — 빈 워크스페이스 대신 제품 소개로 연다
     const removeServerUnreachableListener = ipcRenderer.on('main:web:server-unreachable', ({ serverUrl, reason }) => {
