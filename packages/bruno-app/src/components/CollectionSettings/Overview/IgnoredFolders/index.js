@@ -3,14 +3,11 @@ import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import { IconEyeOff } from '@tabler/icons';
 import { unignoreFolder } from 'providers/ReduxStore/slices/collections/actions';
-
-// ignore entries that were never folders hidden from the sidebar: package/git
-// housekeeping, and this fork's workflows dir (API Chain data, not requests).
-const HOUSEKEEPING = new Set(['node_modules', '.git', 'workflows']);
+import { getIgnoredFolderEntries } from 'utils/collections/ignoredFolders';
 
 const IgnoredFolders = ({ collection }) => {
   const dispatch = useDispatch();
-  const entries = (collection?.brunoConfig?.ignore || []).filter((entry) => !HOUSEKEEPING.has(entry));
+  const entries = getIgnoredFolderEntries(collection);
 
   if (!entries.length) {
     return null;

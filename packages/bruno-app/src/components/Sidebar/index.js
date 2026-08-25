@@ -8,6 +8,7 @@ import { updateLeftSidebarWidth, updateIsDragging, toggleSidebarSearch } from 'p
 import { setLocalStorageValue, SIDEBAR_WIDTH_KEY } from 'utils/common/localStorage';
 import CollectionsSection from './Sections/CollectionsSection/index';
 import ApiSpecsSection from './Sections/ApiSpecsSection/index';
+import IgnoredFoldersSection from './Sections/IgnoredFoldersSection/index';
 import useKeybinding from 'hooks/useKeybinding';
 
 const MIN_LEFT_SIDEBAR_WIDTH = 220;
@@ -21,6 +22,10 @@ const sidebarSections = [
   {
     id: 'api-specs',
     component: ApiSpecsSection
+  },
+  {
+    id: 'ignored-folders',
+    component: IgnoredFoldersSection
   }
 ];
 
