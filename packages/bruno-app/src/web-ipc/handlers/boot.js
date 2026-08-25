@@ -161,25 +161,18 @@ const workspaceConfigFor = (name, type, collectionEntries, git = {}) => ({
 });
 
 const registerBootHandlers = () => {
-  handle('renderer:ready', async () => {
-    emit('main:load-preferences', getPreferences());
-    emit('main:git-version', null);
-
-    // No server at all (static hosting, or web-server not started): boot with
-    // nothing open and tell the user where the app expected it, instead of
-    // leaving the "Loading…" spinner up forever.
+  // The boot body proper — anything thrown here (server down, an /api route
+  // failing on a half-set-up machine, a bad payload) is handled by the caller.
+  const bootWorkspaces = async () => {
     let workspaceListing = null;
     try {
       workspaceListing = await serverApi.listWorkspaces();
     } catch (error) {
       const reachable = await serverApi.fsRoot().then(() => true).catch(() => false);
       if (!reachable) {
-        console.warn(`[web-ipc] execution server unreachable at ${serverBaseUrl || window.location.origin}`, error);
-        emit('main:workspaces-ready');
-        emit('main:app-loaded', { isRunningInRosetta: false });
-        emit('main:web:server-unreachable', { serverUrl: serverBaseUrl || window.location.origin });
-        return;
+        throw new Error(`실행 서버가 응답하지 않습니다 (${error?.message || error})`);
       }
+      // server is up but has no workspace API — fall through to legacy mode
     }
 
     const { workspaces = [], scratchRoot } = workspaceListing || {};
@@ -220,7 +213,23 @@ const registerBootHandlers = () => {
     allEntries.forEach((entry) => {
       emit('main:collection-opened', entry.pathname, entry.uid, entry.brunoConfig, { silent: true });
     });
+  };
 
+  handle('renderer:ready', async () => {
+    emit('main:load-preferences', getPreferences());
+    emit('main:git-version', null);
+
+    // Whatever goes wrong (no server at all, or a boot API failing on a
+    // half-set-up machine), finish booting with nothing open and say what
+    // happened — never leave the "Loading…" spinner up forever.
+    try {
+      await bootWorkspaces();
+    } catch (error) {
+      const serverUrl = serverBaseUrl || window.location.origin;
+      console.error(`[web-ipc] boot failed against ${serverUrl}`, error);
+      emit('main:workspaces-ready');
+      emit('main:web:server-unreachable', { serverUrl, reason: error?.message || String(error) });
+    }
     emit('main:app-loaded', { isRunningInRosetta: false });
   });
 

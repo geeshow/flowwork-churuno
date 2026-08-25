@@ -8,7 +8,7 @@ import { setServerBaseUrl } from '../../web-ipc/server-api';
  * can live anywhere, so the reader types its address here; it is kept for this
  * browser and the page reloads against it.
  */
-const ServerConnectBanner = ({ serverUrl, onDismiss }) => {
+const ServerConnectBanner = ({ serverUrl, reason, onDismiss }) => {
   const [draft, setDraft] = useState(serverUrl);
 
   const connect = (event) => {
@@ -27,9 +27,10 @@ const ServerConnectBanner = ({ serverUrl, onDismiss }) => {
       >
         <strong className="font-bold">실행 서버에 연결할 수 없습니다</strong>
         <div>
-          {serverUrl} 에서 응답이 없습니다. 이 화면은 둘러볼 수 있지만 API 호출·저장은 되지 않습니다.
+          {serverUrl} 에서 워크스페이스를 불러오지 못했습니다. 이 화면은 둘러볼 수 있지만 API 호출·저장은 되지 않습니다.
           실행 서버(<code>web-server</code>)를 띄운 주소를 입력하면 그 서버로 다시 엽니다.
         </div>
+        {reason ? <div className="text-xs opacity-80 mt-1">원인: {reason}</div> : null}
         <form className="flex items-center gap-2 mt-2" onSubmit={connect}>
           <label htmlFor="server-url-input" className="whitespace-nowrap">서버 주소</label>
           <input

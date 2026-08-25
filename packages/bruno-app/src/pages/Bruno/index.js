@@ -73,7 +73,7 @@ export default function Main() {
   const mainSectionRef = useRef(null);
   const [showRosettaBanner, setShowRosettaBanner] = useState(false);
   // 웹 모드: 실행 서버(web-server)에 붙지 못한 채 뜬 경우 그 주소를 알려 준다
-  const [unreachableServerUrl, setUnreachableServerUrl] = useState(null);
+  const [serverBootError, setServerBootError] = useState(null);
   const dispatch = useDispatch();
 
   // Initialize event listeners
@@ -98,8 +98,8 @@ export default function Main() {
       setShowRosettaBanner(init.isRunningInRosetta);
     });
     // 서버 없이 뜬 정적 배포(GitHub Pages 등) — 빈 워크스페이스 대신 제품 소개로 연다
-    const removeServerUnreachableListener = ipcRenderer.on('main:web:server-unreachable', ({ serverUrl }) => {
-      setUnreachableServerUrl(serverUrl);
+    const removeServerUnreachableListener = ipcRenderer.on('main:web:server-unreachable', ({ serverUrl, reason }) => {
+      setServerBootError({ serverUrl, reason });
       dispatch(setActiveApp('home'));
     });
 
@@ -126,8 +126,8 @@ export default function Main() {
           </div>
         </Portal>
       ) : null}
-      {unreachableServerUrl ? (
-        <ServerConnectBanner serverUrl={unreachableServerUrl} onDismiss={() => setUnreachableServerUrl(null)} />
+      {serverBootError ? (
+        <ServerConnectBanner serverUrl={serverBootError.serverUrl} reason={serverBootError.reason} onDismiss={() => setServerBootError(null)} />
       ) : null}
       <div
         ref={mainSectionRef}
