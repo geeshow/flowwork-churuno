@@ -44,14 +44,12 @@ const IgnoreCollectionItem = ({ onClose, item, collectionUid }) => {
       list in
       {' '}
       <span className="font-medium">{configFileName}</span>
-      . The folder and its files are not deleted. To restore it later, remove the entry from the
+      . The folder and its files are not deleted. To restore it later, open the collection
+      settings and use
       {' '}
-      <span className="font-medium">ignore</span>
+      <span className="font-medium">Ignored folders &rarr; Show again</span>
       {' '}
-      list in
-      {' '}
-      <span className="font-medium">{configFileName}</span>
-      .
+      on the Overview tab.
     </Modal>
   );
 };

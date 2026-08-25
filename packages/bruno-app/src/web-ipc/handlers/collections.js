@@ -23,6 +23,16 @@ const basename = (pathname) => pathname.split('/').filter(Boolean).pop() || '';
 
 const ROOT_FILES = new Set(['collection.bru', 'opencollection.yml', 'folder.bru', 'folder.yml', 'bruno.json']);
 
+// bruno.json/opencollection.yml `ignore` entries are collection-relative paths
+// ("payments/legacy"), so match dirs by their relative path — a bare name only
+// equals it at the top level.
+const isIgnoredDir = (ignoredDirs, collectionPathname, child) => {
+  const relativePath = child.pathname && child.pathname.startsWith(`${collectionPathname}/`)
+    ? child.pathname.slice(collectionPathname.length + 1)
+    : child.name;
+  return ignoredDirs.has(relativePath);
+};
+
 const isParseableFile = (name) => name.endsWith('.bru') || name.endsWith('.yml');
 
 // Port of bruno-electron's hydrateRequestWithUuid: the reducers key everything
@@ -134,7 +144,7 @@ const streamDirectory = async (collectionEntry, node, isRoot) => {
 
   for (const child of children) {
     if (child.type === 'dir') {
-      if (ignoredDirs.has(child.name)) {
+      if (isIgnoredDir(ignoredDirs, collectionEntry.pathname, child)) {
         continue;
       }
       if (child.name.startsWith('.')) {
@@ -242,7 +252,7 @@ const buildMountTree = (collectionEntry, node) => {
     const items = [];
     for (const child of dirNode.children || []) {
       if (child.type === 'dir') {
-        if (ignoredDirs.has(child.name)) continue;
+        if (isIgnoredDir(ignoredDirs, collectionEntry.pathname, child)) continue;
         if (child.name.startsWith('.')) {
           // <collection>/.transient holds unsaved requests that must survive a reload
           if (isRoot && child.name === '.transient') {
@@ -387,6 +397,34 @@ const mountCollection = async ({ collectionUid, collectionPathname }) => {
   return `${collectionPathname}/.transient`;
 };
 
+// Port of bruno-electron's writeBrunoConfig: bruno.json is plain JSON; for a
+// YAML collection the config shares opencollection.yml with the collection
+// root, so the root is re-read from disk rather than trusted from the caller.
+const writeBrunoConfig = async (entry, brunoConfig) => {
+  if (entry.format === 'yml') {
+    const configFilePath = `${entry.pathname}/opencollection.yml`;
+    let collectionRoot = { meta: { name: brunoConfig?.name || basename(entry.pathname) } };
+    try {
+      const { content } = await serverApi.fsRead(configFilePath);
+      collectionRoot = parseCollection(content, { format: 'yml' }).collectionRoot;
+    } catch (error) {
+      console.warn(`[web-ipc] could not re-read ${configFilePath}, writing config with a bare root`, error);
+    }
+    await serverApi.fsWrite(configFilePath, stringifyCollection(collectionRoot, brunoConfig, { format: 'yml' }));
+  } else {
+    await serverApi.fsWrite(`${entry.pathname}/bruno.json`, JSON.stringify(brunoConfig, null, 2));
+  }
+  entry.brunoConfig = brunoConfig;
+};
+
+const requireCollection = (collectionPathname) => {
+  const entry = findCollectionForPath(collectionPathname);
+  if (!entry) {
+    throw new Error(`Collection not found for ${collectionPathname}`);
+  }
+  return entry;
+};
+
 const collectionUidFor = (pathname) => {
   const entry = findCollectionForPath(pathname);
   return entry ? entry.uid : getStableUid(pathname);
@@ -395,6 +433,30 @@ const collectionUidFor = (pathname) => {
 const registerCollectionHandlers = () => {
   handle('renderer:mount-collection', mountCollection);
   handle('renderer:mount-collection-v2', mountCollection);
+
+  handle('renderer:update-bruno-config', async (brunoConfig, collectionPathname) => {
+    await writeBrunoConfig(requireCollection(collectionPathname), brunoConfig);
+  });
+
+  handle('renderer:ignore-folder', async (collectionUid, collectionPathname, collectionRoot, brunoConfig, folderPathname) => {
+    const entry = requireCollection(collectionPathname);
+    const relativePath = folderPathname.startsWith(`${collectionPathname}/`)
+      ? folderPathname.slice(collectionPathname.length + 1)
+      : basename(folderPathname);
+    const updated = { ...brunoConfig, ignore: [...new Set([...(brunoConfig?.ignore || []), relativePath])] };
+    await writeBrunoConfig(entry, updated);
+    return updated;
+  });
+
+  // Reverse of renderer:ignore-folder (no desktop counterpart): drop the entry
+  // from the config and re-mount so the folder's items stream back into the tree.
+  handle('renderer:unignore-folder', async (collectionUid, collectionPathname, ignoreEntry) => {
+    const entry = requireCollection(collectionPathname);
+    const updated = { ...entry.brunoConfig, ignore: (entry.brunoConfig?.ignore || []).filter((e) => e !== ignoreEntry) };
+    await writeBrunoConfig(entry, updated);
+    await mountCollection({ collectionUid: entry.uid, collectionPathname });
+    return updated;
+  });
 
   handle('renderer:create-collection', async (collectionName, collectionFolderName, collectionLocation, options = {}) => {
     const format = options.format || 'yml';
