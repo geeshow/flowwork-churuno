@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 
 import { refKey } from '../../engine/catalogLookup';
+import { requestFieldSlots } from '../../engine/template';
 import { stepBadgeClass, stepTypeMeta } from '../../StepCard';
 import BranchConditionEditor from '../BranchConditionEditor';
 import CatalogPicker from '../CatalogPicker';
@@ -67,8 +68,12 @@ export function StepEditor({
     [entries, apiBinding.catalogEntry]
   );
 
-  // API의 모든 변수를 매핑 대상으로 나열한다 (환경변수 포함 — 사용자가 소스를 선택).
-  const bindableVars = useMemo(() => selectedEntry?.variables ?? [], [selectedEntry]);
+  // API의 모든 변수에 더해 헤더/쿼리 파라미터/바디 필드도 매핑 대상으로 나열한다
+  // (환경변수 포함 — 사용자가 소스를 선택). 바인딩하지 않은 필드는 템플릿 값 그대로.
+  const bindableVars = useMemo(
+    () => (selectedEntry ? [...selectedEntry.variables, ...requestFieldSlots(selectedEntry.requestTemplate)] : []),
+    [selectedEntry]
+  );
 
   // 결과 표시(원본/표 + 컬럼)
   const rv = step.resultView ?? { mode: 'RAW', columns: [] };
@@ -106,11 +111,16 @@ export function StepEditor({
   };
 
   const onSelectEntry = (entry) => {
-    // 기존 바인딩 유지 + 변수명이 환경변수 key와 같으면 ENV로 기본값 채움
+    // 기존 바인딩 유지 + 변수명이 환경변수 key와 같으면 ENV로 기본값 채움.
+    // 요청 필드 슬롯은 API에 적힌 값을 고정값으로 미리 채워, 값을 보면서 바꾸게 한다.
     const kept = {};
     for (const v of entry.variables) {
       if (apiBinding.variableBindings[v]) kept[v] = apiBinding.variableBindings[v];
       else if (envKeys.has(v)) kept[v] = { kind: 'ENV', envKey: v };
+    }
+    for (const slot of requestFieldSlots(entry.requestTemplate)) {
+      if (apiBinding.variableBindings[slot.key]) kept[slot.key] = apiBinding.variableBindings[slot.key];
+      else if (slot.value !== undefined) kept[slot.key] = { kind: 'FIXED', value: slot.value };
     }
     onChange({
       ...step,

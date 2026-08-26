@@ -13,19 +13,24 @@ const DEFAULT_BY_KIND = {
  * 기본입력값(USER_INPUT) / 환경변수값(ENV) / 고정값(FIXED) / 전 단계 output(PREV_RESPONSE),
  * 그리고 반복 스텝에서는 그 회차의 항목(LOOP_ITEM).
  * 전 단계 output이 배열·객체형이면 jsonPath로 고급 매핑한다.
+ *
+ * variables 항목은 문자열(템플릿 변수, `{{이름}}`으로 표시) 또는
+ * { key, label } 슬롯(요청 필드 — 헤더/쿼리/바디)이다.
  */
 export function VariableBindingEditor({ variables, bindings, inputKeys, envKeys, prevStepIds, repeating, onChange }) {
   if (variables.length === 0) {
     return <p className="muted">매핑할 변수가 없습니다.</p>;
   }
 
+  const slots = variables.map((v) => (typeof v === 'string' ? { key: v, label: `{{${v}}}` } : v));
+
   return (
     <div className="binding-list">
-      {variables.map((v) => {
+      {slots.map(({ key: v, label }) => {
         const src = bindings[v];
         return (
           <div key={v} className="binding-row">
-            <code className="binding-var">{`{{${v}}}`}</code>
+            <code className="binding-var">{label}</code>
             <select value={src?.kind ?? ''} onChange={(e) => onChange(v, DEFAULT_BY_KIND[e.target.value])}>
               <option value="" disabled>
                 소스 선택…
