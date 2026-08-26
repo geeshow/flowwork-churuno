@@ -4,7 +4,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { importCollection } from 'providers/ReduxStore/slices/collections/actions';
 import Modal from 'components/Modal';
-import { isElectron } from 'utils/common/platform';
+import { isElectron, isWebMode } from 'utils/common/platform';
 import { IconX, IconLoader2, IconCheck, IconCaretDown } from '@tabler/icons';
 import InfoTip from 'components/InfoTip/index';
 import Help from 'components/Help';
@@ -141,6 +141,7 @@ export const BulkImportCollectionLocation = ({
   const preferences = useSelector((state) => state.app.preferences);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
   const defaultLocation = getCollectionLocation(activeWorkspace, preferences);
+  const isWeb = isWebMode();
 
   const [status, setStatus] = useState({});
   const [errorMessages, setErrorMessages] = useState({});
@@ -535,6 +536,11 @@ export const BulkImportCollectionLocation = ({
     };
   }, []);
 
+  const selectedWorkspace = workspaces.find((w) => w.pathname === formik.values.collectionLocation);
+  const locationLabel = isWeb
+    ? selectedWorkspace?.branch || selectedWorkspace?.name || formik.values.collectionLocation
+    : formik.values.collectionLocation;
+
   const onSubmit = () => {
     if (importStarted) {
       onClose();
@@ -585,10 +591,9 @@ export const BulkImportCollectionLocation = ({
               <>
                 <div className="mb-6">
                   <div className="flex items-center justify-between relative mb-5 w-full">
-                    <div className="font-semibold">Location</div>
+                    <div className="font-semibold">{isWeb ? 'Git Branch' : 'Location'}</div>
                     <div className="text-sm border border-slate-600 rounded px-3 py-1.5 ml-4 flex-1">
-                      {formik.values.collectionLocation
-                        || 'No location selected'}
+                      {locationLabel || 'No location selected'}
                     </div>
                   </div>
 
@@ -818,23 +823,46 @@ export const BulkImportCollectionLocation = ({
                 )}
 
                 <div className="flex items-start flex-col relative">
-                  <div className="font-semibold mb-2">Location</div>
-                  <input
-                    id="collection-location"
-                    data-testid="bulk-import-collection-location-input"
-                    type="text"
-                    placeholder="Select a location to save the collection"
-                    name="collectionLocation"
-                    className="block textbox w-full cursor-pointer"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck="false"
-                    value={formik.values.collectionLocation || ''}
-                    onChange={(e) => {
-                      formik.setFieldValue('collectionLocation', e.target.value);
-                    }}
-                  />
+                  {isWeb ? (
+                    <>
+                      <div className="font-semibold mb-2">Git Branch</div>
+                      <select
+                        id="collection-location"
+                        name="collectionLocation"
+                        className="block textbox w-full"
+                        value={formik.values.collectionLocation || ''}
+                        onChange={(e) => {
+                          formik.setFieldValue('collectionLocation', e.target.value);
+                        }}
+                      >
+                        {workspaces.map((workspace) => (
+                          <option key={workspace.uid} value={workspace.pathname}>
+                            {workspace.branch || workspace.name}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-semibold mb-2">Location</div>
+                      <input
+                        id="collection-location"
+                        data-testid="bulk-import-collection-location-input"
+                        type="text"
+                        placeholder="Select a location to save the collection"
+                        name="collectionLocation"
+                        className="block textbox w-full cursor-pointer"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        value={formik.values.collectionLocation || ''}
+                        onChange={(e) => {
+                          formik.setFieldValue('collectionLocation', e.target.value);
+                        }}
+                      />
+                    </>
+                  )}
                   {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
                     <div className="text-red-500 mt-1">
                       {formik.errors.collectionLocation}

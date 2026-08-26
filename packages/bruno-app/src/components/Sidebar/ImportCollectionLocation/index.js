@@ -19,6 +19,7 @@ import StyledWrapper from './StyledWrapper';
 import { showImportIssuesToast } from 'components/Toast/ImportIssuesToast';
 import { DEFAULT_COLLECTION_FORMAT } from 'utils/common/constants';
 import { getCollectionLocation } from 'utils/workspaces';
+import { isWebMode } from 'utils/common/platform';
 
 // Extract collection name from raw data
 const getCollectionName = (format, rawData) => {
@@ -123,6 +124,7 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format, sour
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
   const preferences = useSelector((state) => state.app.preferences);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
+  const isWeb = isWebMode();
 
   const defaultLocation = getCollectionLocation(activeWorkspace, preferences);
 
@@ -278,29 +280,56 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format, sour
               </label>
               <div className="mt-2">{collectionName}</div>
 
-              <>
-                <label htmlFor="collectionLocation" className="font-medium mt-4 flex items-center">
-                  Location
-                  <Help>
-                    <p>Bruno stores your collections on your computer's filesystem.</p>
-                    <p className="mt-2">Choose the location where you want to store this collection.</p>
-                  </Help>
-                </label>
-                <input
-                  id="collection-location"
-                  type="text"
-                  name="collectionLocation"
-                  className="block textbox mt-2 w-full"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  value={formik.values.collectionLocation || ''}
-                  onChange={(e) => {
-                    formik.setFieldValue('collectionLocation', e.target.value);
-                  }}
-                />
-              </>
+              {isWeb ? (
+                <>
+                  <label htmlFor="collection-location" className="font-medium mt-4 flex items-center">
+                    Git Branch
+                    <Help>
+                      <p>Each workspace lives on its own git branch.</p>
+                      <p className="mt-2">Choose the branch where you want to import this collection.</p>
+                    </Help>
+                  </label>
+                  <select
+                    id="collection-location"
+                    name="collectionLocation"
+                    className="block textbox mt-2 w-full"
+                    value={formik.values.collectionLocation || ''}
+                    onChange={(e) => {
+                      formik.setFieldValue('collectionLocation', e.target.value);
+                    }}
+                  >
+                    {workspaces.map((workspace) => (
+                      <option key={workspace.uid} value={workspace.pathname}>
+                        {workspace.branch || workspace.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="collectionLocation" className="font-medium mt-4 flex items-center">
+                    Location
+                    <Help>
+                      <p>Bruno stores your collections on your computer's filesystem.</p>
+                      <p className="mt-2">Choose the location where you want to store this collection.</p>
+                    </Help>
+                  </label>
+                  <input
+                    id="collection-location"
+                    type="text"
+                    name="collectionLocation"
+                    className="block textbox mt-2 w-full"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
+                    value={formik.values.collectionLocation || ''}
+                    onChange={(e) => {
+                      formik.setFieldValue('collectionLocation', e.target.value);
+                    }}
+                  />
+                </>
+              )}
               {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
                 <div className="text-red-500">{formik.errors.collectionLocation}</div>
               ) : null}
