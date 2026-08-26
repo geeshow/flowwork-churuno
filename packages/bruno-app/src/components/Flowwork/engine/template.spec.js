@@ -78,6 +78,13 @@ describe('resolveTemplate — 필드 바인딩', () => {
     expect(request.url).toBe('http://api/customers?page=1&size=10&keyword=%EA%B9%80%20%EC%B2%A0%EC%88%98');
   });
 
+  it('enc:v1: 암호값은 쿼리에서 인코딩하지 않는다 — 서버가 토큰을 찾아 복호화한다', () => {
+    const token = 'enc:v1:gAAAAABtoken_-==';
+    const binding = { variableBindings: { 'query:accountNo': { kind: 'FIXED', value: token } } };
+    const request = resolveTemplate(template, binding, ctx());
+    expect(request.url).toBe(`http://api/customers?page=1&size=10&accountNo=${token}`);
+  });
+
   it('템플릿 변수 치환과 필드 바인딩이 함께 동작한다', () => {
     const withVar = {
       method: 'POST',

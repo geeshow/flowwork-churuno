@@ -8,3 +8,4 @@ executions/
 api-ignores/
 server.log
 edit-worktrees/
+.enc-key

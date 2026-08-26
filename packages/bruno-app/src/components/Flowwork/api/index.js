@@ -124,7 +124,11 @@ const api = {
       url: req.url,
       headers: req.headers,
       body: req.body ?? null
-    })
+    }),
+
+  // 값 단위 암호화(enc:v1:) — 키는 서버에만 있고, 파일/git에는 암호문만 남는다
+  encryptValue: (value) => post('/api/secure/encrypt', { value }).then((r) => r.value),
+  decryptValue: (value) => post('/api/secure/decrypt', { value }).then((r) => r.value)
 };
 
 export default api;

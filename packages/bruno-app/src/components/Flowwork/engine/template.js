@@ -85,7 +85,9 @@ export function requestFieldSlots(template) {
 const setQueryParam = (url, name, value) => {
   const [base, query = ''] = url.split('?');
   const pairs = query ? query.split('&') : [];
-  const next = `${name}=${encodeURIComponent(value)}`;
+  // enc:v1: 암호값은 인코딩하지 않는다 — 서버가 호출 직전 토큰을 찾아 복호화해야 한다
+  const encoded = /^enc:v1:/.test(value) ? value : encodeURIComponent(value);
+  const next = `${name}=${encoded}`;
   const index = pairs.findIndex((pair) => pair.split('=')[0] === name);
   if (index >= 0) pairs[index] = next;
   else pairs.push(next);

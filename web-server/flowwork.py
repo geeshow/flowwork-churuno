@@ -37,6 +37,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 import gitops
+import secure
 
 PROXY_TIMEOUT_SECONDS = float(os.environ.get("BRUNO_WEB_FLOWWORK_PROXY_TIMEOUT", "15.0"))
 
@@ -1033,12 +1034,16 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         if not any(req.url.startswith(p) for p in _ALLOWED_HOST_PREFIXES):
             raise HTTPException(status_code=403, detail="허용되지 않은 API 호스트입니다")
 
-        # 시크릿(vault:// 참조)은 실제 호출 직전에만 리졸브 — 로그에는 원본이 남는다
+        # 시크릿(vault:// 참조)과 암호값(enc:v1:)은 실제 호출 직전에만 리졸브 —
+        # 로그/실행 이력에는 원본(참조·암호문)이 남는다
         try:
-            out_headers = resolve_vault_deep(req.headers)
-            out_body = resolve_vault_deep(req.body)
+            out_url = secure.decrypt_enc_deep(req.url)
+            out_headers = resolve_vault_deep(secure.decrypt_enc_deep(req.headers))
+            out_body = resolve_vault_deep(secure.decrypt_enc_deep(req.body))
         except SecretNotFoundError as e:
             raise HTTPException(status_code=502, detail=str(e)) from e
+        except secure.EncryptionError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
         start = time.time()
         status: Optional[int]
@@ -1047,7 +1052,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         resp_size = 0
         async with httpx.AsyncClient(timeout=PROXY_TIMEOUT_SECONDS) as client:
             try:
-                resp = await client.request(req.method, req.url, headers=out_headers, json=out_body)
+                resp = await client.request(req.method, out_url, headers=out_headers, json=out_body)
                 status = resp.status_code
                 try:
                     resp_body = resp.json()

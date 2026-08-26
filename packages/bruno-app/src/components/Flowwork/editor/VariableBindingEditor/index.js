@@ -1,4 +1,53 @@
-import React from 'react';
+import React, { useState } from 'react';
+import toast from 'react-hot-toast';
+
+import api from '../../api';
+
+const isEncryptedValue = (value) => typeof value === 'string' && value.startsWith('enc:v1:');
+
+/**
+ * 고정값 입력 + 암호화 토글. 잠그면 서버 키로 암호화된 enc:v1: 문자열이 저장돼
+ * git에는 암호문만 남고, 실행 시 프록시가 호출 직전에 복호화한다.
+ */
+function FixedValueInput({ value, onChange }) {
+  const [busy, setBusy] = useState(false);
+  const encrypted = isEncryptedValue(value);
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      onChange(encrypted ? await api.decryptValue(value) : await api.encryptValue(String(value)));
+    } catch (e) {
+      toast.error(`${encrypted ? '복호화' : '암호화'} 실패: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      {encrypted ? (
+        <input type="text" value="암호화된 값" readOnly title="서버 키로 암호화되어 저장됩니다 — 자물쇠를 눌러 해제" />
+      ) : (
+        <input
+          type="text"
+          placeholder="고정값"
+          value={value == null ? '' : String(value)}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+      <button
+        className="icon-btn"
+        type="button"
+        disabled={busy || (!encrypted && (value == null || value === ''))}
+        title={encrypted ? '암호화 해제 (평문으로 편집)' : '값 암호화 (git에는 암호문만 저장)'}
+        onClick={toggle}
+      >
+        {encrypted ? '🔒' : '🔓'}
+      </button>
+    </>
+  );
+}
 
 const DEFAULT_BY_KIND = {
   USER_INPUT: { kind: 'USER_INPUT', inputKey: '' },
@@ -69,12 +118,7 @@ export function VariableBindingEditor({ variables, bindings, inputKeys, envKeys,
             ) : null}
 
             {src?.kind === 'FIXED' ? (
-              <input
-                type="text"
-                placeholder="고정값"
-                value={src.value == null ? '' : String(src.value)}
-                onChange={(e) => onChange(v, { kind: 'FIXED', value: e.target.value })}
-              />
+              <FixedValueInput value={src.value} onChange={(value) => onChange(v, { kind: 'FIXED', value })} />
             ) : null}
 
             {src?.kind === 'PREV_RESPONSE' ? (

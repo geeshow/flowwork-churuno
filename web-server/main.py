@@ -44,6 +44,11 @@ def _load_dotenv(path: Path) -> None:
 
 
 _load_dotenv(SERVER_DIR / ".env")
+
+import secure  # noqa: E402 — 키 소스(BRUNO_WEB_ENC_KEY)가 .env에서 올 수 있어 dotenv 로드 뒤에 초기화한다
+
+secure.init(SERVER_DIR)
+
 DATA_DIR = Path(os.environ.get("BRUNO_WEB_DATA_DIR", SERVER_DIR / "collections")).resolve()
 REPO_DIR = Path(os.environ.get("BRUNO_WEB_REPO_DIR", SERVER_DIR / "repo")).resolve()
 WORKTREES_DIR = Path(os.environ.get("BRUNO_WEB_WORKTREES_DIR", SERVER_DIR / "worktrees")).resolve()
@@ -540,6 +545,25 @@ def fs_exists(path: str = Query(...)):
     return {"exists": target.exists(), "isDirectory": target.is_dir()}
 
 
+class SecureValueBody(BaseModel):
+    value: str
+
+
+@app.post("/api/secure/encrypt")
+def secure_encrypt(body: SecureValueBody):
+    """평문 → enc:v1: 암호문. 키는 서버에만 있어 git/브라우저 번들에 남지 않는다."""
+    return {"value": secure.encrypt_value(body.value)}
+
+
+@app.post("/api/secure/decrypt")
+def secure_decrypt(body: SecureValueBody):
+    """enc:v1: 토큰(문자열에 섞여 있어도)을 평문으로 — 편집 화면의 '값 보기' 용."""
+    try:
+        return {"value": secure.decrypt_enc_deep(body.value)}
+    except secure.EncryptionError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @app.post("/api/fs/write")
 def fs_write(body: WriteBody):
     target = safe_path(body.path)
@@ -801,6 +825,23 @@ async def http_execute(body: ExecuteBody):
         log("error", f"Invalid proxy configuration: {error}")
         return finish({"error": f"Invalid proxy configuration: {error}", "timeline": timeline})
 
+    # enc:v1: 값은 실제 호출 직전에만 복호화 — 타임라인/이력에는 암호문이 남는다
+    try:
+        out_url = secure.decrypt_enc_deep(body.url)
+        out_headers = [(name, secure.decrypt_enc_deep(value)) for name, value in headers]
+        if "content" in request_kwargs:
+            request_kwargs["content"] = secure.decrypt_bytes(request_kwargs["content"])
+        if "data" in request_kwargs:
+            request_kwargs["data"] = [(n, secure.decrypt_enc_deep(v)) for n, v in request_kwargs["data"]]
+        if "files" in request_kwargs:
+            request_kwargs["files"] = [
+                (n, (filename, secure.decrypt_bytes(content), content_type))
+                for n, (filename, content, content_type) in request_kwargs["files"]
+            ]
+    except secure.EncryptionError as error:
+        log("error", str(error))
+        return finish({"error": str(error), "timeline": timeline})
+
     started = time.perf_counter()
     try:
         async with httpx.AsyncClient(
@@ -811,7 +852,7 @@ async def http_execute(body: ExecuteBody):
             proxy=proxy_url,
         ) as client:
             response = await client.request(
-                body.method.upper(), body.url, headers=headers, **request_kwargs
+                body.method.upper(), out_url, headers=out_headers, **request_kwargs
             )
             content = response.content
     except httpx.TimeoutException:
