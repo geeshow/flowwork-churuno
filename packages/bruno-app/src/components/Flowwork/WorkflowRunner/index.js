@@ -55,7 +55,10 @@ const toNetworkEntry = (payload, result) => {
 
 // source="edit"이면 워크플로우 목록/하위 워크플로우를 편집 worktree 기준으로 읽는다
 // (커밋 전 임시 저장 내용으로 동작 확인). 카탈로그/환경변수는 main 기준 공통.
-export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
+// initialValues: 입력값 폼의 초깃값 — AI 명령 박스가 명령에서 인식한 값을 미리 채워 준다.
+// onFinished(responses): 성공한 실행의 스텝 응답 본문들 — 명령 박스가 응답의 값을
+// 거둬 다음 작업(징검다리 뒷 단계)의 입력값으로 잇는다.
+export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod', initialValues, onFinished }) {
   const dispatch = useDispatch();
   const [catalog, setCatalog] = useState([]);
   const [env, setEnv] = useState({});
@@ -63,7 +66,7 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
-  const [values, setValues] = useState({});
+  const [values, setValues] = useState(() => ({ ...initialValues }));
   const [states, setStates] = useState(new Map());
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
@@ -103,10 +106,12 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
     runInputsRef.current = { ...values }; // 기본 입력값 스냅샷 (중간 입력은 제출 시 병합)
 
     const wfCache = new Map();
+    const responses = [];
     const deps = {
       getRequestTemplate: makeTemplateResolver(catalog),
       proxy: async (payload) => {
         const result = await api.proxy(payload);
+        responses.push(result.response?.body);
         dispatch(addFlowworkRequest(toNetworkEntry(payload, result)));
         return result;
       },
@@ -141,6 +146,7 @@ export function WorkflowRunner({ workflow, onOpenExecution, source = 'prod' }) {
       // 실행에 쓰인 입력값(기본+중간)을 이력에 기록 (서버가 비밀번호 등 리댁션)
       await api.recordExecutionInputs(res.executionId, runInputsRef.current, workflow.id).catch(() => {});
       setResult(res);
+      if (onFinished && res.overallStatus === 'SUCCESS') onFinished(responses);
     } catch (e) {
       setLoadError(e.message);
     } finally {

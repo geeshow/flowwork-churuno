@@ -19,6 +19,7 @@ import {
 
 import { setActiveApp } from 'providers/ReduxStore/slices/app';
 import Bruno from 'components/Bruno';
+import AiCommandBox from './AiCommandBox';
 import IconSparkles from 'components/Icons/IconSparkles';
 import FlowworkLogo from 'components/Icons/FlowworkLogo';
 import ApiChainIcon from 'components/Icons/ApiChainIcon';
@@ -127,6 +128,7 @@ export default function ProductHome() {
             개발자는 <strong>Bruno</strong>에서 API를 만들고, 실무자는 <strong>API Chain</strong>에서 그 API들을
             순서대로 엮어 실행합니다. 둘 다 하나의 Git 저장소 위에서 돌아가서, 모든 변경이 기록되고 검토를 거쳐 운영에 반영됩니다.
           </p>
+          <AiCommandBox />
           <div className="hero-actions">
             <Button onClick={openApiChain} data-testid="product-home-open-api-chain">
               <ApiChainIcon size={16} />
