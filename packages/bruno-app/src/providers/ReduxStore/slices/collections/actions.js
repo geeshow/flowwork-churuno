@@ -79,7 +79,7 @@ import { each } from 'lodash';
 import { closeAllCollectionTabs, closeTabs as _closeTabs, focusTab, restoreTabs, reopenLastClosedTab } from 'providers/ReduxStore/slices/tabs';
 import { clearOpenApiSyncTabState } from 'providers/ReduxStore/slices/openapi-sync';
 import { removeCollectionFromWorkspace } from 'providers/ReduxStore/slices/workspaces';
-import { resolveRequestFilename } from 'utils/common/platform';
+import { resolveRequestFilename, isWebMode } from 'utils/common/platform';
 import { interpolateUrl, parsePathParams, splitOnFirst } from 'utils/url/index';
 import { sendCollectionOauth2Request as _sendCollectionOauth2Request } from 'utils/network/index';
 import {
@@ -770,7 +770,16 @@ export const cancelRunnerExecution = (cancelTokenUid) => (dispatch) => {
 };
 
 export const runCollectionFolder
-  = (collectionUid, folderUid, recursive, delay, tags, selectedRequestUids) => (dispatch, getState) => {
+  = (collectionUid, folderUid, recursive, delay, tags, selectedRequestUids) => async (dispatch, getState) => {
+    // 웹 모드의 지연 파싱 컬렉션은 러너가 전체 요청 본문을 필요로 하므로
+    // 실행 전에 미뤄 둔 하이드레이션을 끝낸다 (이미 로드됐으면 no-op)
+    if (isWebMode()) {
+      const target = findCollectionByUid(getState().collections.collections, collectionUid);
+      if (target) {
+        await window.ipcRenderer.invoke('renderer:ensure-collection-loaded', target.pathname).catch(() => {});
+      }
+    }
+
     const state = getState();
     const { globalEnvironments, activeGlobalEnvironmentUid } = state.globalEnvironments;
     const collection = findCollectionByUid(state.collections.collections, collectionUid);

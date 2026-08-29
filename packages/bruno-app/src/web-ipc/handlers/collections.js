@@ -72,7 +72,12 @@ const hydrateRequest = (request, pathname) => {
 
 const sizeInMB = (bytes) => (bytes || 0) / (1024 * 1024);
 
+// 지연 파싱 컬렉션의 raw 파일 내용 — pathname → { content, format }.
+// 항목이 하이드레이션되면(emitRequestFile) 지워진다.
+const lazyRequestContent = new Map();
+
 const emitRequestFile = (collectionUid, pathname, content, changeType) => {
+  lazyRequestContent.delete(pathname);
   const meta = { collectionUid, pathname, name: basename(pathname) };
   let payload;
   try {
@@ -209,12 +214,20 @@ const streamDirectory = async (collectionEntry, node, isRoot) => {
 
 const stripRequestExt = (name) => name.replace(/\.(bru|yml)$/, '');
 
+const LAZY_PARSE_THRESHOLD = 1000;
+
 // Mount = one round trip. The server returns the tree with every .bru/.yml
 // inlined (renderer:mount-collection used to issue one /api/fs/read per file,
 // 92s for 8000 requests). The renderer then gets the whole tree in a single
 // collectionLoadedFromTree dispatch — the same channel the desktop's file-cache
 // mount uses — first with cheap metadata so names and methods show at once,
 // then again once the workers have parsed the bodies.
+//
+// LAZY_PARSE_THRESHOLD를 넘는 컬렉션은 본문 파싱 자체를 건너뛴다: 전량 파싱은
+// 1만 개 기준 CPU 8초 + 트리 병합 1초가 더 들지만, 사이드바·검색은 메타(이름·
+// 메서드·URL)로 충분하다. raw 내용은 셔틀 캐시에 남겨 탭을 열 때 그 파일만
+// 즉석 파싱하고(RequestNotLoaded가 자동 로드), 러너처럼 전체 본문이 필요한
+// 경로는 renderer:ensure-collection-loaded로 그때 전량 하이드레이션한다.
 const buildMountTree = (collectionEntry, node) => {
   const { uid: collectionUid, format } = collectionEntry;
   const ignoredDirs = new Set(collectionEntry.brunoConfig?.ignore || []);
@@ -346,7 +359,7 @@ const applyParsedRequest = (entry, result) => {
   });
 };
 
-const mountCollection = async ({ collectionUid, collectionPathname }) => {
+const mountCollection = async ({ collectionUid, collectionPathname }, { forceFull = false } = {}) => {
   let entry = findCollectionForPath(collectionPathname);
   if (!entry) {
     entry = registerCollection({
@@ -360,6 +373,15 @@ const mountCollection = async ({ collectionUid, collectionPathname }) => {
   try {
     const node = await serverApi.fsCollection(collectionPathname);
     const tree = buildMountTree(entry, node);
+    const lazy = !forceFull && tree.pending.length > LAZY_PARSE_THRESHOLD;
+
+    if (lazy) {
+      // 본문은 캐시에만 두고 항목은 partial로 — 탭을 열면 그 파일만 즉석 파싱된다
+      for (const job of tree.pending) {
+        lazyRequestContent.set(job.pathname, { content: job.content, format: job.format });
+        Object.assign(job.item, { loading: false, partial: true, partialCached: true });
+      }
+    }
 
     // 1) names, seq and methods from the cheap meta pass — every item shows a spinner
     emitMountTree(tree);
@@ -380,14 +402,17 @@ const mountCollection = async ({ collectionUid, collectionPathname }) => {
     //    emit costs ~1s at 8000 items (snapshot + merge + sidebar render), so
     //    there are no progress emits in between — the meta pass already shows
     //    every item, spinners included.
-    const byPathname = new Map(tree.pending.map((job) => [job.pathname, job]));
-    await parseRequestFiles(tree.pending, (results) => {
-      for (const result of results) {
-        const job = byPathname.get(result.pathname);
-        if (job) applyParsedRequest(job, result);
-      }
-    });
-    emitMountTree(tree);
+    if (!lazy) {
+      const byPathname = new Map(tree.pending.map((job) => [job.pathname, job]));
+      await parseRequestFiles(tree.pending, (results) => {
+        for (const result of results) {
+          const job = byPathname.get(result.pathname);
+          if (job) applyParsedRequest(job, result);
+        }
+      });
+      for (const job of tree.pending) lazyRequestContent.delete(job.pathname);
+      emitMountTree(tree);
+    }
   } catch (error) {
     console.error(`[web-ipc] failed to load collection tree for ${collectionPathname}`, error);
   } finally {
@@ -655,13 +680,25 @@ const registerCollectionHandlers = () => {
     }
   });
 
-  handle('renderer:load-request', async ({ collectionUid, pathname }) => {
-    const { content } = await serverApi.fsRead(pathname);
+  // 지연 파싱 컬렉션의 항목은 내용이 이미 캐시에 있어 서버 왕복 없이 하이드레이션된다
+  const loadRequestFile = async ({ collectionUid, pathname }) => {
+    const cached = lazyRequestContent.get(pathname);
+    const content = cached ? cached.content : (await serverApi.fsRead(pathname)).content;
     emitRequestFile(collectionUid, pathname, content, 'addFile');
-  });
-  handle('renderer:load-large-request', async ({ collectionUid, pathname }) => {
-    const { content } = await serverApi.fsRead(pathname);
-    emitRequestFile(collectionUid, pathname, content, 'addFile');
+  };
+  handle('renderer:load-request', loadRequestFile);
+  handle('renderer:load-large-request', loadRequestFile);
+
+  // 러너처럼 컬렉션 전체 본문이 필요한 경로가 실행 직전에 부른다 —
+  // 지연 파싱으로 미뤄 둔 전량 하이드레이션을 그때 수행한다 (아니면 no-op).
+  handle('renderer:ensure-collection-loaded', async (collectionPathname) => {
+    const entry = findCollectionForPath(collectionPathname);
+    if (!entry) return;
+    const prefix = `${entry.pathname}/`;
+    const hasLazyItems = [...lazyRequestContent.keys()].some((pathname) => pathname.startsWith(prefix));
+    if (hasLazyItems) {
+      await mountCollection({ collectionUid: entry.uid, collectionPathname: entry.pathname }, { forceFull: true });
+    }
   });
 
   handle('renderer:new-folder', async ({ pathname, folderData, format }) => {
@@ -688,6 +725,12 @@ const registerCollectionHandlers = () => {
 
   handle('renderer:delete-item', async (pathname, type) => {
     await serverApi.fsDelete(pathname);
+    lazyRequestContent.delete(pathname);
+    if (type === 'folder') {
+      for (const key of lazyRequestContent.keys()) {
+        if (key.startsWith(`${pathname}/`)) lazyRequestContent.delete(key);
+      }
+    }
     const meta = { collectionUid: collectionUidFor(pathname), pathname, name: basename(pathname) };
     emit('main:collection-tree-updated', type === 'folder' ? 'unlinkDir' : 'unlink', { meta });
   });
