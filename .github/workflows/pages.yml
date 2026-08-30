@@ -34,7 +34,7 @@ jobs:
           BRUNO_WEB_ASSET_PREFIX: /${{ github.event.repository.name }}/
         run: npm run build:web
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: packages/bruno-app/dist
 
