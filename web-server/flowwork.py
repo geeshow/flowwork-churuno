@@ -806,6 +806,22 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
         _autocommit(f"flowwork: 업무 '{domain}/{task}' 삭제", branch)
         return {"status": "deleted"}
 
+    def _step_api_refs(steps: Any) -> list[dict[str, Any]]:
+        """스텝이 부르는 API의 카탈로그 참조 목록 (중복 제거) — 워크플로우가
+        어떤 값을 내놓는지(출력 필드)를 클라이언트가 카탈로그로 되짚을 수 있게 한다."""
+        refs: list[dict[str, Any]] = []
+        seen: set[tuple] = set()
+        for step in steps if isinstance(steps, list) else []:
+            entry = (step.get("apiBinding") or {}).get("catalogEntry") if isinstance(step, dict) else None
+            if not isinstance(entry, dict):
+                continue
+            key = (entry.get("department", ""), tuple(entry.get("itemPath") or []), entry.get("name", ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            refs.append(entry)
+        return refs
+
     @router.get("/workflows")
     def list_workflows(source: str = "prod", branch: Optional[str] = None) -> dict:
         out = []
@@ -816,6 +832,7 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
                     data = json.loads(path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
                     continue
+                base_inputs = data.get("baseInputs")
                 out.append(
                     {
                         "id": data.get("id", path.stem),
@@ -823,6 +840,14 @@ def build_router(repo_dir: Path, executions_dir: Path) -> APIRouter:
                         "task": data.get("task", ""),
                         "name": data.get("name", ""),
                         "description": data.get("description"),
+                        # 입력·API 참조 요약 — AI 명령 박스가 상세 조회 없이
+                        # 입력값 매칭과 징검다리(값 공급) 작업 탐색을 할 수 있게 한다
+                        "inputs": [
+                            {"key": i.get("key"), "label": i.get("label"), "kind": i.get("kind")}
+                            for i in (base_inputs if isinstance(base_inputs, list) else [])
+                            if isinstance(i, dict)
+                        ],
+                        "apiRefs": _step_api_refs(data.get("steps")),
                     }
                 )
         return {"workflows": out}

@@ -35,8 +35,15 @@ export function useOpenBrunoRequest() {
       (c) => c.pathname.startsWith(`${workspace.pathname}/`) && c.uid !== workspace.scratchCollectionUid
     );
 
+    const findRequestItem = (collectionUid, base) => {
+      const mounted = store.getState().collections.collections.find((c) => c.uid === collectionUid);
+      return findItemInCollectionByPathname(mounted, `${base}.bru`)
+        || findItemInCollectionByPathname(mounted, `${base}.yml`);
+    };
+
     for (const collection of candidates) {
-      if (collection.mountStatus !== 'mounted') {
+      const justMounted = collection.mountStatus !== 'mounted';
+      if (justMounted) {
         await dispatch(mountCollection({
           collectionUid: collection.uid,
           collectionPathname: collection.pathname,
@@ -44,10 +51,14 @@ export function useOpenBrunoRequest() {
           workspacePathname: workspace.pathname
         }));
       }
-      const mounted = store.getState().collections.collections.find((c) => c.uid === collection.uid);
       const base = [collection.pathname, ...segments].join('/');
-      const item = findItemInCollectionByPathname(mounted, `${base}.bru`)
-        || findItemInCollectionByPathname(mounted, `${base}.yml`);
+      let item = findRequestItem(collection.uid, base);
+      // 웹 모드의 IPC 이벤트는 다음 태스크로 전달되어(web-ipc/core.js emit), 마운트
+      // 직후에는 트리가 아직 스토어에 없을 수 있다 — 잠깐 물러났다 다시 본다
+      for (let attempt = 0; justMounted && !item && attempt < 5; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        item = findRequestItem(collection.uid, base);
+      }
       if (!item) continue;
 
       const route = [dirName(collection.pathname), ...segments].map(encodeURIComponent).join('/');

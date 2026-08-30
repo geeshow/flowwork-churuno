@@ -1,14 +1,29 @@
+import { useEffect } from 'react';
 import { IconLoader2, IconFile, IconAlertTriangle } from '@tabler/icons';
 import { loadLargeRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { useDispatch } from 'react-redux';
+import RequestIsLoading from '../RequestIsLoading';
 import StyledWrapper from './StyledWrapper';
 
 const RequestNotLoaded = ({ collection, item }) => {
   const dispatch = useDispatch();
 
+  // 지연 파싱된 컬렉션(웹 모드)의 항목 — 내용이 이미 셔틀 캐시에 있으므로
+  // "Load Request" 버튼 없이 탭을 여는 즉시 자동 로드한다.
+  const autoLoad = !!item?.partialCached && !item?.error;
+  useEffect(() => {
+    if (autoLoad) {
+      dispatch(loadLargeRequest({ collectionUid: collection?.uid, pathname: item?.pathname }));
+    }
+  }, [autoLoad, item?.pathname]);
+
   const handleLoadLargeRequest = () => {
     !item?.loading && dispatch(loadLargeRequest({ collectionUid: collection?.uid, pathname: item?.pathname }));
   };
+
+  if (autoLoad) {
+    return <RequestIsLoading item={item} />;
+  }
 
   return (
     <StyledWrapper>
