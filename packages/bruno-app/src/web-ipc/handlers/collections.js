@@ -483,6 +483,16 @@ const registerCollectionHandlers = () => {
     return updated;
   });
 
+  // Bulk counterpart: replace the whole ignore list in one config write and a
+  // single re-mount, so restored folders stream back into the tree at once.
+  handle('renderer:set-ignored-folders', async (collectionUid, collectionPathname, ignore) => {
+    const entry = requireCollection(collectionPathname);
+    const updated = { ...entry.brunoConfig, ignore };
+    await writeBrunoConfig(entry, updated);
+    await mountCollection({ collectionUid: entry.uid, collectionPathname });
+    return updated;
+  });
+
   handle('renderer:create-collection', async (collectionName, collectionFolderName, collectionLocation, options = {}) => {
     const format = options.format || 'yml';
     const dirPath = `${collectionLocation || webState.serverRoot}/${collectionFolderName}`;
