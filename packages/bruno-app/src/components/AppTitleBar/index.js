@@ -17,6 +17,7 @@ import MenuDropdown from 'ui/MenuDropdown';
 import ActionIcon from 'ui/ActionIcon';
 import IconSidebarToggle from 'components/Icons/IconSidebarToggle';
 import CreateWorkspace from 'components/WorkspaceSidebar/CreateWorkspace';
+import MainWorkspacePassword from 'components/MainWorkspacePassword';
 import ImportWorkspace from 'components/WorkspaceSidebar/ImportWorkspace';
 
 import IconBottombarToggle from 'components/Icons/IconBottombarToggle/index';
@@ -73,8 +74,12 @@ const AppTitleBar = () => {
   const handleWorkspaceSwitch = (workspaceUid) => {
     if (workspaceUid === activeWorkspaceUid) return;
 
+    const target = workspaces.find((w) => w.uid === workspaceUid);
     dispatch(switchWorkspace(workspaceUid));
-    toast.success(`Switched to ${getWorkspaceDisplayName(workspaces.find((w) => w.uid === workspaceUid)?.name)}`);
+    // 웹 모드의 main은 비밀번호 모달을 먼저 거친다 — 성공 토스트는 모달이 띄운다
+    if (!(isWebMode() && target?.type === 'default')) {
+      toast.success(`Switched to ${getWorkspaceDisplayName(target?.name)}`);
+    }
   };
 
   const handleCreateWorkspace = useCallback(() => {
@@ -114,14 +119,14 @@ const AppTitleBar = () => {
     const items = sortedWorkspaces.map((workspace) => {
       const isActive = workspace.uid === activeWorkspaceUid;
       const isPinned = preferences?.workspaces?.pinnedWorkspaceUids?.includes(workspace.uid);
-      // 웹 모드의 default 워크스페이스 = main 브랜치. 직접 수정 금지라 전환을 막는다.
+      // 웹 모드의 default 워크스페이스 = main 브랜치(운영본). 전환에 비밀번호가
+      // 걸려 있어 자물쇠로 표시한다.
       const isReadOnlyMain = isWebMode() && workspace.type === 'default';
 
       return {
         id: workspace.uid,
         label: getWorkspaceDisplayName(workspace.name),
         onClick: () => handleWorkspaceSwitch(workspace.uid),
-        disabled: isReadOnlyMain,
         className: `workspace-item ${isActive ? 'active' : ''}`,
         rightSection: (
           <div className="workspace-actions">
@@ -173,6 +178,7 @@ const AppTitleBar = () => {
       {createWorkspaceModalOpen && (
         <CreateWorkspace onClose={() => setCreateWorkspaceModalOpen(false)} />
       )}
+      <MainWorkspacePassword />
       {importWorkspaceModalOpen && (
         <ImportWorkspace onClose={() => setImportWorkspaceModalOpen(false)} />
       )}
