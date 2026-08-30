@@ -41,9 +41,9 @@ const API_CHAIN_FEATURES = [
   {
     // 프로젝트 자체 아이콘 — tabler와 달리 strokeWidth prop을 받는다
     icon: ({ size }) => <IconSparkles size={size} strokeWidth={1.5} />,
-    title: 'AI로 자동 API Chain 생성',
-    desc: '하고 싶은 업무를 말로 설명하면 AI가 카탈로그의 API를 골라 스텝 초안과 입력값을 제안합니다. '
-      + '부족한 정보는 되물어 채우고, 제안은 편집기에서 바로 고쳐 쓸 수 있습니다.'
+    title: 'AI로 워크플로우 선택·실행과 생성까지',
+    desc: '명령을 말로 적으면 AI가 알맞은 워크플로우를 찾아 명령 속 값으로 입력을 채우고 바로 실행합니다. '
+      + '한 번에 못 푸는 일은 징검다리 조합으로 엮어 제안하고, 없는 업무는 카탈로그의 API로 스텝 초안을 만들어 줍니다.'
   },
   {
     icon: IconGitBranch,
@@ -126,7 +126,9 @@ export default function ProductHome() {
           <p className="tagline">API 컬렉션을 엮어 업무 흐름으로</p>
           <p className="lead">
             개발자는 <strong>Bruno</strong>에서 API를 만들고, 실무자는 <strong>API Chain</strong>에서 그 API들을
-            순서대로 엮어 실행합니다. 둘 다 하나의 Git 저장소 위에서 돌아가서, 모든 변경이 기록되고 검토를 거쳐 운영에 반영됩니다.
+            순서대로 엮어 실행합니다. 하고 싶은 일을 말로 적으면 <strong>Flowwork AI</strong>가 알맞은 워크플로우를
+            자동으로 골라 입력값을 채우고 이 자리에서 바로 실행합니다. 둘 다 하나의 Git 저장소 위에서 돌아가서,
+            모든 변경이 기록되고 검토를 거쳐 운영에 반영됩니다.
           </p>
           <AiCommandBox />
           <div className="hero-actions">
