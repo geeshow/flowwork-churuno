@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import httpx
+import yaml
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -498,15 +499,40 @@ COLLECTION_INLINE_MAX_BYTES = int(2.5 * 1024 * 1024)
 COLLECTION_INLINE_SUFFIXES = (".bru", ".yml", ".yaml")
 
 
-def build_collection_tree(path: Path) -> dict:
+def collection_ignore_entries(path: Path) -> set:
+    """컬렉션 설정의 ignore 목록(컬렉션 기준 상대 경로).
+
+    숨긴 폴더는 클라이언트가 어차피 버리므로 서버가 읽지도, 실어 보내지도 않는다 —
+    큰 폴더를 ignore에 넣으면 디스크 읽기·전송량·클라이언트 파싱이 그만큼 준다.
+    """
+    try:
+        config = path / "bruno.json"
+        if config.is_file():
+            entries = json.loads(config.read_text(encoding="utf-8")).get("ignore") or []
+        else:
+            config = path / "opencollection.yml"
+            if not config.is_file():
+                return set()
+            parsed = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+            entries = ((parsed.get("extensions") or {}).get("bruno") or {}).get("ignore") or []
+        return {entry for entry in entries if isinstance(entry, str)}
+    except Exception:
+        return set()
+
+
+def build_collection_tree(path: Path, ignored: Optional[set] = None, rel: str = "") -> dict:
+    if ignored is None:
+        ignored = collection_ignore_entries(path)
     node: dict[str, Any] = {"name": path.name, "pathname": str(path)}
     if path.is_dir():
         node["type"] = "dir"
-        node["children"] = [
-            build_collection_tree(child)
-            for child in sorted(path.iterdir())
-            if child.name not in IGNORED_DIRS
-        ]
+        children = []
+        for child in sorted(path.iterdir()):
+            child_rel = f"{rel}/{child.name}" if rel else child.name
+            if child.name in IGNORED_DIRS or child_rel in ignored:
+                continue
+            children.append(build_collection_tree(child, ignored, child_rel))
+        node["children"] = children
         return node
     node["type"] = "file"
     size = path.stat().st_size

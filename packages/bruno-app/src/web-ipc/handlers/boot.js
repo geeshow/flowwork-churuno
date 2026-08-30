@@ -189,9 +189,18 @@ const registerBootHandlers = () => {
       webState.serverRoot = webState.workspaces[0].pathname;
       webState.activeWorkspacePath = webState.workspaces[0].pathname;
 
-      for (const workspace of webState.workspaces) {
-        workspace.docs = await readWorkspaceDocs(workspace.pathname);
-        const { collections } = await serverApi.listCollections(workspace.pathname);
+      // 워크스페이스마다 문서 + 컬렉션 목록을 병렬로 받아온다 — 순차로 돌면
+      // 원격 서버에서 워크스페이스 수 × 왕복 시간만큼 첫 화면이 늦어진다.
+      // emit은 받아온 뒤 원래 순서대로 해 기본 워크스페이스 선택이 흔들리지 않게 한다.
+      const loaded = await Promise.all(webState.workspaces.map(async (workspace) => {
+        const [docs, { collections }] = await Promise.all([
+          readWorkspaceDocs(workspace.pathname),
+          serverApi.listCollections(workspace.pathname)
+        ]);
+        workspace.docs = docs;
+        return { workspace, collections };
+      }));
+      for (const { workspace, collections } of loaded) {
         const entries = registerRemoteCollections(collections);
         allEntries.push(...entries);
         emit('main:workspace-opened', workspace.pathname, workspace.uid, workspaceConfigFor(workspace.name, workspace.type, entries, workspace));

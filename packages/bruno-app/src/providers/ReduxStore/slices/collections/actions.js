@@ -17,6 +17,7 @@ import {
   findCollectionByUid,
   findEnvironmentInCollection,
   findItemInCollection,
+  findItemInCollectionByPathname,
   findParentItemInCollection,
   isItemAFolder,
   refreshUidsInItem,
@@ -28,6 +29,7 @@ import {
   getDefaultRequestPaneTab
 } from 'utils/collections';
 import { uuid, waitForNextTick } from 'utils/common';
+import { getIgnoredFolderEntries } from 'utils/collections/ignoredFolders';
 import { cancelNetworkRequest, connectWS, sendGrpcRequest, sendNetworkRequest, sendWsRequest } from 'utils/network/index';
 import { callIpc } from 'utils/common/ipc';
 import brunoClipboard from 'utils/bruno-clipboard';
@@ -2713,6 +2715,41 @@ export const unignoreFolder = (ignoreEntry, collectionUid) => (dispatch, getStat
       .invoke('renderer:unignore-folder', collectionUid, collection.pathname, ignoreEntry)
       .then((updatedBrunoConfig) => {
         dispatch(_brunoConfigUpdateEvent({ collectionUid, brunoConfig: updatedBrunoConfig }));
+        resolve();
+      })
+      .catch(reject);
+  });
+};
+
+// Bulk counterpart of ignoreFolder/unignoreFolder: `entries` replaces every
+// managed (non-housekeeping) ignore entry in one config write and one re-mount.
+export const setIgnoredFolders = (entries, collectionUid) => (dispatch, getState) => {
+  const state = getState();
+  const collection = findCollectionByUid(state.collections.collections, collectionUid);
+
+  return new Promise((resolve, reject) => {
+    if (!collection) {
+      return reject(new Error('Collection not found'));
+    }
+
+    const current = collection.brunoConfig?.ignore || [];
+    const managed = new Set(getIgnoredFolderEntries(collection));
+    const ignore = [...current.filter((e) => !managed.has(e)), ...entries];
+
+    const { ipcRenderer } = window;
+    ipcRenderer
+      .invoke('renderer:set-ignored-folders', collectionUid, collection.pathname, ignore)
+      .then((updatedBrunoConfig) => {
+        dispatch(_brunoConfigUpdateEvent({ collectionUid, brunoConfig: updatedBrunoConfig }));
+        // the re-mount only streams items back in — newly ignored folders must leave the tree here
+        entries
+          .filter((entry) => !current.includes(entry))
+          .forEach((entry) => {
+            const item = findItemInCollectionByPathname(collection, `${collection.pathname}/${entry}`);
+            if (item) {
+              dispatch(_deleteItemFromState({ itemUid: item.uid, collectionUid }));
+            }
+          });
         resolve();
       })
       .catch(reject);
