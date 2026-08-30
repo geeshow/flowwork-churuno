@@ -1,0 +1,848 @@
+<meta charset="utf-8">
+<title>Flowwork</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --stage: #191512;
+    --stage-2: #221c17;
+    --line: #383028;
+    --text: #ede5da;
+    --muted: #a3968a;
+    --accent: #d9942b;
+    --accent-soft: #e8b063;
+    --green: #4fae6f;
+
+    --win: #ffffff;
+    --win-2: #faf7f2;
+    --win-line: #e6ddd1;
+    --win-text: #2a241e;
+    --win-muted: #8d8175;
+    --win-accent: #c07a1f;
+    --win-green: #2e8f52;
+
+    --serif: 'Gowun Batang', 'Apple SD Gothic Neo', serif;
+    --sans: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', sans-serif;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--stage);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 920px; margin: 0 auto; padding: 72px 24px 96px; }
+
+  /* ---- hero ---- */
+  .hero { text-align: center; margin-bottom: 56px; }
+  .eyebrow {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 14px;
+    margin-bottom: 22px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(44px, 8vw, 68px);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+  h1 .amp { color: var(--accent); }
+  .thesis {
+    max-width: 34em;
+    margin: 18px auto 0;
+    color: var(--muted);
+    font-size: 17px;
+    text-wrap: balance;
+  }
+  .thesis strong { color: var(--text); font-weight: 500; }
+
+  /* ---- demo stage ---- */
+  .demo-wrap { margin: 0 auto 20px; }
+  .window {
+    background: var(--win);
+    color: var(--win-text);
+    border-radius: 12px;
+    border: 1px solid #4a4038;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--win-2);
+    border-bottom: 1px solid var(--win-line);
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: #ddd3c6; }
+  .dot.r { background: #e8887c; } .dot.y { background: #ecc06b; } .dot.g { background: #9cc98a; }
+  .urlbar {
+    flex: 1;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--win-muted);
+    background: var(--win);
+    border: 1px solid var(--win-line);
+    border-radius: 6px;
+    padding: 3px 10px;
+    margin: 0 40px 0 8px;
+  }
+
+  /* 씬이 진행돼도 창 높이가 출렁이지 않게 고정 — 넘치는 내용은 안에서 스크롤 */
+  .app { padding: 26px 28px 30px; height: 560px; overflow-y: auto; scroll-behavior: smooth; }
+  .app-brand {
+    text-align: center;
+    font-weight: 700;
+    font-size: 21px;
+    margin-bottom: 2px;
+  }
+  .app-tag { text-align: center; color: var(--win-muted); font-size: 12.5px; margin-bottom: 20px; }
+
+  .cmd-box {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 1.5px solid var(--win-line);
+    border-radius: 10px;
+    background: var(--win);
+    padding: 9px 9px 9px 14px;
+    transition: border-color 0.3s;
+  }
+  .cmd-box.focus { border-color: var(--win-accent); }
+  .spark { color: var(--win-accent); flex-shrink: 0; font-size: 15px; }
+  .cmd-text { flex: 1; min-height: 21px; }
+  .cmd-text .ph { color: #c0b6a8; }
+  .caret {
+    display: inline-block;
+    width: 1.5px; height: 16px;
+    background: var(--win-accent);
+    vertical-align: -3px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .cmd-btn {
+    flex-shrink: 0;
+    background: var(--win-accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    border-radius: 7px;
+    padding: 6px 16px;
+    transition: transform 0.15s, filter 0.15s;
+  }
+  .cmd-btn.pressed { transform: scale(0.94); filter: brightness(0.9); }
+
+  /* analysis line */
+  .analysis {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--win-muted);
+  }
+  .chip {
+    border: 1px solid var(--win-accent);
+    border-radius: 999px;
+    padding: 1px 10px;
+    color: var(--win-text);
+    font-size: 12px;
+  }
+  .chip b { color: var(--win-accent); font-weight: 500; font-family: var(--mono); font-size: 11.5px; }
+  .chip.produced { border-color: var(--win-green); }
+  .chip.produced b { color: var(--win-green); }
+  .thinking { display: inline-flex; gap: 4px; align-items: center; }
+  .thinking i {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--win-accent);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  .thinking i:nth-child(2) { animation-delay: 0.18s; }
+  .thinking i:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes pulse { 50% { opacity: 0.25; transform: translateY(-2px); } }
+
+  /* results */
+  .results {
+    margin-top: 12px;
+    border: 1px solid var(--win-line);
+    border-radius: 9px;
+    overflow: hidden;
+  }
+  .row { border-top: 1px solid var(--win-line); }
+  .row:first-child { border-top: none; }
+  .row-main { display: flex; align-items: center; gap: 8px; padding: 10px 13px; }
+  .row-title { flex: 1; min-width: 0; }
+  .row-dir { color: var(--win-muted); }
+  .row-name { font-weight: 700; }
+  .row-desc { color: var(--win-muted); font-size: 12px; margin-top: 1px; }
+  .flowmap-btn {
+    flex-shrink: 0;
+    border: 1px solid var(--win-line);
+    border-radius: 6px;
+    color: var(--win-muted);
+    font-size: 11.5px;
+    padding: 3px 9px;
+  }
+  .row.hl .row-main { background: #fdf6ea; }
+
+  /* bridge */
+  .bridge {
+    border-top: 1px dashed var(--win-line);
+    padding: 9px 13px 12px;
+    font-size: 12px;
+  }
+  .bridge-note { color: var(--win-muted); margin-bottom: 7px; }
+  .bridge-note b { color: var(--win-accent); font-weight: 500; }
+  .bridge-note .ok { color: var(--win-green); font-weight: 700; }
+  .bridge-steps { display: flex; flex-wrap: wrap; gap: 7px; }
+  .bstep {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--win-line);
+    border-radius: 999px;
+    padding: 4px 12px;
+    background: var(--win);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .bstep.active { border-color: var(--win-accent); box-shadow: 0 0 0 3px rgba(192, 122, 31, 0.12); }
+  .bstep.done { border-color: var(--win-green); }
+  .bstep .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--win-accent); color: #fff;
+    font-size: 10px; font-weight: 700;
+  }
+  .bstep.done .num { background: var(--win-green); }
+  .bstep .provides { color: var(--win-muted); }
+
+  /* inline run panel */
+  .panel {
+    border-top: 1px solid var(--win-line);
+    padding: 12px 13px 14px;
+    background: #fcfaf6;
+    font-size: 13px;
+  }
+  .panel-title { font-weight: 700; margin-bottom: 9px; }
+  .field { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .field label { width: 128px; color: var(--win-muted); font-size: 12px; flex-shrink: 0; }
+  .field .input {
+    flex: 1;
+    border: 1px solid var(--win-line);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--win);
+    min-height: 29px;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .field .input.filled { border-color: var(--win-green); background: #f2faf4; }
+  .run-line { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+  .run-btn {
+    background: var(--win-accent);
+    color: #fff; font-weight: 700; font-size: 12.5px;
+    border-radius: 7px; padding: 5px 18px;
+    transition: transform 0.15s, filter 0.15s;
+  }
+  .run-btn.pressed { transform: scale(0.94); filter: brightness(0.9); }
+  .run-status { font-size: 12px; color: var(--win-muted); display: inline-flex; align-items: center; gap: 7px; }
+  .spinner {
+    width: 13px; height: 13px;
+    border: 2px solid var(--win-line);
+    border-top-color: var(--win-accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .badge {
+    display: inline-block;
+    font-size: 11px; font-weight: 700;
+    border-radius: 5px; padding: 1px 8px;
+  }
+  .badge.ok { background: #e3f4e8; color: var(--win-green); }
+  .result-table { margin-top: 10px; border: 1px solid var(--win-line); border-radius: 7px; overflow: hidden; font-size: 12px; }
+  .result-table .tr { display: flex; gap: 12px; padding: 6px 11px; border-top: 1px solid var(--win-line); }
+  .result-table .tr:first-child { border-top: none; background: var(--win-2); color: var(--win-muted); }
+  .result-table .td { flex: 1; font-family: var(--mono); font-size: 11.5px; }
+  .result-table .tr:first-child .td { font-family: var(--sans); font-size: 11.5px; }
+
+  /* demo phase caption */
+  .phase {
+    text-align: center;
+    margin-top: 18px;
+    min-height: 28px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .phase b { color: var(--accent-soft); font-weight: 500; font-family: var(--mono); font-size: 12px; margin-right: 8px; }
+  /* scene 2 — AI로 API Chain 등록 */
+  .purpose {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    margin-top: 12px; font-size: 12px;
+  }
+  .purpose-label { color: var(--win-muted); margin-right: 4px; }
+  .pchip {
+    border: 1px solid var(--win-line);
+    border-radius: 999px;
+    padding: 3px 11px;
+    color: var(--win-muted);
+    transition: border-color 0.3s, color 0.3s, background 0.3s;
+  }
+  .pchip.on {
+    border-color: var(--win-accent);
+    color: var(--win-text);
+    background: #fdf6ea;
+  }
+  .proposal {
+    margin-top: 12px;
+    border: 1px solid var(--win-line);
+    border-radius: 9px;
+    padding: 12px 13px;
+    background: #fcfaf6;
+  }
+  .proposal-head { font-size: 12.5px; color: var(--win-muted); margin-bottom: 9px; }
+  .proposal-head b { color: var(--win-text); font-weight: 700; }
+  .scard {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+    border: 1px solid var(--win-line);
+    border-radius: 7px;
+    background: var(--win);
+    padding: 7px 11px;
+    font-size: 13px;
+  }
+  .smethod { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+  .smethod.m-get { color: var(--win-green); }
+  .smethod.m-post { color: var(--win-accent); }
+  .sname { font-weight: 700; }
+  .sbind { color: var(--win-muted); font-size: 11.5px; }
+  .sflow {
+    color: var(--win-muted);
+    font-size: 11px;
+    padding: 3px 0 3px 14px;
+  }
+  .proposal-actions { margin-top: 10px; }
+
+  /* staged visibility */
+  .stage-hidden { display: none; }
+  .reveal { animation: rise 0.45s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(7px); } }
+
+  /* ---- narrative sections ---- */
+  section.block { margin-top: 92px; }
+  h2 {
+    font-family: var(--serif);
+    font-size: 30px;
+    font-weight: 700;
+    text-align: center;
+    text-wrap: balance;
+    margin-bottom: 10px;
+  }
+  .block > .sub { text-align: center; color: var(--muted); max-width: 36em; margin: 0 auto 36px; }
+
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .step {
+    background: var(--stage-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 16px;
+  }
+  .step .no {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 8px;
+  }
+  .step strong { display: block; font-size: 14.5px; margin-bottom: 5px; }
+  .step p { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .feature {
+    background: var(--stage-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px 20px;
+  }
+  .feature h3 { font-size: 16px; margin-bottom: 8px; }
+  .feature h3::before { content: '— '; color: var(--accent); }
+  .feature p { font-size: 13.5px; color: var(--muted); }
+
+  footer {
+    margin-top: 92px;
+    padding-top: 26px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  footer .stack { font-family: var(--mono); font-size: 11.5px; }
+
+  @media (max-width: 720px) {
+    .steps { grid-template-columns: 1fr 1fr; }
+    .features { grid-template-columns: 1fr; }
+    .app { padding: 18px 14px 22px; }
+    .field label { width: 100px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .caret, .thinking i, .spinner { animation: none; }
+    .reveal { animation: none; }
+  }
+</style>
+
+<div class="page">
+  <header class="hero">
+    <span class="eyebrow">AX Contest</span>
+    <h1>말로 시키면,<br>워크플로우가 <span class="amp">실행됩니다</span></h1>
+    <p class="thesis">
+      <strong>Flowwork</strong>는 Bruno에 쌓인 API를 업무 흐름(API Chain)으로 엮고,
+      <strong>Flowwork AI</strong>가 자연어 명령에서 값을 읽어 알맞은 워크플로우를 골라
+      그 자리에서 실행하는 도구입니다. 아래는 홈 화면(<code style="font-family: var(--mono); font-size: 0.85em;">#/home</code>)의
+      실제 사용 흐름을 그대로 재현한 시연입니다.
+    </p>
+  </header>
+
+  <div class="demo-wrap">
+    <div class="window" aria-label="Flowwork AI 명령 시연">
+      <div class="titlebar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="urlbar" id="urlbar">localhost:3000/#/home</span>
+      </div>
+      <div class="app" id="demo">
+        <div class="app-brand">⌘ Flowwork</div>
+        <div class="app-tag" id="appTag">API 컬렉션을 엮어 업무 흐름으로</div>
+
+        <div id="scene1">
+        <div class="cmd-box" id="cmdBox">
+          <span class="spark">✦</span>
+          <span class="cmd-text" id="cmdText"><span class="ph">하고 싶은 업무를 말로 적으세요…</span></span>
+          <span class="cmd-btn" id="cmdBtn">실행</span>
+        </div>
+
+        <div class="analysis stage-hidden" id="thinkingLine">
+          <span class="thinking"><i></i><i></i><i></i></span>
+          <span>AI가 명령에서 키워드와 입력값을 추출하는 중…</span>
+        </div>
+
+        <div class="analysis stage-hidden" id="analysisLine">
+          <span>키워드: 계좌 · 목록 · 조회</span>
+          <span class="chip">앱 사용자 ID <b>U1000</b></span>
+        </div>
+
+        <div class="analysis stage-hidden" id="producedLine">
+          <span>실행에서 얻은 값:</span>
+          <span class="chip produced">고객식별번호(CIF) <b>CIF001122</b></span>
+          <span class="chip produced">이름 <b>김철수</b></span>
+        </div>
+
+        <div class="results stage-hidden" id="results">
+          <div class="row hl" id="rowTarget">
+            <div class="row-main">
+              <div class="row-title">
+                <div><span class="row-dir">계정 › 계좌관리 › </span><span class="row-name">계좌 목록 조회</span></div>
+                <div class="row-desc">고객식별번호(CIF)로 보유 계좌 전체를 조회합니다. 계좌별 상태 코드까지 함께 반환합니다.</div>
+              </div>
+              <span class="flowmap-btn">flowmap 보기</span>
+            </div>
+            <div class="bridge stage-hidden" id="bridge">
+              <div class="bridge-note" id="bridgeNote">
+                입력 <b>고객식별번호(CIF)</b>가 명령에 없습니다 — 값을 만들어 줄 징검다리를 함께 제안합니다
+              </div>
+              <div class="bridge-steps">
+                <span class="bstep" id="bstep1"><span class="num">1</span> 앱유저아이디조회 <span class="provides">→ 고객식별번호(CIF)</span></span>
+                <span class="bstep" id="bstep2"><span class="num">2</span> 계좌 목록 조회</span>
+              </div>
+            </div>
+            <div class="panel stage-hidden" id="panel1">
+              <div class="panel-title">① 앱유저아이디조회</div>
+              <div class="field">
+                <label>앱 사용자 ID</label>
+                <span class="input filled" id="p1input">U1000</span>
+              </div>
+              <div class="run-line">
+                <span class="run-btn" id="run1">실행</span>
+                <span class="run-status stage-hidden" id="status1"><span class="spinner"></span> 실행 중…</span>
+                <span class="run-status stage-hidden" id="done1"><span class="badge ok">SUCCESS</span></span>
+              </div>
+            </div>
+            <div class="panel stage-hidden" id="panel2">
+              <div class="panel-title">② 계좌 목록 조회</div>
+              <div class="field">
+                <label>고객식별번호(CIF)</label>
+                <span class="input" id="p2input"></span>
+              </div>
+              <div class="run-line">
+                <span class="run-btn" id="run2">실행</span>
+                <span class="run-status stage-hidden" id="status2"><span class="spinner"></span> 실행 중…</span>
+                <span class="run-status stage-hidden" id="done2"><span class="badge ok">SUCCESS</span></span>
+              </div>
+              <div class="result-table stage-hidden" id="resultTable">
+                <div class="tr"><span class="td">계좌번호</span><span class="td">종류</span><span class="td">상태</span></div>
+                <div class="tr"><span class="td">110-2345-6789</span><span class="td">입출금</span><span class="td">정상</span></div>
+                <div class="tr"><span class="td">221-9876-5432</span><span class="td">예금</span><span class="td">정상</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="row-main">
+              <div class="row-title">
+                <div><span class="row-dir">계정 › 계좌관리 › </span><span class="row-name">계좌 목록 조회 (보안ID)</span></div>
+                <div class="row-desc">보안 사용자 ID(sec_user_id)를 기준으로 계좌를 조회하는 변형입니다.</div>
+              </div>
+              <span class="flowmap-btn">flowmap 보기</span>
+            </div>
+          </div>
+          <div class="row">
+            <div class="row-main">
+              <div class="row-title">
+                <div><span class="row-dir">계정 › 사용자조회 › </span><span class="row-name">사용자 정보 조회 (앱ID)</span></div>
+                <div class="row-desc">앱 사용자 ID로 사용자 기본 정보와 고객식별번호를 조회합니다.</div>
+              </div>
+              <span class="flowmap-btn">flowmap 보기</span>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <div id="scene2" class="stage-hidden">
+          <div class="cmd-box" id="wizBox">
+            <span class="spark">✦</span>
+            <span class="cmd-text" id="wizText"><span class="ph">만들고 싶은 업무를 설명해 주세요…</span></span>
+            <span class="cmd-btn" id="wizBtn">만들기</span>
+          </div>
+
+          <div class="analysis stage-hidden" id="wThinking">
+            <span class="thinking"><i></i><i></i><i></i></span>
+            <span>AI가 카탈로그에서 쓸 만한 API를 고르고 스텝을 짜는 중…</span>
+          </div>
+
+          <div class="purpose stage-hidden" id="wPurpose">
+            <span class="purpose-label">업무 성격</span>
+            <span class="pchip">조회</span>
+            <span class="pchip">단건 처리</span>
+            <span class="pchip" id="pBatch">다건 처리 — 목록을 훑어 여러 건을 처리</span>
+          </div>
+
+          <div class="proposal stage-hidden" id="wProposal">
+            <div class="proposal-head">AI 초안 — <b>휴면 계좌 폐쇄</b> · 스텝 3개</div>
+            <div class="scard stage-hidden" id="sc1">
+              <span class="smethod m-get">GET</span>
+              <span class="sname">계좌 목록 조회 (보안ID)</span>
+              <span class="sbind">보안 사용자 ID ← 사용자 정보 조회로 자동 조회</span>
+            </div>
+            <div class="sflow stage-hidden" id="sf1">↓ 계좌마다 반복</div>
+            <div class="scard stage-hidden" id="sc2">
+              <span class="smethod m-get">GET</span>
+              <span class="sname">계좌 활성 상태 코드</span>
+              <span class="sbind">분기 — 휴면(DORMANT)일 때만 다음 스텝으로</span>
+            </div>
+            <div class="sflow stage-hidden" id="sf2">↓ 계좌번호 ← ①의 응답</div>
+            <div class="scard stage-hidden" id="sc3">
+              <span class="smethod m-post">POST</span>
+              <span class="sname">계좌 폐쇄</span>
+              <span class="sbind">사유 코드 = 01 · 고객 요청</span>
+            </div>
+            <div class="run-line proposal-actions">
+              <span class="run-btn" id="applyBtn">초안 적용</span>
+            </div>
+          </div>
+
+          <div class="panel stage-hidden" id="wSaved">
+            <div class="field">
+              <label>이름</label>
+              <span class="input" id="wName"></span>
+            </div>
+            <div class="field">
+              <label>설명</label>
+              <span class="input" id="wDesc"></span>
+            </div>
+            <div class="run-line">
+              <span class="run-btn" id="saveBtn">저장</span>
+              <span class="run-status stage-hidden" id="savedBadge">
+                <span class="badge ok">기록됨</span> 편집 공간에 자동 기록 — 운영 반영은 작업 단위로 골라서
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="phase" id="phase"><b>DEMO</b>잠시 후 시연이 시작됩니다…</p>
+  </div>
+
+  <section class="block">
+    <h2>여섯 단계, 한 자리에서</h2>
+    <p class="sub">화면 이동 없이 명령 입력부터 실행 결과까지 홈 화면 안에서 끝납니다.</p>
+    <div class="steps">
+      <div class="step"><span class="no">01</span><strong>말로 명령</strong><p>"앱 사용자 ID U1000의 계좌 목록을 조회해줘" — 업무를 문장으로 적습니다.</p></div>
+      <div class="step"><span class="no">02</span><strong>AI가 값을 읽음</strong><p>키워드와 함께 명령 속 입력값(U1000)을 구분해 칩으로 보여줍니다.</p></div>
+      <div class="step"><span class="no">03</span><strong>징검다리 조합</strong><p>필요한 입력(CIF)이 없으면 값을 만들어 줄 앞 단계를 찾아 묶어 제안합니다.</p></div>
+      <div class="step"><span class="no">04</span><strong>결과값 자동 전달</strong><p>① 실행에서 얻은 CIF가 ②의 입력에 자동으로 채워져 바로 실행됩니다.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Flowwork를 이루는 세 축</h2>
+    <p class="sub">개발자의 Bruno, 실무자의 API Chain, 그리고 둘을 잇는 하나의 Git 저장소.</p>
+    <div class="features">
+      <div class="feature">
+        <h3>Bruno — API를 만든다</h3>
+        <p>브라우저에서 요청을 만들고 저장하면 .bru 파일로 Git 브랜치에 쌓입니다. 검토를 거쳐 main에 반영된 API가 곧 카탈로그입니다.</p>
+      </div>
+      <div class="feature">
+        <h3>API Chain — 흐름으로 엮는다</h3>
+        <p>카탈로그의 API를 스텝으로 쌓아 워크플로우를 만듭니다. 이전 응답·환경변수·사용자 입력이 다음 요청의 변수로 흐릅니다.</p>
+      </div>
+      <div class="feature">
+        <h3>Flowwork AI — 골라서 실행한다</h3>
+        <p>자연어 명령에서 키워드·값을 추출해 워크플로우를 매칭하고, 한 번에 못 푸는 일은 징검다리 조합으로 엮어 그 자리에서 실행합니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Flowwork — Bruno 포크 위에 만든 AX 출품작</span>
+    <span class="stack">React 19 · Redux · FastAPI · Git · claude</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const COMMAND = '앱 사용자 ID U1000의 계좌 목록을 조회해줘';
+  // ?motion=1 은 접근성 설정과 무관하게 애니메이션을 강제한다 (시연·검증용)
+  const reduced = new URLSearchParams(location.search).has('motion')
+    ? false
+    : window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const phaseEl = $('phase');
+  let timers = [];
+  const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+
+  const setPhase = (n, text) => {
+    phaseEl.innerHTML = '<b>' + n + '</b>' + text;
+  };
+  const show = (id) => {
+    const el = $(id);
+    el.classList.remove('stage-hidden');
+    el.classList.add('reveal');
+    // 고정 높이 창 안에서 새 내용이 아래에 붙을 때마다 따라 내려간다
+    const app = $('demo');
+    app.scrollTop = app.scrollHeight;
+  };
+  const hide = (id) => $(id).classList.add('stage-hidden');
+
+  const reset = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    ['thinkingLine', 'analysisLine', 'producedLine', 'results', 'bridge',
+     'panel1', 'panel2', 'status1', 'done1', 'status2', 'done2', 'resultTable',
+     'scene2', 'wThinking', 'wPurpose', 'wProposal', 'sc1', 'sf1', 'sc2', 'sf2', 'sc3',
+     'wSaved', 'savedBadge'
+    ].forEach(hide);
+    $('scene1').classList.remove('stage-hidden');
+    $('urlbar').textContent = 'localhost:3000/#/home';
+    $('appTag').textContent = 'API 컬렉션을 엮어 업무 흐름으로';
+    $('cmdText').innerHTML = '<span class="ph">하고 싶은 업무를 말로 적으세요…</span>';
+    $('wizText').innerHTML = '<span class="ph">만들고 싶은 업무를 설명해 주세요…</span>';
+    $('cmdBox').classList.remove('focus');
+    $('wizBox').classList.remove('focus');
+    ['cmdBtn', 'run1', 'run2', 'wizBtn', 'applyBtn', 'saveBtn'].forEach((id) => $(id).classList.remove('pressed'));
+    $('bstep1').className = 'bstep';
+    $('bstep2').className = 'bstep';
+    $('pBatch').classList.remove('on');
+    $('p2input').textContent = '';
+    $('p2input').classList.remove('filled');
+    $('wName').textContent = '';
+    $('wName').classList.remove('filled');
+    $('wDesc').textContent = '';
+    $('wDesc').classList.remove('filled');
+    $('bridgeNote').innerHTML = '입력 <b>고객식별번호(CIF)</b>가 명령에 없습니다 — 값을 만들어 줄 징검다리를 함께 제안합니다';
+    $('demo').scrollTop = 0;
+  };
+
+  const finalState = () => {
+    // 애니메이션 없이 완성된 마지막 장면만 보여준다 (reduced motion)
+    reset();
+    $('cmdText').textContent = COMMAND;
+    ['analysisLine', 'producedLine', 'results', 'bridge', 'panel1', 'panel2',
+     'done1', 'done2', 'resultTable'].forEach((id) => $(id).classList.remove('stage-hidden'));
+    $('bstep1').className = 'bstep done';
+    $('bstep2').className = 'bstep done';
+    $('p2input').textContent = 'CIF001122';
+    $('p2input').classList.add('filled');
+    $('bridgeNote').innerHTML = '징검다리 ①의 결과가 ②의 입력으로 전달되었습니다 <span class="ok">값 확보됨 ✓</span>';
+    setPhase('DEMO', '명령 한 줄 → 징검다리 실행 → 결과까지, 홈 화면 안에서 끝납니다.');
+  };
+
+  const typeInto = (boxId, textId, str, done) => {
+    $(boxId).classList.add('focus');
+    const target = $(textId);
+    target.innerHTML = '<span class="typed"></span><span class="caret"></span>';
+    const typed = target.querySelector('.typed');
+    let i = 0;
+    const tick = () => {
+      typed.textContent = str.slice(0, ++i);
+      if (i < str.length) {
+        later(38 + Math.random() * 55, tick);
+      } else {
+        later(350, done);
+      }
+    };
+    later(300, tick);
+  };
+
+  const play = () => {
+    reset();
+    setPhase('S1 · 1/6', '하고 싶은 업무를 말로 적습니다');
+    typeInto('cmdBox', 'cmdText', COMMAND, () => {
+      $('cmdBtn').classList.add('pressed');
+      later(180, () => {
+        $('cmdBtn').classList.remove('pressed');
+        $('cmdText').textContent = COMMAND;
+        setPhase('S1 · 2/6', 'AI가 키워드와 함께 명령 속 입력값(U1000)을 읽어냅니다');
+        show('thinkingLine');
+        later(1400, () => {
+          hide('thinkingLine');
+          show('analysisLine');
+          later(700, () => {
+            setPhase('S1 · 3/6', '워크플로우를 매칭하고 — 부족한 입력(CIF)에는 징검다리를 함께 제안합니다');
+            show('results');
+            later(900, () => {
+              show('bridge');
+              later(1600, () => {
+                setPhase('S1 · 4/6', '징검다리 ①이 명령의 값(U1000)으로 미리 채워진 채 열립니다');
+                $('bstep1').classList.add('active');
+                show('panel1');
+                later(1300, () => {
+                  $('run1').classList.add('pressed');
+                  later(180, () => {
+                    $('run1').classList.remove('pressed');
+                    show('status1');
+                    later(1300, () => {
+                      hide('status1');
+                      show('done1');
+                      $('bstep1').className = 'bstep done';
+                      setPhase('S1 · 5/6', '① 실행에서 얻은 값(CIF)이 ②의 입력으로 자동 전달됩니다');
+                      show('producedLine');
+                      $('bridgeNote').innerHTML = '징검다리 ①의 결과가 ②의 입력으로 전달되었습니다 <span class="ok">값 확보됨 ✓</span>';
+                      later(1200, () => {
+                        $('bstep2').classList.add('active');
+                        show('panel2');
+                        const p2 = $('p2input');
+                        later(500, () => {
+                          p2.textContent = 'CIF001122';
+                          p2.classList.add('filled');
+                          later(1100, () => {
+                            $('run2').classList.add('pressed');
+                            later(180, () => {
+                              $('run2').classList.remove('pressed');
+                              show('status2');
+                              later(1300, () => {
+                                hide('status2');
+                                show('done2');
+                                $('bstep2').className = 'bstep done';
+                                setPhase('S1 · 6/6', '계좌 목록까지 — 화면 이동 없이 홈에서 끝났습니다');
+                                show('resultTable');
+                                // 실행 장면을 잠시 보여준 뒤 두 번째 장면(API Chain 등록)으로
+                                later(4000, playScene2);
+                              });
+                            });
+                          });
+                        });
+                      });
+                    });
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  };
+
+  // Scene 2 — 실행뿐 아니라 등록까지: 말로 설명하면 AI가 API Chain 초안을 짠다
+  const WIZ_COMMAND = '휴면 상태의 계좌를 모두 찾아서 폐쇄 처리하는 업무를 만들어줘';
+  const playScene2 = () => {
+    $('scene1').classList.add('stage-hidden');
+    show('scene2');
+    $('demo').scrollTop = 0;
+    $('urlbar').textContent = 'localhost:3000/#/flowwork · 새 API Chain';
+    $('appTag').textContent = 'API Chain 편집기 — 말로 설명하면 스텝 초안이 나옵니다';
+    setPhase('S2 · 1/4', '이번엔 등록 — 만들고 싶은 업무를 말로 설명합니다');
+    typeInto('wizBox', 'wizText', WIZ_COMMAND, () => {
+      $('wizBtn').classList.add('pressed');
+      later(180, () => {
+        $('wizBtn').classList.remove('pressed');
+        $('wizText').textContent = WIZ_COMMAND;
+        show('wThinking');
+        later(1400, () => {
+          hide('wThinking');
+          setPhase('S2 · 2/4', 'AI가 업무 성격을 짚습니다 — 목록을 훑는 다건 처리');
+          show('wPurpose');
+          later(900, () => {
+            $('pBatch').classList.add('on');
+            later(1100, () => {
+              setPhase('S2 · 3/4', '카탈로그의 API로 스텝 초안을 제안합니다 — 반복·분기·값 연결까지');
+              show('wProposal');
+              later(400, () => show('sc1'));
+              later(850, () => show('sf1'));
+              later(1300, () => show('sc2'));
+              later(1750, () => show('sf2'));
+              later(2200, () => show('sc3'));
+              later(3600, () => {
+                $('applyBtn').classList.add('pressed');
+                later(180, () => {
+                  $('applyBtn').classList.remove('pressed');
+                  setPhase('S2 · 4/4', '초안을 편집기에 적용하고 저장 — 변경은 자동 기록, 운영 반영은 골라서');
+                  show('wSaved');
+                  later(500, () => {
+                    $('wName').textContent = '휴면 계좌 폐쇄';
+                    $('wName').classList.add('filled');
+                  });
+                  later(950, () => {
+                    $('wDesc').textContent = '계좌 목록을 돌며 휴면 상태인 계좌만 골라 폐쇄한다.';
+                    $('wDesc').classList.add('filled');
+                  });
+                  later(1900, () => {
+                    $('saveBtn').classList.add('pressed');
+                    later(180, () => {
+                      $('saveBtn').classList.remove('pressed');
+                      show('savedBadge');
+                      // 등록 장면을 잠시 보여준 뒤 처음(실행 장면)부터 반복
+                      later(5000, play);
+                    });
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  };
+
+  if (reduced) {
+    finalState();
+  } else {
+    later(900, play);
+  }
+})();
+</script>
