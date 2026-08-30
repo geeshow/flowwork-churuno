@@ -5,7 +5,10 @@ const DEFAULT_WORKSPACE_UID = 'default';
 
 const initialState = {
   workspaces: [],
-  activeWorkspaceUid: DEFAULT_WORKSPACE_UID
+  activeWorkspaceUid: DEFAULT_WORKSPACE_UID,
+  // 웹 모드에서 main(운영) 워크스페이스로 전환하기 전 비밀번호를 묻는 모달의
+  // 대상 워크스페이스 uid — null이면 닫힘
+  mainPasswordPromptUid: null
 };
 
 export const workspacesSlice = createSlice({
@@ -126,6 +129,12 @@ export const workspacesSlice = createSlice({
         workspace.scratchCollectionUid = scratchCollectionUid;
         workspace.scratchTempDirectory = scratchTempDirectory;
       }
+    },
+    showMainPasswordPrompt: (state, action) => {
+      state.mainPasswordPromptUid = action.payload;
+    },
+    hideMainPasswordPrompt: (state) => {
+      state.mainPasswordPromptUid = null;
     }
   }
 });
@@ -140,7 +149,9 @@ export const {
   updateWorkspaceLoadingState,
   workspaceDotEnvUpdateEvent,
   setWorkspaceDotEnvVariables,
-  setWorkspaceScratchCollection
+  setWorkspaceScratchCollection,
+  showMainPasswordPrompt,
+  hideMainPasswordPrompt
 } = workspacesSlice.actions;
 
 export default workspacesSlice.reducer;
