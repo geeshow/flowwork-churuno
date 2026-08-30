@@ -73,7 +73,9 @@ const baseUrl = serverBaseUrl;
 
 const request = async (path, options = {}) => {
   const res = await fetch(`${baseUrl}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    // 바디가 있을 때만 Content-Type을 붙인다 — 헤더 없는 GET은 CORS 단순 요청이라
+    // 원격 서버 배포에서 호출마다 붙던 OPTIONS preflight 왕복이 사라진다
+    ...(options.body ? { headers: { 'Content-Type': 'application/json' } } : {}),
     ...options
   });
   if (!res.ok) {
@@ -89,9 +91,20 @@ const request = async (path, options = {}) => {
   return res.json();
 };
 
+// 부팅 구간에는 같은 GET(워크스페이스별 컬렉션 목록, environments 존재 확인)이
+// 여러 이벤트 경로에서 동시에 나간다. 진행 중인 동일 요청을 공유해 왕복을 하나로
+// 합친다 — 완료 즉시 지우므로 캐시가 아니고, 이후 호출은 항상 새로 요청한다.
+const inflightGets = new Map();
+
 const get = (path, params) => {
   const query = params ? `?${new URLSearchParams(params)}` : '';
-  return request(`${path}${query}`);
+  const url = `${path}${query}`;
+  if (inflightGets.has(url)) {
+    return inflightGets.get(url);
+  }
+  const promise = request(url).finally(() => inflightGets.delete(url));
+  inflightGets.set(url, promise);
+  return promise;
 };
 
 const post = (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) });
