@@ -19,7 +19,8 @@ import {
   IconX,
   IconSettings,
   IconBook,
-  IconFileArrowRight
+  IconFileArrowRight,
+  IconEyeOff
 } from '@tabler/icons';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
 import { toggleCollection, collapseFullCollection } from 'providers/ReduxStore/slices/collections';
@@ -33,6 +34,7 @@ import NewFolder from 'components/Sidebar/NewFolder';
 import CollectionItem from './CollectionItem';
 import RemoveCollection from './RemoveCollection';
 import MoveToWorkspace from './MoveToWorkspace';
+import ManageIgnoredFolders from './ManageIgnoredFolders';
 import { isPathExternalToBasePath } from 'utils/common/path';
 import { doesCollectionHaveItemsMatchingSearchText } from 'utils/collections/search';
 import { isItemAFolder, isItemARequest, areItemsLoading } from 'utils/collections';
@@ -65,6 +67,7 @@ const Collection = ({ collection, searchText }) => {
   const [showShareCollectionModal, setShowShareCollectionModal] = useState(false);
   const [showGenerateDocumentationModal, setShowGenerateDocumentationModal] = useState(false);
   const [showRemoveCollectionModal, setShowRemoveCollectionModal] = useState(false);
+  const [showIgnoredFoldersModal, setShowIgnoredFoldersModal] = useState(false);
   const [showMoveToWorkspaceModal, setShowMoveToWorkspaceModal] = useState(false);
   const [dropType, setDropType] = useState(null);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
@@ -424,6 +427,16 @@ const Collection = ({ collection, searchText }) => {
       onClick: handleCollapseFullCollection
     },
     {
+      id: 'ignored-folders',
+      leftSection: IconEyeOff,
+      label: 'Ignored Folders',
+      testId: 'collection-ignored-folders',
+      onClick: () => {
+        ensureCollectionIsMounted();
+        setShowIgnoredFoldersModal(true);
+      }
+    },
+    {
       id: 'divider-1',
       type: 'divider'
     },
@@ -465,6 +478,9 @@ const Collection = ({ collection, searchText }) => {
       )}
       {showRemoveCollectionModal && (
         <RemoveCollection collectionUid={collection.uid} onClose={() => setShowRemoveCollectionModal(false)} />
+      )}
+      {showIgnoredFoldersModal && (
+        <ManageIgnoredFolders collection={collection} onClose={() => setShowIgnoredFoldersModal(false)} />
       )}
       {showMoveToWorkspaceModal && (
         <MoveToWorkspace collectionUid={collection.uid} onClose={() => setShowMoveToWorkspaceModal(false)} />
