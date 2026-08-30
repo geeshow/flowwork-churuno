@@ -22,7 +22,7 @@
     "markdown-it": "^13.0.1",
     "postcss": "8.4.47",
     "react": "19.0.0",
-    "react-dom": "18.2.0",
+    "react-dom": "19.2.8",
     "rollup":"4.62.4",
     "rollup-plugin-dts": "^6.5.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
