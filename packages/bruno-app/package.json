@@ -19,7 +19,7 @@
     "@tanstack/react-query": "5.101.1",
     "@testing-library/user-event": "^14.6.1",
     "@tippyjs/react": "^4.2.6",
-    "@tiptap/extension-code-block-lowlight": "^2.27.2",
+    "@tiptap/extension-code-block-lowlight": "^3.30.3",
     "@tiptap/extension-image": "^2.11.2",
     "@tiptap/extension-link": "^2.11.2",
     "@tiptap/extension-list-item": "^2.11.2",
