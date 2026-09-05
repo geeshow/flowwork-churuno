@@ -11,6 +11,7 @@ Run:  uvicorn main:app --port 8008   (or: python main.py)
 """
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -24,6 +25,7 @@ from typing import Any, Optional
 import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -545,12 +547,51 @@ def build_collection_tree(path: Path, ignored: Optional[set] = None, rel: str = 
     return node
 
 
+# 컬렉션 트리 캐시. 지문(digest)은 경로·mtime·size만 훑어 만들므로(1만 파일
+# ~0.16s) 내용까지 읽는 전체 스캔(~0.7s)과 3MB 직렬화를 재방문마다 건너뛴다.
+# 파일 저장·이동·git 체크아웃 등 어떤 경로로 바뀌어도 mtime이 변하므로
+# 별도 무효화 훅 없이 지문 대조만으로 유효성이 판단된다.
+_collection_tree_cache: dict[str, dict] = {}
+
+
+def collection_stat_digest(path: Path, ignored: set) -> str:
+    h = hashlib.blake2b(digest_size=16)
+
+    def walk(p: str, rel: str) -> None:
+        with os.scandir(p) as entries:
+            for entry in sorted(entries, key=lambda e: e.name):
+                child_rel = f"{rel}/{entry.name}" if rel else entry.name
+                if entry.name in IGNORED_DIRS or child_rel in ignored:
+                    continue
+                if entry.is_dir():
+                    h.update(entry.path.encode())
+                    walk(entry.path, child_rel)
+                else:
+                    st = entry.stat()
+                    h.update(f"{entry.path}|{st.st_mtime_ns}|{st.st_size}".encode())
+
+    walk(str(path), "")
+    return h.hexdigest()
+
+
 @app.get("/api/fs/collection")
-def fs_collection(path: str = Query(...)):
+def fs_collection(path: str = Query(...), etag: Optional[str] = None):
     target = safe_path(path)
     if not target.is_dir():
         raise HTTPException(status_code=404, detail=f"not a directory: {path}")
-    return build_collection_tree(target)
+    ignored = collection_ignore_entries(target)
+    digest = collection_stat_digest(target, ignored)
+    if etag and etag == digest:
+        # 클라이언트가 IndexedDB에 같은 트리를 갖고 있다 — 전송 자체를 생략
+        return {"notModified": True, "etag": digest}
+    cached = _collection_tree_cache.get(str(target))
+    if cached is not None and cached["digest"] == digest:
+        return Response(content=cached["body"], media_type="application/json")
+    tree = build_collection_tree(target, ignored)
+    tree["etag"] = digest
+    body = json.dumps(tree, ensure_ascii=False).encode("utf-8")
+    _collection_tree_cache[str(target)] = {"digest": digest, "body": body}
+    return Response(content=body, media_type="application/json")
 
 
 @app.get("/api/fs/read")

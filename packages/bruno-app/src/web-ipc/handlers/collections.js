@@ -7,6 +7,7 @@ import serverApi from '../server-api';
 import webState, { registerCollection, findCollectionForPath, getStableUid } from '../state';
 import { parseFileMeta } from '../file-meta';
 import { parseRequestFiles } from '../parse-pool';
+import { readCachedTree, writeCachedTree } from '../tree-cache';
 import {
   parseRequest,
   stringifyRequest,
@@ -371,7 +372,14 @@ const mountCollection = async ({ collectionUid, collectionPathname }, { forceFul
 
   emit('main:collection-loading-state-updated', { collectionUid: entry.uid, isLoading: true });
   try {
-    const node = await serverApi.fsCollection(collectionPathname);
+    // 새로고침 재방문: IndexedDB 사본의 etag를 보내 서버가 notModified로 답하면
+    // 트리 전송·파싱을 통째로 건너뛰고 사본으로 마운트한다 (tree-cache.js 참조)
+    const cached = await readCachedTree(collectionPathname);
+    const response = await serverApi.fsCollection(collectionPathname, cached?.etag);
+    const node = response?.notModified && cached ? cached.tree : response;
+    if (!response?.notModified && response?.etag) {
+      writeCachedTree(collectionPathname, response.etag, response);
+    }
     const tree = buildMountTree(entry, node);
     const lazy = !forceFull && tree.pending.length > LAZY_PARSE_THRESHOLD;
 
