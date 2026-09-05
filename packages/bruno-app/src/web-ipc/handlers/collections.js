@@ -233,7 +233,6 @@ const buildMountTree = (collectionEntry, node) => {
   const { uid: collectionUid, format } = collectionEntry;
   const ignoredDirs = new Set(collectionEntry.brunoConfig?.ignore || []);
   const environments = [];
-  const folderRoots = [];
   const pending = [];
   let root = null;
 
@@ -305,7 +304,10 @@ const buildMountTree = (collectionEntry, node) => {
           items: walk(child, false, isTransient)
         };
         if (folderData?.meta?.seq) folder.seq = folderData.meta.seq;
-        if (folderData) folderRoots.push({ pathname: folderFile.pathname, name: folderFile.name, data: folderData });
+        // 폴더 설정(root)은 트리에 실어 collectionLoadedFromTree 한 번에 합친다 —
+        // 폴더마다 addFile을 따로 emit하면 dispatch당 트리 전체를 훑어(개당 ~30ms)
+        // 폴더 수백 개 컬렉션에서 마운트가 수 초씩 걸린다
+        if (folderData) folder.root = folderData;
         items.push(folder);
       } else if (child.type === 'file') {
         if (isRoot && child.name === (format === 'yml' ? 'opencollection.yml' : 'collection.bru')) {
@@ -328,7 +330,7 @@ const buildMountTree = (collectionEntry, node) => {
 
   const items = walk(node, true, false);
   environments.sort((a, b) => a.name.localeCompare(b.name));
-  return { collectionUid, items, environments, root, folderRoots, pending };
+  return { collectionUid, items, environments, root, pending };
 };
 
 // The store freezes what it receives, and the same item objects are updated
@@ -397,12 +399,6 @@ const mountCollection = async ({ collectionUid, collectionPathname }, { forceFul
       emit('main:collection-tree-updated', 'addFile', {
         meta: { collectionUid: entry.uid, pathname: tree.root.pathname, name: tree.root.name, collectionRoot: true },
         data: tree.root.data
-      });
-    }
-    for (const folderRoot of tree.folderRoots) {
-      emit('main:collection-tree-updated', 'addFile', {
-        meta: { collectionUid: entry.uid, pathname: folderRoot.pathname, name: folderRoot.name, folderRoot: true },
-        data: folderRoot.data
       });
     }
 

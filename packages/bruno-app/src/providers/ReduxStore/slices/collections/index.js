@@ -75,6 +75,9 @@ const mergeTreeItems = (existingItems, newItems) => {
 
     if (newItem.type === 'folder') {
       const merged = { ...existing, ...pick(newItem, FILE_DERIVED_FOLDER_FIELDS) };
+      if (newItem.root) {
+        merged.root = mergeRootWithPreservedUids(existing.root, newItem.root);
+      }
       merged.items = mergeTreeItems(existing.items, newItem.items || []);
       return merged;
     }
