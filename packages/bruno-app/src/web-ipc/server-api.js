@@ -117,6 +117,7 @@ const serverApi = {
   cloneWorkspace: (source, name) => post('/api/workspaces/clone', { source, name }),
   deleteWorkspace: (name) => request(`/api/workspaces/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   workspacePendingChanges: (name) => get(`/api/workspaces/${encodeURIComponent(name)}/pending-changes`),
+  workspaceSync: (name) => post(`/api/workspaces/${encodeURIComponent(name)}/sync`, {}),
   workspaceReleaseChanges: (name, paths) => post(`/api/workspaces/${encodeURIComponent(name)}/release-changes`, { paths }),
   workspaceRevertChanges: (name, paths) => post(`/api/workspaces/${encodeURIComponent(name)}/revert-changes`, { paths }),
   workspaceChangeDiff: (name, path) => get(`/api/workspaces/${encodeURIComponent(name)}/change-diff`, { path }),

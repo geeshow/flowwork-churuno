@@ -800,6 +800,21 @@ export const loadWorkspaceCollections = (workspaceUid, force = false) => {
   };
 };
 
+// 워크스페이스 브랜치를 원격과 git 동기화하고 컬렉션 목록을 갱신한다(웹 모드 전용).
+// 셔틀이 마운트된 컬렉션을 재마운트하고, 목록 재조회로 원격에서 새로 생긴
+// 컬렉션도 등록된다.
+export const syncWorkspaceAction = (workspaceUid) => {
+  return async (dispatch, getState) => {
+    const workspace = getState().workspaces.workspaces.find((w) => w.uid === workspaceUid);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+    const result = await ipcRenderer.invoke('renderer:sync-workspace', workspace.name, workspace.pathname);
+    await dispatch(loadWorkspaceCollections(workspaceUid, true));
+    return result;
+  };
+};
+
 export const loadUnopenableWorkspaceCollections = (workspaceUid) => {
   return async (dispatch, getState) => {
     const workspace = getState().workspaces.workspaces.find((w) => w.uid === workspaceUid);

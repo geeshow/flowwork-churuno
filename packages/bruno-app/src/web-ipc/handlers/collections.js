@@ -475,6 +475,20 @@ const registerCollectionHandlers = () => {
   handle('renderer:mount-collection', mountCollection);
   handle('renderer:mount-collection-v2', mountCollection);
 
+  // 워크스페이스 브랜치를 원격과 동기화하고, 그 아래 마운트된 컬렉션을 다시
+  // 마운트해 사이드바 목록을 갱신한다 (변경이 없으면 etag 캐시로 값싸게 끝난다).
+  handle('renderer:sync-workspace', async (workspaceName, workspacePath) => {
+    const result = await serverApi.workspaceSync(workspaceName);
+    const prefix = `${workspacePath}/`;
+    const entries = [...webState.collections.values()].filter(
+      (entry) => entry.pathname === workspacePath || entry.pathname.startsWith(prefix)
+    );
+    for (const entry of entries) {
+      await mountCollection({ collectionUid: entry.uid, collectionPathname: entry.pathname });
+    }
+    return result;
+  });
+
   handle('renderer:update-bruno-config', async (brunoConfig, collectionPathname) => {
     await writeBrunoConfig(requireCollection(collectionPathname), brunoConfig);
   });

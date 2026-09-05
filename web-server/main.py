@@ -436,6 +436,42 @@ def delete_workspace(name: str):
     return {"status": "deleted", "branch": branch}
 
 
+@app.post("/api/workspaces/{name}/sync")
+def sync_workspace(name: str):
+    """원격 브랜치를 당겨와 워크스페이스를 동기화한다.
+
+    로컬 auto-commit이 원격보다 앞서 있을 수 있으므로 merge 대신 rebase로
+    원격 위에 얹는다 — 로컬 커밋이 없으면 fast-forward와 동일하다. 충돌이
+    나면 rebase를 되돌리고 409로 알린다.
+    """
+    workspace = next((w for w in WORKSPACES if w["name"] == name), None)
+    if not workspace:
+        raise HTTPException(status_code=404, detail=f"workspace not found: {name}")
+    cwd = Path(workspace["pathname"])
+    branch = workspace["branch"]
+
+    # 저장 직후 sync해도 미커밋 변경이 rebase를 막지 않도록 예약된 커밋을 지금 실행
+    _flush_workspace_commit(workspace)
+
+    fetch = run_git(["fetch", "origin", branch], cwd)
+    if fetch.returncode != 0:
+        raise HTTPException(status_code=502, detail=f"git fetch 실패: {fetch.stderr.strip()[:300]}")
+
+    before = run_git(["rev-parse", "HEAD"], cwd).stdout.strip()
+    rebase = run_git(["rebase", f"origin/{branch}"], cwd)
+    if rebase.returncode != 0:
+        run_git(["rebase", "--abort"], cwd)
+        raise HTTPException(
+            status_code=409,
+            detail=f"원격 변경과 충돌해 동기화하지 못했습니다: {(rebase.stderr or rebase.stdout).strip()[:300]}",
+        )
+    after = run_git(["rev-parse", "HEAD"], cwd).stdout.strip()
+
+    if after != before:
+        invalidate_digest_cache()
+    return {"branch": branch, "updated": after != before}
+
+
 def collection_record(directory: Path) -> Optional[dict]:
     for config_name, fmt in (("bruno.json", "bru"), ("opencollection.yml", "yml")):
         config_path = directory / config_name

@@ -7,6 +7,7 @@ import {
   IconDotsVertical,
   IconDownload,
   IconPlus,
+  IconRefresh,
   IconSortAscendingLetters,
   IconSortDescendingLetters,
   IconSquareX,
@@ -16,6 +17,8 @@ import {
 import { importCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { sortCollections } from 'providers/ReduxStore/slices/collections/index';
 import { savePreferences, setIsCreatingCollection } from 'providers/ReduxStore/slices/app';
+import { syncWorkspaceAction } from 'providers/ReduxStore/slices/workspaces/actions';
+import { isWebMode } from 'utils/common/platform';
 import { normalizePath } from 'utils/common/path';
 import { isScratchCollection, flattenItems, isItemTransientRequest } from 'utils/collections';
 import { sanitizeName } from 'utils/common/regex';
@@ -243,6 +246,14 @@ const CollectionsSection = () => {
     }
   ];
 
+  const handleGitSync = () => {
+    toast.promise(dispatch(syncWorkspaceAction(activeWorkspaceUid)), {
+      loading: 'Git 동기화 중...',
+      success: (result) => (result?.updated ? '원격 변경을 가져와 목록을 갱신했습니다' : '이미 최신 상태입니다'),
+      error: (error) => error?.message || 'Git 동기화에 실패했습니다'
+    });
+  };
+
   const actionsDropdownItems = [
     {
       id: 'sort',
@@ -264,6 +275,16 @@ const CollectionsSection = () => {
 
   const sectionActions = (
     <>
+      {/* git 동기화는 워크스페이스=브랜치인 웹 모드에서만 의미가 있다 */}
+      {isWebMode() && (
+        <ActionIcon
+          onClick={handleGitSync}
+          label="Git Sync"
+        >
+          <IconRefresh size={14} stroke={1.5} aria-hidden="true" />
+        </ActionIcon>
+      )}
+
       <MenuDropdown
         data-testid="collections-header-add-menu"
         items={addDropdownItems}
