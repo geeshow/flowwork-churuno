@@ -4,7 +4,7 @@ import StyledWrapper from './StyledWrapper';
 
 import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { updateLeftSidebarWidth, updateIsDragging, toggleSidebarSearch } from 'providers/ReduxStore/slices/app';
+import { updateLeftSidebarWidth, updateIsDragging } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_WIDTH_KEY } from 'utils/common/localStorage';
 import CollectionsSection from './Sections/CollectionsSection/index';
 import ApiSpecsSection from './Sections/ApiSpecsSection/index';
@@ -42,7 +42,7 @@ const Sidebar = () => {
   useKeybinding('sidebarSearch', (e) => {
     const target = e?.target || document.activeElement;
     if (target?.closest?.('.CodeMirror')) return; // let editor's native `Find` handle it
-    dispatch(toggleSidebarSearch());
+    document.querySelector('[data-testid="sidebar-search-input"]')?.focus();
     return false;
   });
 

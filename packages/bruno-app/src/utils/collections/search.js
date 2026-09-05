@@ -2,8 +2,9 @@ import { flattenItems, isItemARequest } from './index';
 import filter from 'lodash/filter';
 import find from 'lodash/find';
 
-export const doesRequestMatchSearchText = (request, searchText = '') => {
-  return request?.name?.toLowerCase().includes(searchText.toLowerCase());
+export const doesRequestMatchSearchText = (item, searchText = '') => {
+  const text = searchText.toLowerCase();
+  return item?.name?.toLowerCase().includes(text) || item?.request?.url?.toLowerCase().includes(text);
 };
 
 export const doesFolderHaveItemsMatchSearchText = (item, searchText = '') => {

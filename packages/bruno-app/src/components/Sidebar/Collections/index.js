@@ -19,7 +19,7 @@ const getSidebarEntryName = (entry) => {
   return entry.entry?.name || path.basename(entry.entry?.path || '');
 };
 
-const Collections = ({ showSearch, isCreatingCollection, onCreateClick, onDismissCreate, onOpenAdvancedCreate }) => {
+const Collections = ({ isCreatingCollection, onCreateClick, onDismissCreate, onOpenAdvancedCreate }) => {
   const [searchText, setSearchText] = useState('');
   const { collections, collectionSortOrder } = useSelector((state) => state.collections);
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
@@ -78,9 +78,7 @@ const Collections = ({ showSearch, isCreatingCollection, onCreateClick, onDismis
 
   return (
     <StyledWrapper data-testid="collections">
-      {showSearch && (
-        <CollectionSearch searchText={searchText} setSearchText={setSearchText} />
-      )}
+      <CollectionSearch searchText={searchText} setSearchText={setSearchText} />
 
       <div className="collections-list">
         {isCreatingCollection && (

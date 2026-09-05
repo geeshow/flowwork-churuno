@@ -27,7 +27,6 @@ const initialState = {
   },
   leftSidebarWidth: null,
   sidebarCollapsed: null,
-  showSidebarSearch: false,
   focusedSidebarPath: null,
   screenWidth: 500,
   activeApp: 'bruno',
@@ -246,9 +245,6 @@ export const appSlice = createSlice({
     toggleSidebarCollapse: (state) => {
       state.sidebarCollapsed = !state.sidebarCollapsed;
     },
-    toggleSidebarSearch: (state) => {
-      state.showSidebarSearch = !state.showSidebarSearch;
-    },
     setFocusedSidebarPath: (state, action) => {
       state.focusedSidebarPath = action.payload;
     },
@@ -323,7 +319,6 @@ export const {
   removeAllTasksFromQueue,
   updateGenerateCode,
   toggleSidebarCollapse,
-  toggleSidebarSearch,
   setFocusedSidebarPath,
   updateGitOperationProgress,
   removeGitOperationProgress,

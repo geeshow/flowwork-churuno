@@ -7,7 +7,6 @@ import {
   IconDotsVertical,
   IconDownload,
   IconPlus,
-  IconSearch,
   IconSortAscendingLetters,
   IconSortDescendingLetters,
   IconSquareX,
@@ -16,7 +15,7 @@ import {
 
 import { importCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { sortCollections } from 'providers/ReduxStore/slices/collections/index';
-import { savePreferences, setIsCreatingCollection, toggleSidebarSearch } from 'providers/ReduxStore/slices/app';
+import { savePreferences, setIsCreatingCollection } from 'providers/ReduxStore/slices/app';
 import { normalizePath } from 'utils/common/path';
 import { isScratchCollection, flattenItems, isItemTransientRequest } from 'utils/collections';
 import { sanitizeName } from 'utils/common/regex';
@@ -39,7 +38,6 @@ import useKeybinding from 'hooks/useKeybinding';
 
 const CollectionsSection = () => {
   const dispatch = useDispatch();
-  const showSearch = useSelector((state) => state.app.showSidebarSearch);
 
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
@@ -125,10 +123,6 @@ const CollectionsSection = () => {
   const handleCloseGitModal = () => {
     setShowCloneGitModal(false);
     setGitRepositoryUrl(null);
-  };
-
-  const handleToggleSearch = () => {
-    dispatch(toggleSidebarSearch());
   };
 
   const handleSortCollections = () => {
@@ -270,13 +264,6 @@ const CollectionsSection = () => {
 
   const sectionActions = (
     <>
-      <ActionIcon
-        onClick={handleToggleSearch}
-        label="Search requests"
-      >
-        <IconSearch size={14} stroke={1.5} aria-hidden="true" />
-      </ActionIcon>
-
       <MenuDropdown
         data-testid="collections-header-add-menu"
         items={addDropdownItems}
@@ -381,7 +368,6 @@ const CollectionsSection = () => {
         actions={sectionActions}
       >
         <Collections
-          showSearch={showSearch}
           isCreatingCollection={isCreatingCollection}
           onCreateClick={() => dispatch(setIsCreatingCollection(true))}
           onDismissCreate={() => dispatch(setIsCreatingCollection(false))}
