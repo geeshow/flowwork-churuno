@@ -229,12 +229,23 @@ const LAZY_PARSE_THRESHOLD = 1000;
 // 메서드·URL)로 충분하다. raw 내용은 셔틀 캐시에 남겨 탭을 열 때 그 파일만
 // 즉석 파싱하고(RequestNotLoaded가 자동 로드), 러너처럼 전체 본문이 필요한
 // 경로는 renderer:ensure-collection-loaded로 그때 전량 하이드레이션한다.
-const buildMountTree = (collectionEntry, node) => {
+// 메타 패스도 파일당 정규식 몇 번씩은 돈다 — 수천 개를 한 태스크로 돌리면
+// 메인 스레드가 수백 ms 단위로 멈추므로, parse-pool처럼 배치마다 양보한다.
+const META_PASS_BATCH_SIZE = 250;
+
+const buildMountTree = async (collectionEntry, node) => {
   const { uid: collectionUid, format } = collectionEntry;
   const ignoredDirs = new Set(collectionEntry.brunoConfig?.ignore || []);
   const environments = [];
   const pending = [];
   let root = null;
+  let processed = 0;
+
+  const maybeYield = async () => {
+    if (++processed % META_PASS_BATCH_SIZE === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  };
 
   const requestItem = (child, isTransient) => {
     const fileFormat = formatForFile(child.name);
@@ -261,7 +272,7 @@ const buildMountTree = (collectionEntry, node) => {
     return item;
   };
 
-  const walk = (dirNode, isRoot, isTransient) => {
+  const walk = async (dirNode, isRoot, isTransient) => {
     const items = [];
     for (const child of dirNode.children || []) {
       if (child.type === 'dir') {
@@ -269,7 +280,7 @@ const buildMountTree = (collectionEntry, node) => {
         if (child.name.startsWith('.')) {
           // <collection>/.transient holds unsaved requests that must survive a reload
           if (isRoot && child.name === '.transient') {
-            items.push(...walk(child, false, true));
+            items.push(...(await walk(child, false, true)));
           }
           continue;
         }
@@ -301,7 +312,7 @@ const buildMountTree = (collectionEntry, node) => {
           type: 'folder',
           collapsed: true,
           isTransient,
-          items: walk(child, false, isTransient)
+          items: await walk(child, false, isTransient)
         };
         if (folderData?.meta?.seq) folder.seq = folderData.meta.seq;
         // 폴더 설정(root)은 트리에 실어 collectionLoadedFromTree 한 번에 합친다 —
@@ -322,13 +333,14 @@ const buildMountTree = (collectionEntry, node) => {
         }
         if (isParseableFile(child.name) && !ROOT_FILES.has(child.name)) {
           items.push(requestItem(child, isTransient));
+          await maybeYield();
         }
       }
     }
     return items;
   };
 
-  const items = walk(node, true, false);
+  const items = await walk(node, true, false);
   environments.sort((a, b) => a.name.localeCompare(b.name));
   return { collectionUid, items, environments, root, pending };
 };
@@ -382,7 +394,7 @@ const mountCollection = async ({ collectionUid, collectionPathname }, { forceFul
     if (!response?.notModified && response?.etag) {
       writeCachedTree(collectionPathname, response.etag, response);
     }
-    const tree = buildMountTree(entry, node);
+    const tree = await buildMountTree(entry, node);
     const lazy = !forceFull && tree.pending.length > LAZY_PARSE_THRESHOLD;
 
     if (lazy) {

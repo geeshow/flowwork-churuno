@@ -216,6 +216,7 @@ def _commit_worktree(workspace: dict):
 
 
 def schedule_commit(path: Path):
+    invalidate_digest_cache()
     workspace = find_worktree(path)
     if not workspace:
         return
@@ -553,8 +554,21 @@ def build_collection_tree(path: Path, ignored: Optional[set] = None, rel: str = 
 # 별도 무효화 훅 없이 지문 대조만으로 유효성이 판단된다.
 _collection_tree_cache: dict[str, dict] = {}
 
+# 지문 계산 자체도 파일 수에 비례하는 stat 전수 스캔이라, 워크스페이스 여러 개가
+# 한 번의 새로고침에 같이 마운트되면 그만큼 겹쳐 돈다. 서버를 거치지 않은 외부
+# 변경은 TTL 안에서만 놓치고, 서버 경유 쓰기는 즉시 무효화한다.
+_DIGEST_TTL_SECONDS = 2.0
+_digest_cache: dict[str, tuple[str, float]] = {}
+
+
+def invalidate_digest_cache():
+    _digest_cache.clear()
+
 
 def collection_stat_digest(path: Path, ignored: set) -> str:
+    cached = _digest_cache.get(str(path))
+    if cached is not None and time.monotonic() - cached[1] < _DIGEST_TTL_SECONDS:
+        return cached[0]
     h = hashlib.blake2b(digest_size=16)
 
     def walk(p: str, rel: str) -> None:
@@ -571,7 +585,9 @@ def collection_stat_digest(path: Path, ignored: set) -> str:
                     h.update(f"{entry.path}|{st.st_mtime_ns}|{st.st_size}".encode())
 
     walk(str(path), "")
-    return h.hexdigest()
+    digest = h.hexdigest()
+    _digest_cache[str(path)] = (digest, time.monotonic())
+    return digest
 
 
 @app.get("/api/fs/collection")
@@ -643,7 +659,9 @@ def fs_write(body: WriteBody):
 @app.post("/api/fs/mkdir")
 def fs_mkdir(body: PathBody):
     target = safe_path(body.path)
-    target.mkdir(parents=True, exist_ok=True)
+    if not target.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+        invalidate_digest_cache()
     return {"pathname": str(target)}
 
 
