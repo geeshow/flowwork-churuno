@@ -15,7 +15,7 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-typescript": "^12.3.0",
+    "@rollup/plugin-typescript": "^12.3.1",
     "@types/markdown-it": "^12.2.3",
     "@types/react": "^18.0.25",
     "graphql": "^16.6.0",
@@ -23,11 +23,11 @@
     "postcss": "8.4.47",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "rollup":"4.62.4",
+    "rollup":"4.65.1",
     "rollup-plugin-dts": "^6.5.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-postcss": "^4.0.2",
-    "@rollup/plugin-terser": "^1.0.0",
+    "@rollup/plugin-terser": "^1.0.2",
     "typescript": "^4.8.4"
   },
   "peerDependencies": {

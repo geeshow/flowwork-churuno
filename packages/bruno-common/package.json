@@ -45,19 +45,19 @@
     "@jest/globals": "^30.4.1",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-terser": "^1.0.0",
-    "@rollup/plugin-typescript": "^12.3.0",
+    "@rollup/plugin-terser": "^1.0.2",
+    "@rollup/plugin-typescript": "^12.3.1",
     "@types/jest": "^30.0.0",
     "babel-jest": "^30.4.1",
     "form-data": "4.0.4",
     "is-ip": "^5.0.1",
     "moment": "^2.29.4",
-    "rollup": "4.62.4",
+    "rollup": "4.65.1",
     "rollup-plugin-dts": "^6.5.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "typescript": "^5.8.3"
   },
   "overrides": {
-    "rollup": "4.62.4"
+    "rollup": "4.65.1"
   }
 }
